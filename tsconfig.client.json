@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/client.tsx",
+    "src/overview.tsx",
+    "src/diagnostics-types.ts",
+    "src/styles.d.ts",
+    "src/inspector-view.tsx"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "harnessVersion": "0.1.7-rc.2",
+  "sourceSha": "e3409377ac873963595b76c0eb9afd8a8aa241af",
+  "sources": [
+    {
+      "path": "packages/bundle/web-app/presets/standard.patch.yml",
+      "sha256": "6cd2f197737fc94a45e487d0bb57869461dd6f392d45f6429b576e75d973eda8",
+      "replacedBackends": 1
+    },
+    {
+      "path": "packages/bundle/web-app/presets/ptc.patch.yml",
+      "sha256": "8fcf6b04dce7c2c76fab925129f6ac9b05ebb546840508e6cde72aa2da991832",
+      "replacedBackends": 1
+    },
+    {
+      "path": "packages/bundle/web-app/presets/cordis.patch.yml",
+      "sha256": "b74d71901b692f11111d02d20072735b2fe94b74744ee7e3bfdc5d972f1a3aa5",
+      "replacedBackends": 1
+    }
+  ],
+  "customPresets": "Replace the compaction-basic provider with dsh-context-manager/engine explicitly. Saved preset overrides take precedence."
+}

@@ -1,0 +1,19 @@
+node_modules/
+lib/
+*.tgz
+verification/profile/
+verification/*.log
+
+# Local development and validation state
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+*.tgz.sha256
+dist/
+preview/
+releases/
+verification/*
+!verification/RESULTS*.md
+!verification/RESULTS*.json
