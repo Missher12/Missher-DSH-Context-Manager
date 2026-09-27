@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -29,7 +30,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 type Values = { policy: Policy }
-export const inject = ['slots', 'configForms', 'sessions', 'remote']
+export const inject = ['slots', 'configForms', 'sessions', 'remote', 'remote.session', 'modelDirectories']
 
 // Page styles are mounted after the module factory. Explicit ownership keeps
 // another plugin's later materialization from claiming and removing them.
@@ -38,13 +39,11 @@ const STYLE_OWNER = 'dsh-context-manager'
 /** Native conversation tab plus a separate parameter-only settings section. */
 export async function apply(ctx: Context) {
   const form = ctx.configForms.get<Values>('context-manager')
-  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-    name: 'conversation.composer.dock', id: 'context-manager-period', order: 100,
-    inject: (sessionId: SessionId): PeakIndicatorProps => {
-      const session = ctx.sessions.binding(sessionId)?.session
-      if (!session) throw new Error('上下文管理：当前会话尚未就绪。')
-      return { selection: session.projections.faceOf('modelSelection') }
-    },
+  ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
+    name: 'conversation.input.right', id: 'context-manager-period', order: 100,
+    inject: (sessionId: SessionId): PeakIndicatorProps => ({
+      directory: ctx.modelDirectories.directoryFor(sessionId).store,
+    }),
   }, PeakIndicator))
   ctx.effect(() => ctx.configForms.whileServed(['context-manager'], () => ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section', id: 'context-manager', order: 65, label: '上下文管理', inject: () => ({ form }),

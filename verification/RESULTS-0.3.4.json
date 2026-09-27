@@ -1,0 +1,78 @@
+{
+  "version": "0.3.4",
+  "verifiedAt": "2026-09-28",
+  "sha256": "1d272a516508184a5fba5623a588e6b5328752145d07c2621dc3cfd4d2359633",
+  "build": true,
+  "hostAndClientTypecheck": true,
+  "focusedTests": {
+    "total": 10,
+    "passed": 10
+  },
+  "nativeDirectoryInstall": true,
+  "nativeColdActivation": {
+    "version": "0.3.4",
+    "node": "24.18.1",
+    "entries": [
+      {
+        "entryId": "include:context-manager",
+        "moduleName": "dsh-context-manager",
+        "enabled": true,
+        "fiberPhase": "active",
+        "patchId": "context-manager"
+      },
+      {
+        "entryId": "include:context-manager-engine",
+        "moduleName": "dsh-context-manager/engine",
+        "enabled": true,
+        "fiberPhase": "active",
+        "patchId": "context-manager-engine"
+      },
+      {
+        "entryId": "include:context-manager-inspector",
+        "moduleName": "dsh-context-manager/inspector",
+        "enabled": true,
+        "fiberPhase": "active",
+        "patchId": "context-manager-inspector"
+      }
+    ]
+  },
+  "nativeWebUI": {
+    "blankDefaultOfficial": {
+      "model": "选择模型，当前 DeepSeek-V4-Pro，推理等级 High",
+      "periodBadgeCount": 1,
+      "contextMeterCount": 0,
+      "errors": []
+    },
+    "switchedNonofficial": {
+      "model": "选择模型，当前 离线验证模型",
+      "periodBadgeCount": 0
+    },
+    "switchedOfficial": {
+      "model": "选择模型，当前 DeepSeek-V4-Pro，推理等级 High",
+      "periodBadgeCount": 1,
+      "contextMeterCount": 0,
+      "errors": []
+    },
+    "modelCalls": 0
+  },
+  "nativeElectronWindow": "Not exercised; actual installed ASAR with isolated profile served to tool browser",
+  "backendIdenticalTo033": [
+    "lib/diagnostics.js",
+    "lib/engine.js",
+    "lib/index.js",
+    "lib/inspector-fold.js",
+    "lib/inspector.js",
+    "lib/policy.js",
+    "lib/typert.js"
+  ],
+  "oldArtifactsVerified": [
+    "0.2.1",
+    "0.3.0",
+    "0.3.1",
+    "0.3.3"
+  ],
+  "dailyInstalledDependency": "link:/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/releases/dsh-context-manager-0.3.3",
+  "dailyProfileModified": false,
+  "preview": "http://127.0.0.1:60334/",
+  "firstCandidateFailure": "Missing remote.session caller injection; preserved under verification/first-candidate-0.3.4; fixed before delivery"
+}

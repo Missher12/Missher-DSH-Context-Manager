@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ModelSelectionProjection } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { beijingTime, isOfficialDeepSeek, nextPeriodChange, periodAt, PRICING_URL, RULE_CHECKED } from './deepseek-period.ts'
 import css from './peak-indicator.css'
 
 export interface PeakIndicatorProps {
-  selection: { subscribe(callback: () => void): () => void; getSnapshot(): unknown }
+  directory: { subscribe(callback: () => void): () => void; getSnapshot(): Pick<ModelDirectoryState, 'current'> }
 }
 
-/** Read the same next-request selection as the native model picker. No RPCs. */
-export function PeakIndicator({ selection }: PeakIndicatorProps) {
-  const model = useSyncExternalStore(callback => selection.subscribe(callback), () => selection.getSnapshot()) as ModelSelectionProjection | undefined
-  return isOfficialDeepSeek(model?.next) ? <PeriodClock/> : null
+/** Share the native model picker's accepted selection, including a new
+ * Session's default before any request or context-usage projection exists.
+ * Pending/failed switches follow the picker's current value. No extra RPCs.
+ */
+export function PeakIndicator({ directory }: PeakIndicatorProps) {
+  const model = useSyncExternalStore(callback => directory.subscribe(callback), () => directory.getSnapshot())
+  return isOfficialDeepSeek(model.current) ? <PeriodClock/> : null
 }
 
 function PeriodClock() {

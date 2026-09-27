@@ -1,6 +1,8 @@
 # 上下文管理插件
 
-- **当前版本 0.3.3**：根 src/lib/package 已归并为最新权威入口，阶段副本 `verification/work-0.3.3/` 保留。安装选 `releases/dsh-context-manager-0.3.3/`；32 项测试、host/client 类型检查、包边界和桌面 ASAR 隔离 Web 验证通过。默认 3 个指标、3 类组成、2 条压缩记录，其余同页按需展开；上下文页隐藏当前发送区，退出恢复草稿。输入区百分比后追加 DeepSeek 官方峰谷提示，按北京时间与 2026 年官方假期计算；新年份未核验时明确待核对。结果见 `verification/RESULTS-0.3.3.md` / `.json`。当前预览 60334，原浏览器 58550 标签页已导航至新预览。用户日常安装仍为独立 0.3.1，本轮没有改日常 profile 或重启日常应用。以下旧状态按时间保留。
+- **当前版本 0.3.4（2026-09-28）**：根 src/lib/package 为权威源码，安装选 `releases/dsh-context-manager-0.3.4/`。用户明确峰谷提示仅跟随是否选择官方模型，和上下文百分比无关。提示移到模型旁 `conversation.input.right`，共享原生模型目录的已接受选择（含新会话默认值），不用发送消息或等待用量数据；非官方模型隐藏。10 项相关测试、host/client 类型检查、14 文件包边界审计、真实桌面 ASAR 隔离目录安装及三个组件 active 均通过。全新浏览器页验证空白会话显示、非官方隐藏、切回官方立即显示，浏览器 error 日志为 0；未发送消息或调用模型。冷启动发现并修复 `remote.session` 调用者依赖漏声明，首个候选及失败日志保存在 `verification/first-candidate-0.3.4/`。7 个后台 lib 文件与 0.3.3 完全相同。结果见 `verification/RESULTS-0.3.4.md` / `.json`，预览 60334。现查日常安装为独立 0.3.3，未改日常 profile 或重启应用；原生 Electron 窗口未点击验收。以下旧状态按时间保留。
+
+- **历史版本 0.3.3**：根 src/lib/package 曾归并为最新权威入口，阶段副本 `verification/work-0.3.3/` 保留。安装选 `releases/dsh-context-manager-0.3.3/`；32 项测试、host/client 类型检查、包边界和桌面 ASAR 隔离 Web 验证通过。默认 3 个指标、3 类组成、2 条压缩记录，其余同页按需展开；上下文页隐藏当前发送区，退出恢复草稿。当时在输入区百分比后追加 DeepSeek 官方峰谷提示，0.3.4 已按用户纠正移到模型旁。时段按北京时间与 2026 年官方假期计算；新年份未核验时明确待核对。结果见 `verification/RESULTS-0.3.3.md` / `.json`。
 
 - 2026-09-27 17:38 最新现场：用户已安装 `releases/dsh-context-manager-0.3.1/`。再次报告 inspector 失败时旧后端 PID 99904 仍从 16:51 运行；用户随后说“你来解决”授权处理。执行时旧桌面进程已退出，已通过 LaunchServices 启动实际应用，新主进程 8237、新后端 8274。对实际日常 profile 包解析表执行只读导入检查，主模块、engine、inspector、typert 全通过；profile 文件未改。见 `verification/daily-restart-result-0.3.1.json` / `daily-cold-import-0.3.1.json`。工具未开放原生应用控制，实际后端页面在工具浏览器被阻止，未尝试绕过。驻留组件 active 状态及原生窗口点击尚未验证，不能写成已通过。后续先现查新进程和状态，不再重复归因旧 PID 或要求重新安装。
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-manager",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Pre-request compaction and native per-session context inspector for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,8 @@
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-api-remotes"
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-model-selection"
       ]
     }
   },
@@ -93,6 +94,7 @@
     "@deepseek-ai/dsh-api-remotes": "0.1.7-rc.2",
     "@deepseek-ai/dsh-session-query": "0.1.7-rc.2",
     "@deepseek-ai/dsh-typert-protocol": "0.1.7-rc.2",
-    "@deepseek-ai/dsh-client-store": "0.1.7-rc.2"
+    "@deepseek-ai/dsh-client-store": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-model-selection": "0.1.7-rc.2"
   }
 }

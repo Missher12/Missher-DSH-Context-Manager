@@ -65,39 +65,46 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'u
 
 test('client registers the native conversation tab after trajectory and binds its actual Session', async () => {
   const slots = []
-  const bindings = []; const pulse = {}; const selection = {}; const disposers = []
+  const bindings = []; const directories = []; const pulse = {}; const directory = {}; const disposers = []
   const ctx = { configForms: { get: () => ({}), whileServed: (_ns, callback) => callback() },
     remote: { $mount: async () => () => {}, contextInspector: {} },
-    sessions: { binding: id => { bindings.push(id); return { session: { projections: { faceOf: key => { assert.ok(['contextPressure', 'modelSelection'].includes(key)); return key === 'contextPressure' ? pulse : selection } } } } } },
+    sessions: { binding: id => { bindings.push(id); return { session: { projections: { faceOf: key => { assert.equal(key, 'contextPressure'); return pulse } } } } } },
+    modelDirectories: { directoryFor: id => { directories.push(id); return { store: directory } } },
     slots: { inject: (_slot, callback) => callback(), register: options => { slots.push(options); return () => {} } },
     effect: callback => { disposers.push(callback()) }, inject: (_keys, callback) => callback(ctx) }
   await client.apply(ctx)
-  assert.deepEqual(slots.map(slot => slot.name), ['conversation.composer.dock', 'settings.section', 'conversation.view'])
+  assert.deepEqual(slots.map(slot => slot.name), ['conversation.input.right', 'settings.section', 'conversation.view'])
   assert.equal(slots[2].order, 20); assert.equal(slots[2].label, '上下文')
   const injected = slots[2].inject('visible-session')
   assert.equal(injected.target, 'visible-session'); assert.equal(injected.pulse, pulse)
   assert.deepEqual(bindings, ['visible-session'])
-  assert.equal(slots[0].inject('visible-session').selection, selection)
+  assert.equal(slots[0].inject('visible-session').directory, directory)
+  assert.deepEqual(directories, ['visible-session'])
   for (const dispose of disposers) dispose?.()
 })
 
-test('tariff indicator follows the next selected official model and removes itself on another route', async () => {
+test('tariff indicator shares the picker default without history or usage and follows accepted model switches', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const listeners = new Set()
-  let snapshot = { next: null, lastUsed: null }
-  const selection = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot }
+  let snapshot = { current: { provider: 'deepseek-official', model: 'deepseek-flash' }, pending: null }
+  const directory = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot }
   const root = createRoot(document.getElementById('root'))
-  const select = async next => act(async () => { snapshot = { lastUsed: { provider: 'deepseek-official', model: 'deepseek-v4-pro' }, next }; listeners.forEach(cb => cb()) })
+  const publish = async patch => act(async () => { snapshot = { ...snapshot, ...patch }; listeners.forEach(cb => cb()) })
+  const select = current => publish({ current, pending: null })
   try {
-    await act(async () => root.render(React.createElement(client.PeakIndicator, { selection })))
-    assert.equal(document.querySelector('.cmi-peak'), null)
-    await select({ provider: 'deepseek-official', model: 'deepseek-flash' })
-    assert.ok(document.querySelector('[aria-label^="DeepSeek 官方计费"]'))
+    await act(async () => root.render(React.createElement(client.PeakIndicator, { directory })))
+    assert.ok(document.querySelector('[aria-label^="DeepSeek 官方计费"]'), 'fresh default official model displays before first request or usage reading')
     assert.equal(document.querySelector('.cmi-peak a').href, 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/')
     assert.equal(document.querySelector('.cmi-peak style').dataset.plugin, 'dsh-context-manager')
+    await publish({ pending: { provider: 'third-party', model: 'deepseek-flash' } })
+    assert.ok(document.querySelector('.cmi-peak'), 'pending switch keeps the currently displayed model')
+    await publish({ pending: null, error: 'selection failed' })
+    assert.ok(document.querySelector('.cmi-peak'), 'failed switch keeps the accepted selection')
     await select({ provider: 'third-party', model: 'deepseek-flash' })
     assert.equal(document.querySelector('.cmi-peak'), null, 'same model name on third-party route is not official')
+    await publish({ pending: { provider: 'deepseek-account', model: 'deepseek-v4-pro' } })
+    assert.equal(document.querySelector('.cmi-peak'), null, 'unconfirmed official selection does not claim success')
     await select({ provider: 'deepseek-account', model: 'deepseek-v4-pro' })
     assert.ok(document.querySelector('.cmi-peak'))
     await select(null); assert.equal(document.querySelector('.cmi-peak'), null)

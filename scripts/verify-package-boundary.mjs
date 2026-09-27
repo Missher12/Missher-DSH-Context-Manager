@@ -26,7 +26,8 @@ for (const hook of ['preinstall', 'install', 'postinstall', 'preuninstall', 'uni
   assert.equal(manifest.scripts?.[hook], undefined, `No lifecycle hook may patch other plugin files: ${hook}`)
 }
 assert.deepEqual(manifest.dsh.client.inject, ['@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-api-session-controller',
-  ...(inspector ? ['@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-api-remotes'] : [])])
+  ...(inspector ? ['@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-api-remotes'] : []),
+  ...(manifest.devDependencies?.['@deepseek-ai/dsh-client-ui-model-selection'] ? ['@deepseek-ai/dsh-client-ui-model-selection'] : [])])
 const overlayText = read('cordis.patch.yml')
 const overlay = load(overlayText)
 const ownedTargets = new Set(['compaction-basic', 'preset-standard', 'preset-ptc', 'preset-cordis', 'preset-minimal'])
