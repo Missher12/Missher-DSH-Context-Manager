@@ -1,3 +1,5 @@
+> **源码已迁移 / Source moved:** [dsh-context-manager](https://github.com/Missher12/Deepseek-harness-Cordis/tree/main/plugins/dsh-context-manager)。后续开发在统一仓库维护。本仓库保留旧提交与下载记录，并只读归档。
+
 # 上下文管理 · 0.3.4 本地验证版
 
 面向 **DeepSeek Harness 0.1.7-rc.2** 的独立 Bundle。在会话原有的 **对话 / 轨迹** 后增加 **上下文** 页签；**设置 → 上下文管理** 只放压缩参数。源码参考目标与预设文件摘要见 `COMPATIBILITY.json`。
