@@ -5,7 +5,39 @@ kind: "package-bundle"
 
 # DSH 上下文管理
 
-独立维护入口：[Missher12/Missher-DSH-Context-Manager](https://github.com/Missher12/Missher-DSH-Context-Manager)。当前版本 `0.7.0-local.1`；[宿主与插件导航](https://github.com/Missher12/Missher-DSH-Inter)。
+[← 桌面端与安装包](https://github.com/Missher12/Missher-DeepseekHarness-Desktop) · [全部插件](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/plugins/README.zh.md) · [通用安装指南](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/docs/cookbook/install-cordis-plugins.zh.md)
+
+## 新手上手：上下文管理
+
+查看当前会话给模型发送了什么、用了多少上下文，并在接近容量上限时整理历史。
+
+| 你需要知道的事 | 说明 |
+| --- | --- |
+| 插件包名 | `@missher/dsh-context-manager` |
+| 当前源码版本 | `0.7.0-local.1` |
+| 装好后在哪里使用 | 会话顶部 → 上下文；设置 → 上下文管理 |
+| 下载 / 源码 | [下载 0.7.0-local.1 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.7.0-local.1) |
+
+### 安装、启用与第一次使用
+
+1. 先从[桌面端主页](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)下载适合电脑的应用，完成模型配置。这个仓库是可选插件，不是独立桌面应用。
+2. 阅读[通用安装指南](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/docs/cookbook/install-cordis-plugins.zh.md)及本页原有安装说明，核对宿主与插件版本。桌面版使用“插件 → 添加插件”；Web/CLI 使用自己的目标配置组，不混用两种安装位置。
+3. 安装后按宿主提示启用并重新加载，进入上表列出的入口。更新已有插件前保留配置和数据，不同时启用旧包名与新包名。
+4. 打开已有会话的“上下文”，检查组成、内容正文和压缩记录。没有调用模型时，部分指标可能没有数据。
+
+### 使用前了解这些边界
+
+它管理单个会话的容量与压缩；查看所有会话的总用量，请使用“使用统计”。
+
+如果页面或功能没出现，先检查当前应用版本、插件是否启用以及加载错误。反馈时附版本、复现步骤和已脱敏错误；不要上传 API Key、真实会话、账号 Cookie 或学习数据库。Git 中的代码更新不会自动替换电脑上已安装的插件。
+
+### 继续阅读
+
+下文保留本插件的详细行为、配置、开发和验证说明。跨平台是否实际通过，以对应版本的验证记录为准；桌面安装包能启动，不代表全部插件和外部服务都已验收。
+
+---
+
+独立维护入口：[Missher12/Missher-DSH-Context-Manager](https://github.com/Missher12/Missher-DSH-Context-Manager)。当前版本 `0.7.0-local.1`；[宿主与插件导航](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)。
 
 ## 摘要
 
@@ -29,7 +61,7 @@ DSH 当前包名：`@missher/dsh-context-manager`。2026-09-29 统一命名；�
 
 上下文页采用选定的 C 版紧凑单面板布局：顶部展示当前组成与请求指标，中间并排展示“占用变化 / 压缩前后 / 本会话累计”，底部是“当前有效内容”的列表与正文。占用变化采用柱状图，累计用量采用分类条和缓存环图；组成提供四种内容颜色、Token 数和合计 100% 的占比。内容首次进入、重新打开及切换会话时默认展开；本次访问中手动收起后，普通刷新保持收起。默认显示 4 项内容和最近 2 条压缩记录，可继续展开。正文只读取选中条目的当前段落，列表和正文继续分页，不预加载所有历史。仍只有外层“对话 / 轨迹 / 上下文”页签。
 
-当前源码和版本以本目录 `package.json` 为准。修改源码时先构建宿主，再构建本插件；仓库包含已验收的 `lib`，可从 Git 安装。统一入口见[插件目录](https://github.com/Missher12/Missher-DSH-Inter/blob/main/plugins/README.zh.md)。
+当前源码和版本以本目录 `package.json` 为准。修改源码时先构建宿主，再构建本插件；仓库包含已验收的 `lib`，可从 Git 安装。统一入口见[插件目录](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/plugins/README.zh.md)。
 
 升级验证使用独立构建目录，执行 `node scripts/link-harness.mjs /path/to/built-harness` 接入已构建的同版本 SDK，再运行 `npm run build`、`npm run typecheck` 和 `npm test`。脚本只写插件自身的依赖链接，包含 React 开发类型；检查精确宿主版本、刷新旧 SDK 链接，不修改宿主或根 lockfile。运行时保留正常 Bundle 加载检查，不增加兼容包。
 
@@ -128,15 +160,15 @@ Bundle 关闭根 Basic 自动控制器，插入一个根 ContextEngine；Standar
 
 ## 开发与安装
 
-统一仓库的依赖已通过本目录 `pnpm-workspace.yaml` 链接到同仓库 SDK。先完成根宿主构建，再按[开发指南](https://github.com/Missher12/Missher-DSH-Inter/blob/main/docs/cookbook/build-cordis-plugins.zh.md)构建、检查和打包本插件；不再需要手工指向原独立源码目录。
+统一仓库的依赖已通过本目录 `pnpm-workspace.yaml` 链接到同仓库 SDK。先完成根宿主构建，再按[开发指南](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/docs/cookbook/build-cordis-plugins.zh.md)构建、检查和打包本插件；不再需要手工指向原独立源码目录。
 
-Desktop 使用应用内“插件 → 添加插件”导入已构建目录或 `.tgz`；CLI/Web 使用自定义 profile。完整流程和卸载方法见[安装指南](https://github.com/Missher12/Missher-DSH-Inter/blob/main/docs/cookbook/install-cordis-plugins.zh.md)。安装包名取自当前 `package.json`，不能沿用旧版本示例。安装或卸载后按宿主提示重启目标 profile，保留用户配置与会话日志。
+Desktop 使用应用内“插件 → 添加插件”导入已构建目录或 `.tgz`；CLI/Web 使用自定义 profile。完整流程和卸载方法见[安装指南](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/docs/cookbook/install-cordis-plugins.zh.md)。安装包名取自当前 `package.json`，不能沿用旧版本示例。安装或卸载后按宿主提示重启目标 profile，保留用户配置与会话日志。
 
 ## 验证范围
 
 自动化验证使用真实 AgentLoop、Session 日志、JSON 存储和模拟模型，覆盖重启、取消竞态、原文保留、用量去重及只读来源查询。新宿主接口、Loader、受控网页、日常原生窗口和真实模型分别记录，不能互相代替。安装状态以协调交付回执为准。
 
-[REQ-03 验证记录](verification/RESULTS-REQ03-20260928.json)覆盖详情默认展开相关实现，[0.3.4 验证记录](verification/RESULTS-0.3.4.md)保留此前静态检查、真实 AgentLoop + 模拟模型、隔离 profile 与 Web 设置验证。它们是各次测试的历史证据；当前源码整合范围见[仓库说明](https://github.com/Missher12/Missher-DSH-Inter/blob/main/CORDIS.md)，不能将旧报告中的安装状态当作目标应用现状。
+[REQ-03 验证记录](verification/RESULTS-REQ03-20260928.json)覆盖详情默认展开相关实现，[0.3.4 验证记录](verification/RESULTS-0.3.4.md)保留此前静态检查、真实 AgentLoop + 模拟模型、隔离 profile 与 Web 设置验证。它们是各次测试的历史证据；当前源码整合范围见[仓库说明](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/blob/main/CORDIS.md)，不能将旧报告中的安装状态当作目标应用现状。
 
 语义摘要仍可能遗漏细节。真实模型的中文、图像、较长推理、历史溢出与连续任务效果，以及各平台原生安装/卸载，需按目标运行环境单独验收；源码、构建和模拟模型测试不能代替这些结果。
 
