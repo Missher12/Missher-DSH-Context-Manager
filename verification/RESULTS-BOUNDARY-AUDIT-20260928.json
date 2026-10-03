@@ -1,0 +1,86 @@
+{
+  "date": "2026-09-28",
+  "scope": "Current-thread coordination boundary audit; documentation only",
+  "source": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager",
+  "head": "c338afdcc41cb909219a8c70995a9d8379764174",
+  "version": "0.3.4",
+  "dirtyAtStart": [],
+  "isolatedCopy": "/var/folders/kz/5bh16rnn7yb4frncc7xvngn00000gn/T/dsh-context-audit-20260928-24ebl349",
+  "sourceLibManifestTestsUnchanged": true,
+  "expandedDefaultNote": "The boolean false is the unchanged product default; REQ-03 is deferred, not implemented.",
+  "checks": {
+    "existingTests": [
+      "tests/settings.test.mjs",
+      "tests/inspector.test.mjs"
+    ],
+    "passed": 11,
+    "failed": 0,
+    "originalLibRebuilt": false,
+    "packageBoundary": {
+      "package": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/dsh-context-manager-0.3.4.tgz",
+      "sha256": "1d272a516508184a5fba5623a588e6b5328752145d07c2621dc3cfd4d2359633",
+      "fileCount": 14,
+      "containsBridgeCode": false,
+      "dependsOnBridge": false,
+      "lifecyclePatchHooks": false,
+      "clientProviders": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-model-selection"
+      ],
+      "hostConfigTargets": [
+        "compaction-basic",
+        "preset-standard",
+        "preset-ptc",
+        "preset-cordis"
+      ],
+      "insertedIds": [
+        "context-manager",
+        "context-manager-engine",
+        "context-manager-inspector"
+      ],
+      "verificationFilesBundled": false,
+      "note": "Read-only package audit; does not replace behavior or native UI acceptance."
+    },
+    "libMatchesDeliveredTarball": true
+  },
+  "dailyDependencyReadOnly": "link:/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/releases/dsh-context-manager-0.3.4",
+  "hostReference": {
+    "head": "e3409377ac873963595b76c0eb9afd8a8aa241af",
+    "dirtyPathCount": 33,
+    "edited": false
+  },
+  "historyReused": [
+    "verification/RESULTS-0.3.4.json",
+    "verification/RESULTS-0.3.3.json",
+    "PLUGIN_BOUNDARIES.md (historical coordination only)"
+  ],
+  "notPerformed": [
+    "build/typecheck",
+    "real Loader install or RPC transport",
+    "live browser UI",
+    "native Electron UI",
+    "real model/provider calls",
+    "production profile mutation/restart",
+    "Git staging/commit/push/release"
+  ],
+  "currentFinding": "No cross-plugin business write or ownership collision found in the bounded inspected paths; historical docs required correction.",
+  "evidenceDirectory": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/verification/boundary-audit-20260928",
+  "expandedDefault": false,
+  "resetExpandedOnSessionChange": false,
+  "expandedDefaultsUnchanged": true,
+  "documentationCorrection": {
+    "readme": "Failed attempts and retries with recorded usage are included in the host tokenUsage projection; the reply chart is not the cumulative total.",
+    "evidence": [
+      "src/inspector.ts:41,51",
+      "src/inspector-fold.ts:42-52",
+      "/Users/missher/Documents/Deepseek- Harness-Inter/packages/llm/token-meter/src/usage-projection.ts:81-85,117-149",
+      "/Users/missher/Documents/Deepseek- Harness-Inter/packages/llm/token-meter/lib/index.js:389-435"
+    ],
+    "extraTests": false,
+    "implementationChanged": false,
+    "deliveredArchiveDocumentationChanged": false
+  }
+}

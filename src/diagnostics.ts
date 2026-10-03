@@ -18,6 +18,7 @@ const entrySchema = z.object({
   status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']),
   manual: z.boolean(), applied: z.boolean(), beforeTokens: count.optional(), afterTokens: count.optional(),
   messages: count.optional(), error: z.string().max(300).optional(),
+  inputTokens: count.optional(), outputTokens: count.optional(),
 })
 const viewSchema = z.object({
   request: z.object({ provider: z.string(), model: z.string(), effort: z.string().optional(), maxTokens: count.optional(), time: count }).nullable(),
@@ -82,6 +83,8 @@ export function foldDiagnostics(previous: State, event: SessionEvent): State {
     case 'compaction/summary': {
       const { compactionId, shadowedRange, shadowedTokenCount, shadowedSeqs } = event.data
       state = update(state, compactionId, { beforeTokens: shadowedTokenCount, messages: shadowedSeqs.length })
+      const usage = event.data.usage
+      if (usage) state = update(state, compactionId, { inputTokens: usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0), outputTokens: usage.outputTokens })
       return { ...state, pending: { id: compactionId, seq: event.seq, start: shadowedRange.start, end: shadowedRange.end } }
     }
     case 'compaction/prune': {
@@ -110,5 +113,5 @@ export const diagnosticsProjection = {
   init: (): State => ({ view: { request: null, tools: { count: 0, top: [] }, requests: [], compactions: [] }, pending: null }),
   apply: foldDiagnostics,
   wire: { viewSchema, view: (state: State) => state.view },
-  stateVersion: 1,
+  stateVersion: 2,
 } satisfies ProjectionDefinition<'contextManagerDiagnostics', State>

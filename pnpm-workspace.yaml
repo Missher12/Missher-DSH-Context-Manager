@@ -1,0 +1,43 @@
+# Build this Bundle independently against the explicit harness-sdk development link.
+# Runtime dependency declarations remain in package.json.
+packages:
+  - .
+allowBuilds:
+  esbuild: true
+overrides:
+  '@deepseek-ai/cordis': 'link:./harness-sdk/vendor/cordis'
+  '@deepseek-ai/cordis-plugin-group': 'link:./harness-sdk/vendor/group'
+  '@deepseek-ai/cordis-plugin-loader': 'link:./harness-sdk/vendor/loader'
+  '@deepseek-ai/cosmokit': 'link:./harness-sdk/vendor/cosmokit'
+  '@deepseek-ai/dsh-agent': 'link:./harness-sdk/packages/core/agent'
+  '@deepseek-ai/dsh-agent-loop': 'link:./harness-sdk/packages/core/agent-loop'
+  '@deepseek-ai/dsh-agent-loop-testkit': 'link:./harness-sdk/packages/test-support/agent-loop-testkit'
+  '@deepseek-ai/dsh-agent-preset-registry': 'link:./harness-sdk/packages/preset/agent-preset-registry'
+  '@deepseek-ai/dsh-api-remotes': 'link:./harness-sdk/packages/api/remotes'
+  '@deepseek-ai/dsh-api-session-controller': 'link:./harness-sdk/packages/api/session-controller'
+  '@deepseek-ai/dsh-client-locale': 'link:./harness-sdk/packages/client/locale'
+  '@deepseek-ai/dsh-client-store': 'link:./harness-sdk/packages/client/store'
+  '@deepseek-ai/dsh-client-ui-conversation': 'link:./harness-sdk/packages/client/ui-conversation'
+  '@deepseek-ai/dsh-client-ui-model-selection': 'link:./harness-sdk/packages/client/ui-model-selection'
+  '@deepseek-ai/dsh-client-ui-primitives': 'link:./harness-sdk/packages/client/ui-primitives'
+  '@deepseek-ai/dsh-client-ui-renderer': 'link:./harness-sdk/packages/client/ui-renderer'
+  '@deepseek-ai/dsh-client-ui-settings': 'link:./harness-sdk/packages/client/ui-settings'
+  '@deepseek-ai/dsh-compaction': 'link:./harness-sdk/packages/compaction/compaction'
+  '@deepseek-ai/dsh-compaction-basic': 'link:./harness-sdk/packages/compaction/compaction-basic'
+  '@deepseek-ai/dsh-llm': 'link:./harness-sdk/packages/llm/llm'
+  '@deepseek-ai/dsh-llm-retry': 'link:./harness-sdk/packages/llm/llm-retry'
+  '@deepseek-ai/dsh-session': 'link:./harness-sdk/packages/core/session'
+  '@deepseek-ai/dsh-session-format-catalog': 'link:./harness-sdk/packages/session/session-format-catalog'
+  '@deepseek-ai/dsh-session-projection': 'link:./harness-sdk/packages/session/session-projection'
+  '@deepseek-ai/dsh-session-query': 'link:./harness-sdk/packages/session-query/session-query'
+  '@deepseek-ai/dsh-settings': 'link:./harness-sdk/packages/settings/settings'
+  '@deepseek-ai/dsh-token-meter': 'link:./harness-sdk/packages/llm/token-meter'
+  '@deepseek-ai/dsh-tools': 'link:./harness-sdk/packages/core/tools'
+  '@deepseek-ai/dsh-workspace': 'link:./harness-sdk/packages/workspace/workspace'
+  '@deepseek-ai/dsh-typert-protocol': 'link:./harness-sdk/packages/typert/protocol'
+  '@deepseek-ai/schemastery': 'link:./harness-sdk/vendor/schemastery'
+  '@deepseek-ai/dsh-storage': 'link:./harness-sdk/packages/storage/storage'
+  '@deepseek-ai/dsh-storage-domain': 'link:./harness-sdk/packages/storage/storage-domain'
+  '@deepseek-ai/dsh-storage-json': 'link:./harness-sdk/packages/storage/storage-json'
+  '@deepseek-ai/dsh-session-persistence-jsonl': 'link:./harness-sdk/packages/session/session-persistence-jsonl'
+  '@deepseek-ai/dsh-compaction-tool-result-pruner': 'link:./harness-sdk/packages/compaction/compaction-tool-result-pruner'

@@ -1,0 +1,105 @@
+{
+  "request": "CONTEXT-WINDOW-20261001",
+  "date": "2026-10-01",
+  "package": "@missher/dsh-context-manager",
+  "version": "0.6.0-local.2",
+  "status": "frozen package validated; daily installation reported separately",
+  "archiveSha256": "f8420719d2bc39921e9e054fbc70ad5d23a613f502765a7a41d94a93df8a44e1",
+  "clientSha256": "a62a156449c67a6a931b3f21c8d73d6166c4cefce296dc323602715542c4fe23",
+  "scope": "Full recorded model window, always-visible category K counts and available capacity; equal-height charts. No compaction engine or host changes.",
+  "accounting": {
+    "capacity": "Current host window, or the selected recorded cut; unknown remains unknown.",
+    "categories": "Original text estimates; no proportional allocation of measured usage.",
+    "other": "Positive host occupancy minus classified estimates.",
+    "available": "Window minus the larger of category estimates and host occupancy; clamped at zero. Output reservation and configured compaction threshold still apply."
+  },
+  "checks": {
+    "focusedTests": {
+      "passed": 24,
+      "failed": 0,
+      "files": [
+        "chart-data.test.mjs",
+        "settings.test.mjs",
+        "inspector.test.mjs"
+      ]
+    },
+    "negativeControl": "Old full-window code fails the new composition acceptance test.",
+    "hostAndClientTypecheck": "passed",
+    "build": "passed",
+    "packageBoundary": {
+      "fileCount": 15,
+      "foreignPluginCode": false,
+      "lifecyclePatchHooks": false
+    },
+    "finalPackageColdStart": {
+      "hostVersion": "0.2.0-rc.2",
+      "packageVersion": "0.6.0-local.2",
+      "loader": [
+        {
+          "entryId": "include:context-manager",
+          "moduleName": "@missher/dsh-context-manager",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-engine",
+          "moduleName": "@missher/dsh-context-manager/engine",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-inspector",
+          "moduleName": "@missher/dsh-context-manager/inspector",
+          "enabled": true,
+          "fiberPhase": "active"
+        }
+      ],
+      "htmlStatus": 200,
+      "idle": {
+        "status": "waiting",
+        "dueAt": null,
+        "message": "等待本次运行中的任务正常完成"
+      },
+      "inspector": {
+        "sessionId": "context-capacity-fixture",
+        "cursor": 36,
+        "cutSeq": 36,
+        "rows": 9,
+        "pressurePoints": 6,
+        "repeatedReadUnchanged": true
+      },
+      "realModelCalls": false
+    },
+    "clientIntegrity": {
+      "version": "0.6.0-local.2",
+      "installedFromFrozenArchive": true,
+      "archiveSha256": "f8420719d2bc39921e9e054fbc70ad5d23a613f502765a7a41d94a93df8a44e1",
+      "clientSha256": "a62a156449c67a6a931b3f21c8d73d6166c4cefce296dc323602715542c4fe23",
+      "servedMatchesFrozenClient": true,
+      "oldArchiveUnchanged": true,
+      "rootLibFilesPreserved": 8
+    },
+    "controlledWebUI": {
+      "fixture": "synthetic 1,000,000-token window; no provider calls",
+      "viewports": [
+        1200,
+        800,
+        335
+      ],
+      "lightAndDark": true,
+      "allCategoryKLabelsVisible": true,
+      "chartCardHeightsEqual": true,
+      "noHorizontalOverflow": true,
+      "finalArchiveReload": "passed at default 1280px; three cards 272.5px each"
+    },
+    "lint": "pnpm run lint:contracts-ready passed"
+  },
+  "notVerified": [
+    "native Electron interaction",
+    "real provider/model compaction"
+  ],
+  "installationAndPublication": "See coordination/2026-10-01/context-window-refinement receipts in the local coordination workspace.",
+  "setupRetries": [
+    "The first isolated final-package install overlapped doc-sync rebuilding the SDK CLI. It was retried after the CLI build completed, then the exact frozen archive passed cold loading."
+  ]
+}

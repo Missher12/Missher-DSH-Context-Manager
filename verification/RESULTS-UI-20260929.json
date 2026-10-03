@@ -1,0 +1,293 @@
+{
+  "task": "UI-02 + UI-06-context",
+  "completedAt": "2026-09-29T07:21:40.517704+00:00",
+  "version": "0.5.0-local.1",
+  "harnessVersion": "0.2.0-rc.1",
+  "package": "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/releases/dsh-context-manager-0.5.0-local.1.tgz",
+  "installDirectory": "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/releases/dsh-context-manager-0.5.0-local.1",
+  "sha256": "acac3b5bdd6b56a175c3d38a5c1e180f3b5a9f84c8a1e63a0d88ad61f099551f",
+  "preview": "http://127.0.0.1:56903/",
+  "source": "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager",
+  "baselineHead": "c7c457e5e07fa11a04bf8764d5f89585d789f258",
+  "changedFromIdleBaseline": [
+    "src/peak-indicator.css",
+    "src/inspector.css",
+    "src/inspector-view.tsx",
+    "src/inspector-types.ts",
+    "src/peak-indicator.tsx",
+    "src/deepseek-period.ts",
+    "src/inspector.ts",
+    "src/inspector-wire.ts",
+    "tests/settings.test.mjs",
+    "tests/deepseek-period.test.mjs",
+    "tests/loop.test.mjs",
+    "tests/inspector.test.mjs",
+    "scripts/build.mjs",
+    "scripts/link-harness.mjs",
+    "PROJECT_CONTEXT.md",
+    "README.md",
+    "package.json",
+    "AGENTS.md",
+    "HANDOVER.md"
+  ],
+  "newSourceFiles": [
+    "src/pressure-history.ts",
+    "src/inspector-charts.tsx"
+  ],
+  "checks": {
+    "fullRegression": {
+      "passed": 53,
+      "failed": 0,
+      "log": "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/tests-final.log"
+    },
+    "afterFinalCss": {
+      "passed": 2,
+      "failed": 0,
+      "log": "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/ui-final-smoke.log"
+    },
+    "hostTypecheck": true,
+    "clientTypecheck": true,
+    "lint": {
+      "diagnostics": [],
+      "number_of_files": 21,
+      "number_of_rules": 90,
+      "threads_count": 16,
+      "start_time": 1.931133336
+    },
+    "packageFileCount": 14,
+    "loader": {
+      "hostVersion": "0.2.0-rc.1",
+      "packageVersion": "0.5.0-local.1",
+      "origin": "http://127.0.0.1:56903",
+      "loader": [
+        {
+          "entryId": "include:context-manager",
+          "moduleName": "dsh-context-manager",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-engine",
+          "moduleName": "dsh-context-manager/engine",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-inspector",
+          "moduleName": "dsh-context-manager/inspector",
+          "enabled": true,
+          "fiberPhase": "active"
+        }
+      ],
+      "htmlStatus": 200,
+      "idle": {
+        "status": "waiting",
+        "dueAt": null,
+        "message": "等待本次运行中的任务正常完成"
+      },
+      "inspector": {
+        "sessionId": "context-ui-fixture",
+        "cursor": 39,
+        "cutSeq": 39,
+        "rows": 9,
+        "pressurePoints": 6,
+        "repeatedReadUnchanged": true
+      },
+      "realModelCalls": false
+    },
+    "bytes": {
+      "installedFiles": {
+        "cordis.patch.yml": true,
+        "LICENSE": true,
+        "COMPATIBILITY.json": true,
+        "THIRD_PARTY_NOTICES.md": true,
+        "README.md": true,
+        "package.json": true,
+        "lib/client.js": true,
+        "lib/diagnostics.js": true,
+        "lib/typert.js": true,
+        "lib/policy.js": true,
+        "lib/inspector.js": true,
+        "lib/index.js": true,
+        "lib/inspector-fold.js": true,
+        "lib/engine.js": true
+      },
+      "installedVersion": "0.5.0-local.1",
+      "clientSha256": "9cc550eb32c95fdc409c58cd3c001c99d98ed59f4ac59fc95a0011b0255f41ef",
+      "old04ArchiveUnchanged": true,
+      "rootLib": {
+        "lib/client.js": true,
+        "lib/diagnostics.js": true,
+        "lib/typert.js": true,
+        "lib/policy.js": true,
+        "lib/inspector.js": true,
+        "lib/index.js": true,
+        "lib/inspector-fold.js": true,
+        "lib/engine.js": true
+      }
+    },
+    "browser": {
+      "origin": "http://127.0.0.1:56076/",
+      "priceLight": {
+        "portal": true,
+        "prices": "高峰预估¥10.04低谷预估¥5.02",
+        "rect": {
+          "height": 520.484375,
+          "width": 388,
+          "x": 477.296875,
+          "y": 12
+        },
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        }
+      },
+      "escape": {
+        "closed": true,
+        "focusReturned": true
+      },
+      "outsideDismissed": true,
+      "contextLight": {
+        "composerVisible": false,
+        "detailsExpanded": "true",
+        "nestedTabs": 0,
+        "points": [
+          "记录 4，回复后，占用未知",
+          "记录 12，内容替换后，占用未知",
+          "记录 16，回复后，约 8,109 Token",
+          "记录 27，内容替换后，约 1,230 Token",
+          "记录 30，回复后，约 8,109 Token",
+          "记录 37，截面末尾，约 8,109 Token"
+        ],
+        "usageLegend": "未命中输入15,60095.8%缓存读取6003.7%缓存写入00.0%输出800.5%"
+      },
+      "restoredDraft": "草稿保留验证（不发送）",
+      "selectedReplacement": "记录 27 · 内容替换后\n≈ 1,230 Token\n2026/9/29 15:00:53",
+      "priceDark": {
+        "base": "",
+        "clearance": "",
+        "offpeakColor": "color(srgb 0.512745 0.866078 0.645686)",
+        "panelBackground": "rgba(0, 0, 0, 0)",
+        "peakColor": "color(srgb 0.899608 0.661961 0.407843)",
+        "rect": {
+          "height": 520.484375,
+          "width": 388,
+          "x": 477.296875,
+          "y": 12
+        }
+      },
+      "smallViewport": {
+        "clientHeight": 516,
+        "clipped": false,
+        "rect": {
+          "height": 516,
+          "width": 388,
+          "x": 113,
+          "y": 12
+        },
+        "scrollHeight": 520,
+        "viewport": {
+          "height": 540,
+          "width": 640
+        }
+      },
+      "proPrices": "类型\t高峰期\t低谷期\n缓存命中输入\t¥0.3\t¥0.15\n未命中输入\t¥9\t¥4.5\n输出\t¥27\t¥13.5",
+      "proTotals": "高峰预估\n¥36.3\n低谷预估\n¥18.15",
+      "themeColorsDark": {
+        "background": "rgba(0, 0, 0, 0)",
+        "base": "",
+        "material": "rgba(67, 69, 74, 0.45)",
+        "offpeak": "color(srgb 0.512745 0.866078 0.645686)",
+        "peak": "color(srgb 0.899608 0.661961 0.407843)"
+      },
+      "browserErrorsBeforeRestart": [],
+      "finalViewport": {
+        "clipped": false,
+        "maxHeight": "508px",
+        "origin": "http://127.0.0.1:56903",
+        "rect": {
+          "height": 508,
+          "width": 388,
+          "x": 113,
+          "y": 12
+        },
+        "viewport": {
+          "height": 540,
+          "width": 640
+        }
+      },
+      "invalidBrowserInput": {
+        "invalid": "true",
+        "message": "请输入有效的非负整数"
+      },
+      "themeColorsLight": {
+        "base": "#fff",
+        "material": "rgba(248, 249, 250, 0.58)",
+        "offpeak": "color(srgb 0.0998039 0.454902 0.239804)",
+        "peak": "color(srgb 0.624314 0.387843 0.137255)"
+      },
+      "finalOrigin": "http://127.0.0.1:56903/",
+      "finalErrors": [],
+      "textContrastReference": {
+        "Light": {
+          "peak": 4.65,
+          "offpeak": 5.52
+        },
+        "Dark": {
+          "peak": 6.97,
+          "offpeak": 8.76
+        }
+      },
+      "textContrastReferenceNote": "Uses observed text colors; translucent menu material over visible base, not an image pixel measurement."
+    }
+  },
+  "screenshots": [
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/settings-light-final.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/settings-dark.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/context-light.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/context-dark.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/usage-dark.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/price-light.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/price-dark.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/price-light-final.png",
+    "/Users/missher/Documents/Projects/03-DeepSeek-Harness/源码仓库/Deepseek-harness-Cordis/plugins/dsh-context-manager/verification/ui-20260929/price-narrow-final.png"
+  ],
+  "priceSource": {
+    "url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "checked": "2026-09-29",
+    "currency": "CNY per million tokens",
+    "flashPeak": [
+      0.04,
+      2,
+      8
+    ],
+    "proPeak": [
+      0.3,
+      9,
+      27
+    ],
+    "offpeakMultiplier": 0.5
+  },
+  "preserved": [
+    "0.4.0 idle completion timer and cancellation",
+    "pre-request admission including newly received task",
+    "single panel and initially expanded details",
+    "readonly context with composer draft restoration",
+    "old source lib and prior release archive"
+  ],
+  "limitations": [
+    "Isolated Host and controlled browser only; no Electron native-window clicks.",
+    "Synthetic adapter through real AgentLoop and persistent session logs; no live model/API calls.",
+    "Combined multi-plugin acceptance and daily installation belong to the coordinator and are not performed here.",
+    "Prices are a dated local snapshot; holiday coverage is limited to 2026."
+  ],
+  "firstFailures": [
+    "IconProps width/height corrected to native size before passing typecheck.",
+    "Isolated profile initially had no web-app bundle.",
+    "Synthetic JSONL fixture required matching none compression and a complete root config override.",
+    "A stored session with no recorded preset must be adopted without forcing standard."
+  ],
+  "gitWrites": false,
+  "dailyProfileModified": false,
+  "sdkModified": false
+}

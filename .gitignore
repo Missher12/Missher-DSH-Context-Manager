@@ -17,3 +17,5 @@ releases/
 verification/*
 !verification/RESULTS*.md
 !verification/RESULTS*.json
+
+harness-sdk

@@ -1,0 +1,79 @@
+{
+  "requirement": "REQ-03",
+  "version": "0.3.5-local.1",
+  "source": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager",
+  "candidate": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/verification/req03-implementation/candidate",
+  "tarball": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/verification/req03-implementation/candidate/dsh-context-manager-0.3.5-local.1.tgz",
+  "installDirectory": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/verification/req03-implementation/install/dsh-context-manager-0.3.5-local.1",
+  "sha256": "9d42cdb78cc9eed950194ebd36e2e31f14ad13bbdfe2bc5f8cab583d1afd42e1",
+  "implementation": {
+    "file": "src/inspector-view.tsx",
+    "changedLines": 2,
+    "initialExpanded": true,
+    "targetResetExpanded": true,
+    "newStateMachine": false
+  },
+  "verification": {
+    "build": "passed in isolated candidate",
+    "hostClientTypecheck": "passed in isolated candidate",
+    "offlineAndJsdomTests": {
+      "passed": 12,
+      "failed": 0,
+      "files": [
+        "tests/settings.test.mjs",
+        "tests/inspector.test.mjs"
+      ]
+    },
+    "old034NegativeControl": "new state regression fails at the initial expanded assertion as expected",
+    "packageBoundary": {
+      "package": "/Users/missher/Documents/Deepseek-harness-Cordis/dsh-context-manager/verification/req03-implementation/candidate/dsh-context-manager-0.3.5-local.1.tgz",
+      "sha256": "9d42cdb78cc9eed950194ebd36e2e31f14ad13bbdfe2bc5f8cab583d1afd42e1",
+      "fileCount": 14,
+      "containsBridgeCode": false,
+      "dependsOnBridge": false,
+      "lifecyclePatchHooks": false,
+      "clientProviders": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-model-selection"
+      ],
+      "hostConfigTargets": [
+        "compaction-basic",
+        "preset-standard",
+        "preset-ptc",
+        "preset-cordis"
+      ],
+      "insertedIds": [
+        "context-manager",
+        "context-manager-engine",
+        "context-manager-inspector"
+      ],
+      "verificationFilesBundled": false,
+      "note": "Read-only package audit; does not replace behavior or native UI acceptance."
+    },
+    "sourceCandidateEquality": true,
+    "unchangedBackendFiles": [
+      "diagnostics.js",
+      "engine.js",
+      "index.js",
+      "inspector-fold.js",
+      "inspector.js",
+      "policy.js",
+      "typert.js"
+    ],
+    "protectedOriginalFilesUnchanged": 23,
+    "dailyProfileUnchanged": true
+  },
+  "notVerified": [
+    "new candidate Loader activation or RPC transport",
+    "actual browser UI",
+    "native Electron UI",
+    "real model calls",
+    "joint integration with other feature candidates"
+  ],
+  "noProductionInstall": true,
+  "noGitWrite": true,
+  "knownBuildWarning": "Inherited host es2024 target warning from esbuild; build completes successfully"
+}

@@ -8,26 +8,34 @@ export interface Policy {
   summaryMaxTokens: number
   maxPasses: number
   timeoutMs: number
+  idleEnabled: boolean
+  idleMinutes: number
+  idleMinPercent: number
+  summaryInstructions: string
 }
 
 export const defaults: Policy = {
   enabled: true, triggerPercent: 80, targetPercent: 55, earlyPercent: 1,
   safetyPercent: 2, summaryMaxTokens: 8192, maxPasses: 2, timeoutMs: 90000,
+  idleEnabled: true, idleMinutes: 15, idleMinPercent: 65, summaryInstructions: '',
 }
 
 /** Validate at the settings/request boundary; invalid policy never admits work. */
 export function validatePolicy(p: Policy): void {
   if (typeof p.enabled !== 'boolean') throw new Error('自动压缩开关必须是布尔值')
-  const ranges: Record<Exclude<keyof Policy, 'enabled'>, [number, number]> = {
+  if (typeof p.idleEnabled !== 'boolean') throw new Error('闲置自动压缩开关必须是布尔值')
+  if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'idleEnabled' | 'summaryInstructions'>, [number, number]> = {
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],
     safetyPercent: [1, 10], summaryMaxTokens: [256, 32768], maxPasses: [1, 2], timeoutMs: [1000, 300000],
+    idleMinutes: [1, 1440], idleMinPercent: [10, 95],
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
-    const value = p[key as Exclude<keyof Policy, 'enabled'>]
+    const value = p[key as keyof typeof ranges]
     if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${key} 必须在 ${min}–${max} 之间`)
   }
   if (p.targetPercent > p.triggerPercent - p.earlyPercent - 10) throw new Error('压缩目标须比实际检查阈值至少低 10 个百分点')
-  for (const key of ['summaryMaxTokens', 'maxPasses', 'timeoutMs'] as const) {
+  for (const key of ['summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes'] as const) {
     if (!Number.isInteger(p[key])) throw new Error(`${key} 必须是整数`)
   }
 }

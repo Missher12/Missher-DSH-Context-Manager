@@ -107,7 +107,7 @@
 .dsh-context-settings .cm-number > :first-child { width: 76px; }
 .dsh-context-settings .cm-example-window > :first-child { width: 100px; }
 .dsh-context-settings .cm-advanced-input { width: 112px; flex: none; }
-.dsh-context-settings input { box-sizing: border-box; font: inherit; font-variant-numeric: tabular-nums; }
+.dsh-context-settings input { box-sizing: border-box; font-variant-numeric: tabular-nums; }
 
 .dsh-context-settings .cm-range {
   width: 100%;
@@ -143,3 +143,11 @@
 .dsh-context-settings .cm-advanced > .cm-hint { padding-top: 4px; }
 .dsh-context-settings .cm-error { margin: 0 0 12px; color: var(--dsw-alias-label-error); font-size: 12px; line-height: 18px; }
 .dsh-context-settings .cm-feedback { margin-top: 10px; }
+
+/* Layout only; SettingsValueField and SettingsForm supply the native chrome. */
+.dsh-context-settings .cm-native-toggle { padding: 12px 0; font-size: 13px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
+.dsh-context-settings .cm-native-toggle .cm-hint { margin-top: 6px; }
+.dsh-context-settings .cm-native-presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0 0; }
+.dsh-context-settings .cm-native-advanced { padding: 12px 0; border-top: 0.5px solid var(--dsw-alias-border-l2); }
+.dsh-context-settings .cm-native-advanced > summary { font-size: 13px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
+.dsh-context-settings .cm-native-example { display: grid; gap: 6px; font-size: 13px; padding: 12px 0; }

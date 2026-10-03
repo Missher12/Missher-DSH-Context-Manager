@@ -1,14 +1,14 @@
-# Generated for Harness 0.1.7-rc.2; profile/user overrides remain later layers.
+# Generated for Harness 0.2.0-rc.2; profile/user overrides remain later layers.
 - id: compaction-basic
   name: '@deepseek-ai/dsh-compaction-basic'
   disabled: true
 - insert:
     - id: context-manager
-      name: dsh-context-manager
+      name: '@missher/dsh-context-manager'
     - id: context-manager-engine
-      name: dsh-context-manager/engine
+      name: '@missher/dsh-context-manager/engine'
     - id: context-manager-inspector
-      name: dsh-context-manager/inspector
+      name: '@missher/dsh-context-manager/inspector'
 - id: preset-standard
   name: '@deepseek-ai/dsh-agent-preset'
   config:
@@ -77,7 +77,7 @@
           toolResultPruner: true
         config:
           - id: compaction-basic
-            name: dsh-context-manager/engine
+            name: '@missher/dsh-context-manager/engine'
           - id: command-compact
             name: '@deepseek-ai/dsh-command-compact'
           - id: tool-result-pruner
@@ -221,7 +221,7 @@
           toolResultPruner: true
         config:
           - id: compaction-basic
-            name: dsh-context-manager/engine
+            name: '@missher/dsh-context-manager/engine'
           - id: command-compact
             name: '@deepseek-ai/dsh-command-compact'
           - id: tool-result-pruner
@@ -367,7 +367,7 @@
           toolResultPruner: true
         config:
           - id: compaction-basic
-            name: dsh-context-manager/engine
+            name: '@missher/dsh-context-manager/engine'
           - id: command-compact
             name: '@deepseek-ai/dsh-command-compact'
           - id: tool-result-pruner

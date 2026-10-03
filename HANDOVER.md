@@ -1,4 +1,34 @@
-# 0.3.1 最新交付 · 2026-09-27
+# CONTEXT-WINDOW-20261001：完整容量条与等高卡片
+
+候选 `0.6.0-local.2`：总容量跟随宿主窗口，用 M/K 展示；当前上下文改为全宽、常显 K 分类及剩余的一条组成条。分类保留原始估算，宿主占用高出的差额单列，余量按较大估值计算。同排占用变化、压缩前后与累计卡片等高。压缩引擎与设置不改。
+
+沿用用户已授权的 Git 和本机更新，源码本会话单写，日常 profile 仍由协调者单写。隔离候选与本轮验收位于协调目录 `coordination/2026-10-01/context-window-refinement/`；最终状态以该目录回执为准，旧包和源码 lib 保留。
+
+冻结包已通过 24 项相关回归、Host/Client 类型检查、15 文件包审计、实际 rc.2 冷启动与客户端字节核验；1200/800/335px 和深浅主题下分类 K 数常显、三张图表等高。验收入口为 `verification/RESULTS-WINDOW-20261001.json`；示例数据为隔离夹具，未调用真实模型。正式安装与 Git 状态分别见本轮协调目录的安装和发布回执。
+
+# 当前交付：CONTEXT-V2-20261001
+
+候选 `0.6.0-local.1` 将上下文展示层替换为选定的 C 版。顶部为 100% 组成，中间为占用柱状图、压缩比较与本会话累计，内容列表/正文置底；新增摘要来源分类与四组筛选。复用 DSH 原生主题和控件，不引入第三方研究代码；压缩控制与闲置调度继续使用本插件既有控制器及官方 Basic 事务，不声称压缩后端从零重写。
+
+源码仅改本插件。旧 lib、旧交付、其他插件与宿主保持；原配置、模块导出、三条 Loader 身份不变，没有额外兼容包。用户随后于 2026-10-01 明确授权发布 Git 和更新本机；Git 由本上下文会话单写，日常安装由协调会话单写，结果以协调目录 INSTALLATION_RECEIPT.md / PUBLISH_RECEIPT.md 为准。构建、实际 Loader 与浏览器验收位于协调目录 `coordination/2026-10-01/context-v2-release/`，源码测试以隔离候选执行。原生 Electron 和真实模型效果需按目标安装单列。
+
+验收和安装入口见 `verification/RESULTS-V2-20261001.json`。下面记录为此前阶段，不代表本候选已安装到日常应用。
+
+# 当前交接入口 · 2026-09-28
+
+**2026-09-29 / UI-02、UI-06-context（当前）：**基于 0.4.0 保留全部闲置整理与请求前压缩功能，完成 0.5.0-local.1 本地升级包。官方峰谷改为原生价格/同等用量估算浮层；上下文单页增加公开投影重放的占用趋势、累计用量组成和逐次输入/输出变化。只写本插件，未改宿主或其他 Bundle；旧 lib 与旧包保持。53 项回归、Host/Client 类型、21 文件 lint、14 文件包边界、最终隔离 Loader 三项 active、RPC 和受控 Web 深浅主题/价格计算/草稿恢复/窄窗口检查均通过。最后标题栏留白 CSS 调整后已重建、做相关烟测并用最终包冷启动验证。交付位于 releases/dsh-context-manager-0.5.0-local.1（同名 tgz），证据 verification/RESULTS-UI-20260929.json。协调回执已写 coordination/2026-09-29/ui-implementation/context.md；协调者接手多插件组合验收，未写日常 profile，未进行 Git 发布、Electron 原生点击或真实供应商调用。以下为历史阶段记录。
+
+**2026-09-29 / CONTEXT-IDLE-20260929（上一阶段）：**用户授权升级上下文插件并要求 DSH 原生设置风格。源码候选 0.4.0-local.1，针对 Harness 0.2.0-rc.1。增加任务正常完成后的闲置压缩，默认开启、15 分钟、最低 65%（至少高于软目标 10 个百分点），一次任务完成只尝试一次；新消息、停用和关闭会取消本插件维护。使用公开 compactNow / Agent maintenance 与 workspace activity 扩展点，不改宿主或其他 Bundle。设置改用原生 SettingsForm、SettingsValueField 与 Switch；上下文单面板增加轻量状态、摘要用量，原默认展开、只读输入区和官方峰谷提示保留。隔离构建目录为 verification/idle-20260929，根 lib 与旧交付不覆盖；安装目录 releases/dsh-context-manager-0.4.0-local.1。当前完成 Host/Client 类型、48 项测试、19 文件 lint、真实隔离 profile 升级/Loader/RPC 及 Web 原生设置保存验证；真实供应商与 Electron 窗口未验收，日常安装仍由协调者单一写入，不自行更改日常 profile，不 Git 写入。完整证据及状态见 verification/RESULTS-IDLE-20260929.json。下述较早阶段按日期保留。
+
+**最新交接（2026-09-29）：**Harness 0.2.0-rc.1 适配候选为 0.3.6-local.1，安装包与独立目录位于本插件 `verification/upgrade-020-20260929/`。34 项测试、类型/构建/lint、真实 Loader/RPC、安装/卸载/重装通过；3 个组件正常激活。业务源码保持原功能。日常安装及多插件 UI 由协调者统一审核；本轮浏览器/原生 UI/真实模型未验收，临时 Host 已退出。使用新统一源码入口，不回写旧插件目录；原 lib 保留。详见 `verification/RESULTS-UPGRADE-020-20260929.json` 与协调目录专属回执 `coordination/2026-09-29/upgrade-020/context.md`。
+
+最新实施安排已启动 REQ-03。当前源码/manifest 为 `0.3.5-local.1` 候选，外层详情默认展开已完成；候选只在 `verification/req03-implementation/` 隔离构建，原 lib 和已交付 0.3.4 保留原字节，不能从根 lib 判断新源码行为。实施回执见 `../coordination/2026-09-28/implementation/context-manager.md`，后续联调据其中的候选路径和 SHA。下文分类审查的“仅登记/待开发”是更早阶段；本轮仍禁止 Git 写操作与生产部署。
+
+本插件当前源码和交付版本为 0.3.4，Git 基线 `c338afdcc41cb909219a8c70995a9d8379764174`；日常 profile 本轮只读现查指向独立 0.3.4 发布目录。以下 0.3.1 / 0.2.1 内容全部保留为历史，不能据其中的根目录版本、旧 PID、预览端口或安装路径执行当前操作。
+
+最新状态读本目录 `PROJECT_CONTEXT.md`，协调授权读上级 `PROJECT_GOVERNANCE.md`。本轮只做职责审查、文档纠偏和隔离回归，回执为 `../coordination/2026-09-28/context-manager.md`；未改业务代码、原 lib、生产配置或用户数据，未重启应用。REQ-03 外层详情默认展开仅登记待开发；官方峰谷提示保留为用户授权例外。本轮及后续 Git 操作均等待用户新的明确命令。
+
+# 历史交付 0.3.1 · 2026-09-27
 
 17:38 现场处理补充：用户已改装独立 0.3.1 目录并授权“你来解决”。旧桌面进程已退出，已启动真实日常应用（主 PID 8237 / host PID 8274），实际 profile 的四个插件模块只读导入通过，未改日常配置。驻留组件/原生 UI 尚不能验证：工具 native API 不可用，工具浏览器打开真实 host URL 被阻止，不绕过。证据 `verification/daily-restart-result-0.3.1.json`。不要再把安装错误说成装错版本，也不要将新进程误作 16:51 的旧进程。
 

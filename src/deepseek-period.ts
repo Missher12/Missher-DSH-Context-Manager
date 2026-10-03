@@ -1,11 +1,11 @@
-/** Current official tariff schedule, checked 2026-09-27.
+/** Current official tariff schedule, checked 2026-09-29.
  * https://api-docs.deepseek.com/zh-cn/quick_start/pricing/
  * 2026 public holiday calendar: State Council, 国办发明电〔2025〕7号
  * https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
  * For the live indicator only; never use this snapshot to price past calls.
  */
 export const PRICING_URL = 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/'
-export const RULE_CHECKED = '2026-09-27'
+export const RULE_CHECKED = '2026-09-29'
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const BEIJING_OFFSET = 8 * HOUR
@@ -18,7 +18,29 @@ export type Period = 'peak' | 'offpeak' | 'unknown'
 /** Match host-owned official routes, never a model name on a third-party route. */
 export function isOfficialDeepSeek(selection: { provider: string; model: string } | null | undefined) {
   return !!selection && ['deepseek-official', 'deepseek-account'].includes(selection.provider)
-    && ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'].includes(selection.model)
+}
+
+export interface ModelPrice { name: string; cache: number; input: number; output: number }
+/** CNY per million tokens. Aliases follow the official routing table, not name prefixes. */
+export function modelPrice(model: string): ModelPrice | null {
+  if (['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].includes(model)) return { name: 'DeepSeek V4.1-Flash', cache: 0.04, input: 2, output: 8 }
+  if (model === 'deepseek-v4-pro') return { name: 'DeepSeek V4-Pro-0813', cache: 0.30, input: 9, output: 27 }
+  return null
+}
+
+/** Blank is unknown, not zero. Reject partial numbers and unsafe integer counts. */
+export function tokenCount(value: string): number | null {
+  if (!/^\d+$/u.test(value.trim())) return null
+  const count = Number(value)
+  return Number.isSafeInteger(count) && count >= 0 ? count : null
+}
+
+/** Compare the same hypothetical usage in both periods; never price a past request. */
+export function compareCost(price: ModelPrice, values: { cache: string; input: string; output: string }): { peak: number; offpeak: number } | null {
+  const cache = tokenCount(values.cache), input = tokenCount(values.input), output = tokenCount(values.output)
+  if (cache === null || input === null || output === null) return null
+  const peak = (cache * price.cache + input * price.input + output * price.output) / 1_000_000
+  return { peak, offpeak: peak / 2 }
 }
 
 export function periodAt(now: number): Period {

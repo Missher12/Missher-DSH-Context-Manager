@@ -1,0 +1,119 @@
+{
+  "request": "CONTEXT-MEMORY-20261001",
+  "date": "2026-10-01",
+  "package": "@missher/dsh-context-manager",
+  "version": "0.6.0-local.3",
+  "scope": "Native gray memory-summary legend with occupied state and an explanation that retained summary tokens are excluded from available capacity. Exact bar proportions, accounting, and compaction behavior remain unchanged.",
+  "integrity": {
+    "version": "0.6.0-local.3",
+    "archiveSha256": "27cc3ab7ae3742e8ed45b2049924adb03275fa64040643638773e9ee2ad27a1f",
+    "clientSha256": "6f9909ad415e2b7d4d9b87a9381fdfe44cad9cb73922978a8631fad0f1ab6c78",
+    "rootLibPreserved": 8,
+    "oldArchiveUnchanged": true,
+    "unchangedBackendFiles": 8,
+    "servedClientMatches": true,
+    "installedFromFrozenArchive": true
+  },
+  "checks": {
+    "focusedTests": {
+      "passed": 18,
+      "failed": 0,
+      "files": [
+        "settings.test.mjs",
+        "chart-data.test.mjs"
+      ]
+    },
+    "build": "passed",
+    "hostAndClientTypes": "passed",
+    "changedSourceLint": "passed",
+    "packageFileCount": 15,
+    "loader": {
+      "hostVersion": "0.2.0-rc.2",
+      "packageVersion": "0.6.0-local.3",
+      "origin": "http://127.0.0.1:54087",
+      "loader": [
+        {
+          "entryId": "include:context-manager",
+          "moduleName": "@missher/dsh-context-manager",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-engine",
+          "moduleName": "@missher/dsh-context-manager/engine",
+          "enabled": true,
+          "fiberPhase": "active"
+        },
+        {
+          "entryId": "include:context-manager-inspector",
+          "moduleName": "@missher/dsh-context-manager/inspector",
+          "enabled": true,
+          "fiberPhase": "active"
+        }
+      ],
+      "htmlStatus": 200,
+      "idle": {
+        "status": "waiting",
+        "dueAt": null,
+        "message": "等待本次运行中的任务正常完成"
+      },
+      "inspector": {
+        "sessionId": "context-memory-fixture",
+        "cursor": 34,
+        "cutSeq": 34,
+        "rows": 9,
+        "pressurePoints": 6,
+        "repeatedReadUnchanged": true
+      },
+      "realModelCalls": false
+    },
+    "controlledWeb": {
+      "wide": {
+        "actualRatio": 0.012,
+        "available": 670229,
+        "cardHeights": [
+          272.5,
+          272.5,
+          272.5
+        ],
+        "grayBackground": "color(srgb 0.940706 0.942588 0.945882)",
+        "grayWidth": "0.012%",
+        "overflow": false,
+        "summary": "记忆摘要已占用0.12K0.0%",
+        "title": "记忆摘要 ≈ 120 Token · 0.0% · 已占用。压缩后保留的记忆摘要，已占用当前窗口，不计入剩余可用空间。点击查看摘要内容。",
+        "used": 329771,
+        "width": 1200
+      },
+      "dark": {
+        "background": "color(srgb 0.202196 0.204549 0.210824)",
+        "cardBackground": "rgb(35, 35, 36)",
+        "label": "记忆摘要已占用0.12K0.0%"
+      },
+      "narrow": {
+        "cardHeights": [
+          269,
+          269,
+          269
+        ],
+        "pageOverflow": false,
+        "summary": {
+          "overflow": false,
+          "text": "记忆摘要已占用0.12K0.0%",
+          "width": 108
+        },
+        "width": 335
+      },
+      "summaryFilter": "summary",
+      "consoleErrors": 0,
+      "syntheticFixture": true
+    }
+  },
+  "notVerified": [
+    "native Electron interaction",
+    "real provider/model compaction"
+  ],
+  "deliveryReceipts": "Local coordination/2026-10-01/context-memory-summary",
+  "setupNotes": [
+    "Initial isolated install started before pack finished; final install used the completed frozen archive and passed cold loading."
+  ]
+}

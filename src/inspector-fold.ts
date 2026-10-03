@@ -1,4 +1,5 @@
 import { canonicalHeader, deriveEventMessage, foldSurface, isSurfaceEvent, type SessionEvent, type SessionMessageProjection } from '@deepseek-ai/dsh-session'
+import { isCompactCheckpointSource } from '@deepseek-ai/dsh-compaction/checkpoint'
 import type { Message } from '@deepseek-ai/dsh-llm'
 import { estimateMessage, estimateToolsTokens } from '@deepseek-ai/dsh-token-meter/estimate'
 import { diagnosticsProjection } from './diagnostics.ts'
@@ -6,7 +7,7 @@ import { categories, type Category, type ContentRow, type RequestRow } from './i
 
 /** Bounds analysis work; never silently analyse a suffix as the full context. */
 export const MAX_EVENTS = 50000
-export interface IndexedContent { row: ContentRow; body: () => string }
+export interface IndexedContent { row: ContentRow; body: () => string; sourceSeqs?: readonly number[] }
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0
 function sourceName(message: Message): string {
   const source = message.source as { kind: string; name?: unknown; path?: unknown }
@@ -59,19 +60,37 @@ export function indexContext(events: readonly SessionEvent[], projections: reado
     if (message === null) continue
     const source = message.source as { kind: string }
     const toolName = message.role === 'tool' ? calls.get(message.toolCallId) : undefined
-    const category: Category = message.role === 'system' && event.seq === lastSystem ? 'system'
+    const category: Category = isCompactCheckpointSource(message.source) ? 'summary' : message.role === 'system' && event.seq === lastSystem ? 'system'
       : message.role === 'assistant' ? 'assistant'
       : source.kind === 'skill-invocation' || source.kind === 'skill-catalog' || (message.role === 'tool' && toolName === 'skill') ? 'skill'
       : message.role === 'tool' ? 'tool'
       : source.kind === 'user' ? 'user' : 'inject'
     const firstText = message.content.find(block => block.type === 'text')
-    const title = message.role === 'tool' ? `${toolName ?? '未记录工具名称'} · 工具结果`
+    const title = category === 'summary' ? `压缩摘要 · 记录 ${event.seq}` : message.role === 'tool' ? `${toolName ?? '未记录工具名称'} · 工具结果`
       : message.role === 'system' ? event.seq === lastSystem ? '当前系统指令' : '先前系统片段'
       : firstText?.type === 'text' && firstText.text.trim() ? firstText.text.trim().replace(/\s+/gu, ' ').slice(0, 110)
       : `${categories.find(item => item.id === category)!.label} · 记录 ${event.seq}`
+    // Summary source events identify exact earlier events, never an inferred numerical range.
+    // Compaction metadata is log-only, so only its explicitly correlated inputs
+    // (and direct surface references) become readable source links.
+    const sourceSeqs = new Set<number>()
+    if (isCompactCheckpointSource(message.source)) {
+      for (const seq of event.sourceEventSeqs ?? []) {
+        if (seq < 0 || seq >= event.seq) continue
+        const origin = events[seq]
+        if (!origin) continue
+        if (isSurfaceEvent(origin)) sourceSeqs.add(seq)
+        if (origin.type === 'compaction/summary' && origin.data.compactionId === message.source.compactionId) {
+          for (const sourceSeq of origin.data.shadowedSeqs) {
+            if (sourceSeq >= 0 && sourceSeq < origin.seq && events[sourceSeq] && isSurfaceEvent(events[sourceSeq]!)) sourceSeqs.add(sourceSeq)
+          }
+        }
+      }
+    }
     indexed.push({ row: { id: `event:${event.seq}`, seq: event.seq, title: title.slice(0, 160),
       source: `${sourceName(message)}${!current ? ' · 已替换，查看记录原文' : ''}`.slice(0, 200),
-      category, tokens: estimateMessage(message), current, images: message.content.filter(block => block.type === 'image').length }, body: () => textOf(message) })
+      category, tokens: estimateMessage(message), current, images: message.content.filter(block => block.type === 'image').length }, body: () => textOf(message),
+      ...(category === 'summary' ? { sourceSeqs: [...sourceSeqs] } : {}) })
   }
   let toolItemTokens = 0
   for (const [index, tool] of (header?.tools ?? []).entries()) {

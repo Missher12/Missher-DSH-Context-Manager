@@ -1,0 +1,45 @@
+{
+  "version": "0.7.0-local.1",
+  "sourceRepository": "Missher12/Missher-DSH-Inter",
+  "sourceCommit": "383913fe07cac9a5de38fc26e2fb003ef42d977d",
+  "sourceAdditionalFix": null,
+  "acceptedPackageSha256": "f52563b7e381cb63f1ec707fe55aedff3ec1533f4f79ddac93c0f2c7706986f1",
+  "runtimeFiles": [
+    {
+      "path": "lib/chart-data.js",
+      "sha256": "ef2fdcc99a850031126ffcc484e8ca4da86e7e10bceee78d9df7b8497920af80"
+    },
+    {
+      "path": "lib/client.js",
+      "sha256": "392f94c7c56dcb51a2f4e1535317a29ce9695ea189bf3605750cd0f43665e9fa"
+    },
+    {
+      "path": "lib/diagnostics.js",
+      "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
+    },
+    {
+      "path": "lib/engine.js",
+      "sha256": "bbe71574402fcf6ade56a08d4fa62d6ce3716701f82ca6b197f214124d5bc882"
+    },
+    {
+      "path": "lib/index.js",
+      "sha256": "a55269a86ceb5c95d4076bfba81fce11708031659cfc09019ea8c649e8048f5d"
+    },
+    {
+      "path": "lib/inspector-fold.js",
+      "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
+    },
+    {
+      "path": "lib/inspector.js",
+      "sha256": "da2c3321639a3645b7ef6d274a69612562381b28d765dfb284026c5cead0bf64"
+    },
+    {
+      "path": "lib/policy.js",
+      "sha256": "842eb7d99d3ed229a0b9c6bfb3efc45865d534746207d3b05334c5cae9f0608e"
+    },
+    {
+      "path": "lib/typert.js",
+      "sha256": "03a89d2a0874f55b8b5ea3cc9f934d2fff49e1b16cf96d7e666111d5299c28dc"
+    }
+  ]
+}

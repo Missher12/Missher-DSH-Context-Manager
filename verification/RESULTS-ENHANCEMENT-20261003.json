@@ -1,0 +1,93 @@
+{
+  "request": "CONTEXT-ENHANCEMENT-20261003",
+  "version": "0.7.0-local.1",
+  "tests": {
+    "passed": 115,
+    "failed": 0,
+    "skipped": 0,
+    "fixtureModel": true
+  },
+  "typecheck": [
+    "host",
+    "client"
+  ],
+  "build": true,
+  "loader": {
+    "entriesActive": 3,
+    "isolated": true,
+    "readOnlyRpc": true
+  },
+  "web": {
+    "date": "2026-10-03",
+    "environment": "isolated rc.2 web app with frozen host extensions",
+    "screenshots": [
+      "screenshots/context-light.png",
+      "screenshots/context-dark.png",
+      "screenshots/context-800.png",
+      "screenshots/context-335.png",
+      "screenshots/source-light.png"
+    ],
+    "widths": [
+      1280,
+      800,
+      335
+    ],
+    "horizontalDocumentOverflow": false,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "desktopChartHeights": [
+      295,
+      295,
+      295
+    ],
+    "desktopChartTops": [
+      545,
+      545,
+      545
+    ],
+    "sourcePaging": [
+      "1–16000 / 31600",
+      "16001–31600 / 31600",
+      "back to summary"
+    ],
+    "composerVisible": false,
+    "browserWarnings": 0,
+    "browserErrors": 0,
+    "fixtureData": true,
+    "realModel": false,
+    "nativeElectron": false,
+    "reserveBranch": "preserved and covered by tests; fixture lacks output maximum so Web correctly renders unknown admission budget"
+  },
+  "dailyInstalledByThisTask": false,
+  "realProviderTested": false,
+  "coordinatorOwns": [
+    "shared host source",
+    "Git integration",
+    "daily install with MSE"
+  ],
+  "sourceLibUnchanged": true,
+  "evidence": "coordination/2026-10-03/context-enhancement/HANDOFF.md",
+  "archive": {
+    "sha256": "f52563b7e381cb63f1ec707fe55aedff3ec1533f4f79ddac93c0f2c7706986f1",
+    "files": 15,
+    "boundaryAudit": true,
+    "coldInstall": false,
+    "installedBytesMatch": false,
+    "note": "Naming-only artifact; cold installation evidence belongs to previous frozen SHA. Package boundary and normalized runtime equivalence verified."
+  },
+  "gitPublishedByThisTask": false,
+  "namingRevision": {
+    "packageSha256": "f52563b7e381cb63f1ec707fe55aedff3ec1533f4f79ddac93c0f2c7706986f1",
+    "focusedTests": {
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0
+    },
+    "concreteTermsViolations": 0,
+    "normalizedCompiledBytesEqualPrevious": true,
+    "previousArchiveColdInstallRetained": true,
+    "newArchiveColdInstallRepeated": false
+  }
+}

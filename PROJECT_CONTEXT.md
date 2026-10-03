@@ -1,6 +1,50 @@
+# CONTEXT-ENHANCEMENT-20261003：可恢复闲置整理与可追溯摘要
+
+候选 `0.7.0-local.1` 已完成：持久化闲置资格和尝试状态，重启只恢复未尝试计划；请求前先安全裁剪旧文本工具结果，再按需生成七字段检查点；摘要独立用量账本、来源原文分页追溯、当前截面增长估算和压缩触发原因。沿用 C 版原生单面板、现有设置和配置，不覆盖用户阈值。新消息、模型切换、停用及超时都会取消过期维护；未知的在途摘要不会自动重发计费。
+
+隔离完整 SDK 为官方 rc.2 基础，加协调者冻结的 `selectMaintenanceRange` / `supportsProtectedSeqs` 公共扩展。缺失前者时闲置压缩在付费调用前明确跳过；缺失后者时跳过工具裁剪。新元数据域 `context_manager_idle`、`context_manager_summaries` 随 profile 一并备份；旧会话无需迁移，不冷扫或激活历史 Agent。
+
+115/115 隔离测试、Host/Client 类型与构建通过；真实隔离 Loader 三项 active、只读 RPC 通过。受控 Web 验证深浅主题、1280/800/335px、原文分段返回、无发送区及图表等高；这不等于日常 Electron 或真实模型质量验收。根 lib 与历史包保持原样，交付使用冻结 release。源码与宿主公共能力交给协调者统一 Git 发布；日常仍按用户要求与 MSE 同批安装，本任务不写日常 profile。
+
+范围限制：检查点格式校验不能证明语义无损；未知供应商用量显示未知；增量是宿主投影估算，缺锚点不伪造。自动重试尚不能完整重跑 `preStep` 的所有动态注入，保留系统/最新用户原文并提示通过现有工具核查计划与文件；动态预测阈值及 MSE 长期学习不纳入本版。
+
+本轮证据：`verification/RESULTS-ENHANCEMENT-20261003.json` 与协调目录 `coordination/2026-10-03/context-enhancement/HANDOFF.md`。以下为历史记录。
+
+# CONTEXT-WINDOW-20261001：完整容量条与等高卡片
+
+候选 `0.6.0-local.2`：总容量跟随宿主窗口，用 M/K 展示；当前上下文改为全宽、常显 K 分类及剩余的一条组成条。分类保留原始估算，宿主占用高出的差额单列，余量按较大估值计算。同排占用变化、压缩前后与累计卡片等高。压缩引擎与设置不改。
+
+沿用用户已授权的 Git 和本机更新，源码本会话单写，日常 profile 仍由协调者单写。隔离候选与本轮验收位于协调目录 `coordination/2026-10-01/context-window-refinement/`；最终状态以该目录回执为准，旧包和源码 lib 保留。
+
+冻结包已通过 24 项相关回归、Host/Client 类型检查、15 文件包审计、实际 rc.2 冷启动与客户端字节核验；1200/800/335px 和深浅主题下分类 K 数常显、三张图表等高。验收入口为 `verification/RESULTS-WINDOW-20261001.json`；示例数据为隔离夹具，未调用真实模型。正式安装与 Git 状态分别见本轮协调目录的安装和发布回执。
+
+# 当前交付：CONTEXT-V2-20261001
+
+候选 `0.6.0-local.1` 将上下文展示层替换为选定的 C 版。顶部为 100% 组成，中间为占用柱状图、压缩比较与本会话累计，内容列表/正文置底；新增摘要来源分类与四组筛选。复用 DSH 原生主题和控件，不引入第三方研究代码；压缩控制与闲置调度继续使用本插件既有控制器及官方 Basic 事务，不声称压缩后端从零重写。
+
+源码仅改本插件。旧 lib、旧交付、其他插件与宿主保持；原配置、模块导出、三条 Loader 身份不变，没有额外兼容包。用户随后于 2026-10-01 明确授权发布 Git 和更新本机；Git 由本上下文会话单写，日常安装由协调会话单写，结果以协调目录 INSTALLATION_RECEIPT.md / PUBLISH_RECEIPT.md 为准。构建、实际 Loader 与浏览器验收位于协调目录 `coordination/2026-10-01/context-v2-release/`，源码测试以隔离候选执行。原生 Electron 和真实模型效果需按目标安装单列。
+
+验收和安装入口见 `verification/RESULTS-V2-20261001.json`。下面记录为此前阶段，不代表本候选已安装到日常应用。
+
 # 上下文管理插件
 
-- **当前版本 0.3.4（2026-09-28）**：根 src/lib/package 为权威源码，安装选 `releases/dsh-context-manager-0.3.4/`。用户明确峰谷提示仅跟随是否选择官方模型，和上下文百分比无关。提示移到模型旁 `conversation.input.right`，共享原生模型目录的已接受选择（含新会话默认值），不用发送消息或等待用量数据；非官方模型隐藏。10 项相关测试、host/client 类型检查、14 文件包边界审计、真实桌面 ASAR 隔离目录安装及三个组件 active 均通过。全新浏览器页验证空白会话显示、非官方隐藏、切回官方立即显示，浏览器 error 日志为 0；未发送消息或调用模型。冷启动发现并修复 `remote.session` 调用者依赖漏声明，首个候选及失败日志保存在 `verification/first-candidate-0.3.4/`。7 个后台 lib 文件与 0.3.3 完全相同。结果见 `verification/RESULTS-0.3.4.md` / `.json`，预览 60334。现查日常安装为独立 0.3.3，未改日常 profile 或重启应用；原生 Electron 窗口未点击验收。以下旧状态按时间保留。
+本轮命名与 UI 候选已在隔离目录构建并验证，确认日常依赖是冻结 tgz 后，将对应产物回填本目录已跟踪的 lib，避免新包名配到旧客户端注册。原 lib 已在协调目录备份；旧交付包保持字节不变。下面的「根 lib 保持」描述适用于当时的历史阶段。
+
+2026-09-29 追加 UI-REFINE：当前 DSH 包名统一为 `@missher/dsh-context-manager`，配置和存储标识保留。此处为源码候选；本轮安装与验收以协调目录 `coordination/2026-09-29/ui-refinements/` 的回执为准，下面的版本与透明空格等描述保留为历史。
+
+**2026-09-29 / UI-02、UI-06-context（当前）：**基于 0.4.0 保留全部闲置整理与请求前压缩功能，完成 0.5.0-local.1 本地升级包。官方峰谷改为原生价格/同等用量估算浮层；上下文单页增加公开投影重放的占用趋势、累计用量组成和逐次输入/输出变化。只写本插件，未改宿主或其他 Bundle；旧 lib 与旧包保持。53 项回归、Host/Client 类型、21 文件 lint、14 文件包边界、最终隔离 Loader 三项 active、RPC 和受控 Web 深浅主题/价格计算/草稿恢复/窄窗口检查均通过。最后标题栏留白 CSS 调整后已重建、做相关烟测并用最终包冷启动验证。交付位于 releases/dsh-context-manager-0.5.0-local.1（同名 tgz），证据 verification/RESULTS-UI-20260929.json。协调回执已写 coordination/2026-09-29/ui-implementation/context.md；协调者接手多插件组合验收，未写日常 profile，未进行 Git 发布、Electron 原生点击或真实供应商调用。以下为历史阶段记录。
+
+**2026-09-29 / CONTEXT-IDLE-20260929（上一阶段）：**用户授权升级上下文插件并要求 DSH 原生设置风格。源码候选 0.4.0-local.1，针对 Harness 0.2.0-rc.1。增加任务正常完成后的闲置压缩，默认开启、15 分钟、最低 65%（至少高于软目标 10 个百分点），一次任务完成只尝试一次；新消息、停用和关闭会取消本插件维护。使用公开 compactNow / Agent maintenance 与 workspace activity 扩展点，不改宿主或其他 Bundle。设置改用原生 SettingsForm、SettingsValueField 与 Switch；上下文单面板增加轻量状态、摘要用量，原默认展开、只读输入区和官方峰谷提示保留。隔离构建目录为 verification/idle-20260929，根 lib 与旧交付不覆盖；安装目录 releases/dsh-context-manager-0.4.0-local.1。当前完成 Host/Client 类型、48 项测试、19 文件 lint、真实隔离 profile 升级/Loader/RPC 及 Web 原生设置保存验证；真实供应商与 Electron 窗口未验收，日常安装仍由协调者单一写入，不自行更改日常 profile，不 Git 写入。完整证据及状态见 verification/RESULTS-IDLE-20260929.json。下述较早阶段按日期保留。
+
+**2026-09-29 / UPGRADE-20260929：**统一仓库源码已适配 Harness 0.2.0-rc.1，候选 0.3.6-local.1。现有业务接口、UI 和压缩逻辑无需修改；精确更新 DSH 版本声明，重新核验并生成预设元数据，修复开发脚本的旧 SDK 链接/React 类型发现。隔离构建、Host/Client 类型、34 项测试、插件 17 个源文件 lint、14 文件包边界均通过。实际 `dsh plugin add` tarball 安装后 3 个组件 active，inspector RPC 连读不改截面；卸载恢复原 5 行配置，重装后同一测试会话和自定义压缩参数仍保留。未修改生产 profile/旧源码/lib，未重启日常应用。实际 UI 因未认证根入口被浏览器拦截、正式认证入口仅被后台应用排队而未完成；不将组件测试当作原生验收。完整结果在 `verification/RESULTS-UPGRADE-020-20260929.json`，交付回执为协调目录 `coordination/2026-09-29/upgrade-020/context.md`。
+
+- **REQ-03 实施轮（2026-09-28，当前）**：用户“全部完成”的新授权已启动开发，前两轮“只分类/未启动”为历史。源代码候选 `0.3.5-local.1` 仅将 `ContextInspectorView` 初始值及 target 切换重置改为展开；普通刷新仍尊重手动收起。新增覆盖首次、重开、换会话、主动/投影刷新、正文与列表分页、迟到正文取消的回归，保留发送区/草稿测试。构建与 Host/Client 类型检查在 `verification/req03-implementation/candidate` 完成，相关 12 项测试通过，旧 0.3.4 lib 负对照确实在默认展开断言失败。根 lib、旧包及日常 profile 保持原样；峰谷提示未迁移。候选路径、SHA 与验收分层见 `../coordination/2026-09-28/implementation/context-manager.md`；等待后续联调与 Git 明确命令。
+
+- **本轮口径纠偏补充**：Ui-usage 指出 README 将失败重试一概排除在累计之外。已对照当前链接 SDK 的 token-meter 源码及 lib，确认本插件直接读 `tokenUsage`，有持久化有效用量的失败尝试/重试可以计入；逐次回复图的记录范围较小。仅修改 README、边界文档和回执，不修改实现或扩大测试，不重打包旧 0.3.4。
+
+- **2026-09-28 协调审查（晚于 0.3.4 交付）**：源码 Git HEAD `c338afdcc41cb909219a8c70995a9d8379764174`，开始时工作树干净。本轮只审查与文档纠偏；REQ-03 外层详情默认展开已登记、未实施，源码初始与切换会话后的 `expanded=false` 均保留。确认单会话累计与 Ui-usage 跨会话聚合分工，官方峰谷提示为本插件保留的已授权例外。只读现查日常 profile 已引用独立 0.3.4，而非上轮记录的 0.3.3。在临时隔离副本运行 settings / inspector 两个已有测试文件，11/11 通过；复制的包审计脚本检查原 0.3.4 tarball，14 文件边界通过；未构建原 lib、未安装或重启应用。独占回执见 `../coordination/2026-09-28/context-manager.md`。本轮不进行任何 Git 发布操作，所有新功能等待明确命令；下列交付验收属于历史证据。
+
+- **0.3.4 交付时验证（2026-09-28，早于本轮审查）**：根 src/lib/package 为权威源码，安装选 `releases/dsh-context-manager-0.3.4/`。用户明确峰谷提示仅跟随是否选择官方模型，和上下文百分比无关。提示移到模型旁 `conversation.input.right`，共享原生模型目录的已接受选择（含新会话默认值），不用发送消息或等待用量数据；非官方模型隐藏。10 项相关测试、host/client 类型检查、14 文件包边界审计、真实桌面 ASAR 隔离目录安装及三个组件 active 均通过。全新浏览器页验证空白会话显示、非官方隐藏、切回官方立即显示，浏览器 error 日志为 0；未发送消息或调用模型。冷启动发现并修复 `remote.session` 调用者依赖漏声明，首个候选及失败日志保存在 `verification/first-candidate-0.3.4/`。7 个后台 lib 文件与 0.3.3 完全相同。结果见 `verification/RESULTS-0.3.4.md` / `.json`；当时预览 60334，日常安装为独立 0.3.3。此次交付未改日常 profile 或重启应用，原生 Electron 窗口未点击验收。以下旧状态按时间保留。
 
 - **历史版本 0.3.3**：根 src/lib/package 曾归并为最新权威入口，阶段副本 `verification/work-0.3.3/` 保留。安装选 `releases/dsh-context-manager-0.3.3/`；32 项测试、host/client 类型检查、包边界和桌面 ASAR 隔离 Web 验证通过。默认 3 个指标、3 类组成、2 条压缩记录，其余同页按需展开；上下文页隐藏当前发送区，退出恢复草稿。当时在输入区百分比后追加 DeepSeek 官方峰谷提示，0.3.4 已按用户纠正移到模型旁。时段按北京时间与 2026 年官方假期计算；新年份未核验时明确待核对。结果见 `verification/RESULTS-0.3.3.md` / `.json`。
 

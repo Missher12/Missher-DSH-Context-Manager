@@ -11,6 +11,8 @@ export interface CompactionEntry {
   afterTokens?: number
   messages?: number
   error?: string
+  inputTokens?: number
+  outputTokens?: number
 }
 
 export interface ContextDiagnostics {

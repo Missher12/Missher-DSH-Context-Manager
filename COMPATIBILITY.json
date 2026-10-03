@@ -1,6 +1,9 @@
 {
-  "harnessVersion": "0.1.7-rc.2",
-  "sourceSha": "e3409377ac873963595b76c0eb9afd8a8aa241af",
+  "harnessVersion": "0.2.0-rc.2",
+  "verifiedHarnessVersions": [
+    "0.2.0-rc.2"
+  ],
+  "sourceSha": "639ed015397290b3745d163aafe02ffee4aa3f84",
   "sources": [
     {
       "path": "packages/bundle/web-app/presets/standard.patch.yml",
@@ -18,5 +21,10 @@
       "replacedBackends": 1
     }
   ],
-  "customPresets": "Replace the compaction-basic provider with dsh-context-manager/engine explicitly. Saved preset overrides take precedence."
+  "customPresets": "Replace the compaction-basic provider with @missher/dsh-context-manager/engine explicitly. Saved preset overrides take precedence.",
+  "runtimeCapabilities": {
+    "idleMaintenanceSelection": "BasicCompactionEngine.selectMaintenanceRange; missing capability skips idle compaction before billing",
+    "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true; missing capability skips pruning",
+    "durableMetadata": "storageDomain for idle eligibility and summary usage"
+  }
 }
