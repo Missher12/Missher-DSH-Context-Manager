@@ -26,5 +26,19 @@
     "idleMaintenanceSelection": "BasicCompactionEngine.selectMaintenanceRange; missing capability skips idle compaction before billing",
     "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true; missing capability skips pruning",
     "durableMetadata": "storageDomain for idle eligibility and summary usage"
+  },
+  "verification": {
+    "distribution": "Missher DeepSeek Harness Desktop, custom 0.2.0-rc.2 with maintenance-range and protected-pruning extensions",
+    "platformsTested": [
+      "macOS Intel (x64)"
+    ],
+    "platformsNotVerified": [
+      "macOS Apple Silicon",
+      "Windows",
+      "Linux"
+    ],
+    "officialHarnessOnly": "Full plugin acceptance on unmodified official rc.2 was not performed. Missing optional capabilities follow runtimeCapabilities.",
+    "realProviderCompactionTested": false,
+    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit."
   }
 }

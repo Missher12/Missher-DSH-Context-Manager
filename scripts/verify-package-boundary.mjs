@@ -13,11 +13,19 @@ const members = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).tri
 const read = name => execFileSync('tar', ['-xOf', archive, `package/${name}`], { encoding: 'utf8' })
 const manifest = JSON.parse(read('package.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
-const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
+const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
   'lib/chart-data.js', 'lib/client.js', 'lib/diagnostics.js', 'lib/engine.js', 'lib/index.js', 'lib/policy.js', 'package.json',
   ...(inspector ? ['lib/inspector.js', 'lib/inspector-fold.js', 'lib/typert.js'] : [])].map(p => `package/${p}`).sort()
 assert.deepEqual(members, expected, 'Package must not contain another plugin, verification fixtures, or local profiles')
 assert.equal(manifest.name, '@missher/dsh-context-manager')
+for (const target of Object.values(manifest.exports)) {
+  assert.ok(typeof target === 'string' && target.startsWith('./'), 'Exports must be package-relative')
+  assert.ok(members.includes('package/' + target.slice(2)), `Missing export: ${target}`)
+}
+assert.ok(members.includes('package/' + manifest.dsh.bundle.patch.replace(/^\.\//, '')), 'Missing Bundle patch')
+for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies })) {
+  assert.ok(!/^(?:file:|link:|workspace:|\/|[A-Za-z]:[\\/])/.test(spec), `Nonportable runtime dependency: ${name}`)
+}
 const dependencies = Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies,
   ...manifest.peerDependencies, ...manifest.devDependencies })
 assert.ok(!dependencies.some(name => /^(?:@missher\/)?dsh-session-bridge(?:\/|$)/.test(name)),

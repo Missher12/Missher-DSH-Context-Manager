@@ -1,0 +1,169 @@
+{
+  "date": "2026-10-05",
+  "requirement": "MARKET-20261005",
+  "package": "@missher/dsh-context-manager",
+  "version": "0.7.0-local.2",
+  "archive": "missher-dsh-context-manager-0.7.0-local.2.tgz",
+  "sha256": "946a3009c8bb75992e1e369b0d34f857bb64cc817e5d3a890303cfac3dd8dc01",
+  "runtimeSourceBaseline": "debc09acb0c67d41690bbe0810f15a4e2bf20fee",
+  "runtimeUnchangedFiles": {
+    "lib/client.js": "392f94c7c56dcb51a2f4e1535317a29ce9695ea189bf3605750cd0f43665e9fa",
+    "lib/diagnostics.js": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+    "lib/typert.js": "03a89d2a0874f55b8b5ea3cc9f934d2fff49e1b16cf96d7e666111d5299c28dc",
+    "lib/policy.js": "842eb7d99d3ed229a0b9c6bfb3efc45865d534746207d3b05334c5cae9f0608e",
+    "lib/inspector.js": "da2c3321639a3645b7ef6d274a69612562381b28d765dfb284026c5cead0bf64",
+    "lib/index.js": "a55269a86ceb5c95d4076bfba81fce11708031659cfc09019ea8c649e8048f5d",
+    "lib/inspector-fold.js": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+    "lib/chart-data.js": "ef2fdcc99a850031126ffcc484e8ca4da86e7e10bceee78d9df7b8497920af80",
+    "lib/engine.js": "bbe71574402fcf6ade56a08d4fa62d6ce3716701f82ca6b197f214124d5bc882"
+  },
+  "runtimeRebuilt": false,
+  "scope": "Packaging and documentation only; no source/runtime behavior changes.",
+  "environment": {
+    "platform": "macOS Intel x64",
+    "node": "25.6.0",
+    "pnpm": "11.1.3",
+    "host": "custom 0.2.0-rc.2 frozen integration SDK",
+    "homeAndDshData": "isolated, no user model credentials"
+  },
+  "checks": {
+    "packageFiles": 16,
+    "allPackageFilesMatchSource": true,
+    "absoluteRuntimeDependencyPaths": false,
+    "installHooks": false,
+    "foreignPluginsBundled": false,
+    "peerAndPresetTests": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "concurrency": 1
+    },
+    "lockfileOnlyOfflineInstall": "passed, lockfile unchanged",
+    "isolatedCliInstallRemoveReinstall": "passed",
+    "bundleDisableEnable": "passed with cold reload",
+    "sessionFilesPreserved": 2,
+    "profilePatchPreserved": true,
+    "loaderAndRpc": {
+      "initial": {
+        "mode": "initial",
+        "host": "custom rc.2 frozen integration SDK",
+        "packageVersion": "0.7.0-local.2",
+        "loader": [
+          {
+            "entryId": "include:context-manager",
+            "moduleName": "@missher/dsh-context-manager",
+            "enabled": true,
+            "fiberPhase": "active"
+          },
+          {
+            "entryId": "include:context-manager-engine",
+            "moduleName": "@missher/dsh-context-manager/engine",
+            "enabled": true,
+            "fiberPhase": "active"
+          },
+          {
+            "entryId": "include:context-manager-inspector",
+            "moduleName": "@missher/dsh-context-manager/inspector",
+            "enabled": true,
+            "fiberPhase": "active"
+          }
+        ],
+        "realModelCalls": false,
+        "inspector": {
+          "cursor": 2,
+          "rows": 0,
+          "repeatedReadUnchanged": true
+        },
+        "idle": {
+          "status": "waiting",
+          "dueAt": null,
+          "reasonCode": "no_plan",
+          "message": "尚无可恢复计划；下次任务正常完成后开始计时"
+        },
+        "htmlStatus": 200,
+        "disableSaved": true
+      },
+      "disabled": {
+        "mode": "disabled",
+        "host": "custom rc.2 frozen integration SDK",
+        "packageVersion": "0.7.0-local.2",
+        "loader": [],
+        "realModelCalls": false,
+        "basic": {
+          "entryId": "include:compaction-basic",
+          "enabled": false,
+          "fiberPhase": null
+        },
+        "hostDefaultRootBasicStateRestored": true,
+        "enableSaved": true
+      },
+      "uninstalled": {
+        "mode": "uninstalled",
+        "host": "custom rc.2 frozen integration SDK",
+        "packageVersion": null,
+        "loader": [],
+        "realModelCalls": false,
+        "basic": {
+          "entryId": "include:compaction-basic",
+          "enabled": false,
+          "fiberPhase": null
+        },
+        "hostDefaultRootBasicStateRestored": true
+      },
+      "reinstalled": {
+        "mode": "reinstalled",
+        "host": "custom rc.2 frozen integration SDK",
+        "packageVersion": "0.7.0-local.2",
+        "loader": [
+          {
+            "entryId": "include:context-manager",
+            "moduleName": "@missher/dsh-context-manager",
+            "enabled": true,
+            "fiberPhase": "active"
+          },
+          {
+            "entryId": "include:context-manager-engine",
+            "moduleName": "@missher/dsh-context-manager/engine",
+            "enabled": true,
+            "fiberPhase": "active"
+          },
+          {
+            "entryId": "include:context-manager-inspector",
+            "moduleName": "@missher/dsh-context-manager/inspector",
+            "enabled": true,
+            "fiberPhase": "active"
+          }
+        ],
+        "realModelCalls": false,
+        "inspector": {
+          "cursor": 2,
+          "rows": 0,
+          "repeatedReadUnchanged": true
+        },
+        "idle": {
+          "status": "waiting",
+          "dueAt": null,
+          "reasonCode": "no_plan",
+          "message": "尚无可恢复计划；下次任务正常完成后开始计时"
+        },
+        "htmlStatus": 200
+      }
+    }
+  },
+  "historicalEvidence": {
+    "date": "2026-10-03",
+    "version": "0.7.0-local.1",
+    "fullTests": 115,
+    "namingFollowupTests": 20,
+    "webUi": "historical controlled light/dark and 1280/800/335px; not rerun for packaging revision"
+  },
+  "notVerified": [
+    "real-provider summary quality",
+    "native Electron UI in this revision",
+    "Windows/Linux/Apple Silicon plugin execution",
+    "full unmodified official rc.2 acceptance",
+    "official 0.2.1-alpha.1"
+  ],
+  "dailyInstallationChanged": false,
+  "releaseAndMarketplace": "separate coordinator-owned follow-up; this report is not a publication receipt"
+}
