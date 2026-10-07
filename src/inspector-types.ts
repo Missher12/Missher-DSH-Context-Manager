@@ -34,6 +34,8 @@ export interface PressurePoint {
 export interface ContextDelta { fromSeq: number; toSeq: number; beforeTokens: number; afterTokens: number; deltaTokens: number }
 export interface ContextGrowth { sinceCompaction: ContextDelta | null; lastToolResult: ContextDelta | null }
 export type InspectedCompaction = CompactionEntry & { trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
+/** Read-only host goal projection; the context page never mutates it. */
+export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
 export interface Inspection {
   sessionId: string; cursor: number; cutSeq: number; sampledAt: number; historical: boolean
   pressure: { projected: number; input: number; window: number | null } | null
@@ -45,6 +47,8 @@ export interface Inspection {
   summaryUsage?: { input: number; output: number; attempts: number; unknownAttempts: number; since: number }
   /** Differences between replayed host projections, never an exact token bill. */
   contextGrowth?: ContextGrowth
+  /** Goal stop reason as recorded by the host, distinct from context pressure. */
+  goal?: GoalReadout
   pressureHistory: PressurePoint[]
   rows: ContentRow[]; total: number; offset: number; pageSize: number; activeCount: number; archivedCount: number
   requests: RequestRow[]; requestCount: number; compactions: InspectedCompaction[]

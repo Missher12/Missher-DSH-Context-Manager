@@ -11,7 +11,7 @@ const compiled = await build({
     builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
   } }],
 })
-const { formatCheckpoint } = await import(`data:text/javascript;base64,${Buffer.from(`${compiled.outputFiles[0].text}\n//# sourceURL=checkpoint-test.js`).toString('base64')}`)
+const { formatCheckpoint, classifyCheckpoint, expectedRepair, repairDeviations, CheckpointFormatError } = await import(`data:text/javascript;base64,${Buffer.from(`${compiled.outputFiles[0].text}\n//# sourceURL=checkpoint-test.js`).toString('base64')}`)
 
 const source = { sessionId: 'session-fixture', compactionId: 'compaction-fixture' }
 const checkpoint = () => ({
@@ -57,5 +57,78 @@ test('checkpoint: every required field is enforced before any Markdown is return
 test('checkpoint: invalid JSON, scalar bodies and surrounding explanations fail closed', () => {
   for (const raw of ['not JSON', '{"goal":', 'null', '[]', '"ordinary summary"', `说明：${JSON.stringify(checkpoint())}`, `${JSON.stringify(checkpoint())}\n任务已经完成。`]) {
     assert.throws(() => formatCheckpoint(raw, source), /原始记录保留/)
+  }
+})
+
+test('checkpoint: whitelisted lossless wrappers normalize to the identical checkpoint', () => {
+  const value = checkpoint()
+  const json = JSON.stringify(value)
+  const plain = formatCheckpoint(json, source)
+  const wrappers = [
+    `\uFEFF${json}`, // leading BOM
+    `\r\n${json}\r\n`, // CRLF line endings
+    `\`\`\`json\r\n${json}\r\n\`\`\`\r\n`, // CRLF single json fence
+    `\n  \`\`\`JSON  \n${json}\n\`\`\`  \n`, // uppercase tag and fence padding
+    `\`\`\`\n${json}\n\`\`\``, // untagged single fence
+    `  \n${json}\n\n`, // surrounding whitespace
+  ]
+  for (const raw of wrappers) assert.equal(formatCheckpoint(raw, source), plain, `wrapper must preserve every field: ${JSON.stringify(raw.slice(0, 24))}`)
+})
+
+test('checkpoint: ambiguous or damaged wrappers are rejected without scanning for a JSON object', () => {
+  const json = JSON.stringify(checkpoint())
+  const reject = [
+    `before\n\`\`\`json\n${json}\n\`\`\`\nafter`, // prose around the fence
+    `${json}\n${json}`, // two contradictory JSON objects
+    `\`\`\`json\n${json}`, // unterminated fence
+    `\`\`\`json\n${json.slice(0, json.length - 12)}`, // truncated JSON inside a fence
+    `\`\`\`text\n${json}\n\`\`\``, // non-json language tag is not whitelisted
+    `\`\`\`json\nnot json\n\`\`\``, // fence with invalid body
+    '{"goal":', // truncated JSON
+    `${json}{"extra":1}`, // trailing second object
+  ]
+  for (const raw of reject) assert.throws(() => formatCheckpoint(raw, source), /原始记录保留/, `must reject: ${JSON.stringify(raw.slice(0, 24))}`)
+})
+
+test('checkpoint: only a single-string array field qualifies for the deterministic repair', () => {
+  const broken = { ...checkpoint(), constraints: '必须是数组' }
+  const classified = classifyCheckpoint(JSON.stringify(broken))
+  assert.equal(classified.repairable, true)
+  assert.match(classified.reason, /缺少数组包装/)
+  const expected = expectedRepair(JSON.stringify(broken))
+  assert.deepEqual(expected, { ...checkpoint(), constraints: ['必须是数组'] })
+  const repaired = { ...checkpoint(), constraints: ['必须是数组'] }
+  assert.deepEqual(repairDeviations(JSON.stringify(broken), repaired), [])
+  // A repair that adds, splits or rephrases anything deviates from the deterministic wrap.
+  assert.deepEqual(repairDeviations(JSON.stringify(broken), { ...repaired, constraints: ['必须是数组', '额外事实'] }), ['constraints'])
+  assert.deepEqual(repairDeviations(JSON.stringify(broken), { ...repaired, goal: '被改写' }), ['goal'])
+  const notRepairable = [
+    ['truncated JSON', '{"goal":'],
+    ['prose', 'ordinary summary'],
+    ['missing field', JSON.stringify((() => { const value = checkpoint(); delete value.pending; return value })())],
+    ['unknown field', JSON.stringify({ ...checkpoint(), extra: 'unexpected' })],
+    ['empty goal', JSON.stringify({ ...checkpoint(), goal: '   ' })],
+    ['goal with wrong type', JSON.stringify({ ...checkpoint(), goal: 42 })],
+    ['nested object in array field', JSON.stringify({ ...checkpoint(), constraints: { nested: 'object' } })],
+    ['mixed array items', JSON.stringify({ ...checkpoint(), completed: [1, 2] })],
+    ['duplicate top key', JSON.stringify(checkpoint()).replace(/"goal":/, '"goal": "first", "goal":')],
+    ['escaped duplicate top key', JSON.stringify(checkpoint()).replace(/"goal":/, '"goal": "first", "\\u0067oal":')],
+    ['over-length item', JSON.stringify({ ...checkpoint(), evidence: ['e'.repeat(64001)] })],
+    ['too many items', JSON.stringify({ ...checkpoint(), evidence: Array.from({ length: 101 }, (_, index) => `item-${index}`) })],
+    ['empty string array field', JSON.stringify({ ...checkpoint(), constraints: '   ' })],
+    ['scalar body', 'null'],
+  ]
+  for (const [label, raw] of notRepairable) {
+    assert.equal(classifyCheckpoint(raw).repairable, false, `${label} must be rejected without repair`)
+    assert.throws(() => formatCheckpoint(raw, source), /原始记录保留/, `${label} must fail closed`)
+  }
+})
+
+test('checkpoint: parse failures carry their repair classification for the engine gate', () => {
+  const broken = JSON.stringify({ ...checkpoint(), constraints: '必须是数组' })
+  try { formatCheckpoint(broken, source); assert.fail('type-broken value must fail the strict schema') }
+  catch (error) {
+    assert.ok(error instanceof CheckpointFormatError)
+    assert.equal(error.classification.repairable, true)
   }
 })

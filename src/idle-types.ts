@@ -9,5 +9,15 @@ export interface IdleStatus {
   restored?: boolean
   windowTokens?: number
   minimumPercent?: number
+  /** Effective idle floor in tokens when the absolute soft trigger binds. */
+  minimumTokens?: number
+  /** Live phase of an in-flight compaction, from either request or idle path. */
+  compactionPhase?: 'summarizing' | 'repairing'
   updatedAt?: number
+}
+
+/** Live in-flight compaction phase reported by the engine's status reader. */
+export interface CompactPhase {
+  phase: 'summarizing' | 'repairing'
+  message: string
 }

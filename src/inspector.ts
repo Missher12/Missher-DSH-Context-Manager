@@ -5,6 +5,7 @@ import type { ProjectionCheckpoint, SessionProjectionRegistry } from '@deepseek-
 import type {} from '@deepseek-ai/dsh-session-query'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-token-meter/client'
+import type {} from '@deepseek-ai/dsh-goal'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { contextGroups } from './chart-data.ts'
 import { pressureHistory } from './pressure-history.ts'
@@ -96,6 +97,7 @@ export class ContextInspector extends TypertRemoteService {
       const pressure = values?.contextPressure
       const official = values?.contextBreakdown
       const usage = values?.tokenUsage
+      const goalState = values?.goal
       const summary = query.atSeq === null ? this.ctx.contextManager.summaryLedger?.stats(query.sessionId) : undefined
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
@@ -116,6 +118,9 @@ export class ContextInspector extends TypertRemoteService {
         ...(summary ? { summaryUsage: { input: summary.input, output: summary.output, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts, since: summary.since } } : {}),
         ...(query.atSeq === null ? { contextGrowth: contextGrowth(this.ctx.sessionProjections, observation, cut, signal) } : {}),
         model: config ? { provider: config.provider, model: config.model, effort: config.reasoningEffort === undefined ? null : String(config.reasoningEffort), maxTokens: typeof config.maxTokens === 'number' && Number.isFinite(config.maxTokens) && config.maxTokens >= 0 ? config.maxTokens : null } : null,
+        ...(query.atSeq === null && goalState ? { goal: { phase: goalState.goal.phase,
+          blockedReason: goalState.goal.blockedReason === undefined ? null : { code: goalState.goal.blockedReason.code, message: goalState.goal.blockedReason.message },
+          roundsStarted: goalState.roundsStarted, maxGoalRounds: goalState.goal.maxGoalRounds } } : {}),
         pressureHistory: pressureHistory(this.ctx.sessionProjections, observation, cut, signal),
         parts: index.parts, rows: matched.slice(query.offset, query.offset + 50), total: matched.length, offset: query.offset, pageSize: 50,
         activeCount: index.indexed.filter(item => item.row.current).length, archivedCount: index.indexed.filter(item => !item.row.current).length,

@@ -32,7 +32,7 @@ const settledFixture = (index, usage) => ({
   output: usage?.outputTokens ?? null, cacheRead: usage?.cacheReadTokens ?? 0, cacheWrite: usage?.cacheWriteTokens ?? 0,
 })
 const startedFixture = index => ({ id: `fixture-${index}`, compactionId: `compaction-${index}`, trigger: 'idle',
-  startedAt: 1000 + index, status: 'started', input: null, output: null, cacheRead: 0, cacheWrite: 0 })
+  startedAt: 1000 + index, status: 'started', input: null, output: null, cacheRead: null, cacheWrite: null })
 
 async function harness(t) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-context-summary-ledger-'))
@@ -179,8 +179,9 @@ test('summary ledger: crossing the 128-record boundary archives totals without d
   const persisted = await saved()
   assert.equal(persisted.recent.length, 128)
   assert.equal(persisted.archived.attempts, 4)
-  assert.equal(persisted.archived.unknownAttempts, 1)
-  assert.equal(persisted.recent[0].id, ids[4])
+  // Unknown-usage attempts stay in recent so late usage can still land.
+  assert.equal(persisted.archived.unknownAttempts, 0)
+  assert.equal(persisted.recent[0].id, ids[0])
   await stop(first)
   const reopened = await boot()
   assert.deepEqual(reopened.ledger.stats(sessionId), stats, 'archived counters survive an entirely new Context and storage backend')
@@ -233,7 +234,95 @@ test('summary ledger: 128 unfinished attempts reject further starts without losi
   assert.deepEqual(ledger.stats(sessionId), before)
   assert.equal((await saved()).recent.length, 128)
   assert.equal((await saved()).archived.attempts, 0)
+  const release = ledger.retainUsage(records[0].id)
   await ledger.finish(sessionId, records[0].id, 'failed', { inputTokens: 3, outputTokens: 1 })
+  release()
   await ledger.start(sessionId, 'accepted-after-settlement', 'idle')
   assert.deepEqual(counters(ledger.stats(sessionId)), { input: 3, output: 1, cacheRead: 0, cacheWrite: 0, attempts: 129, unknownAttempts: 128 })
+})
+
+test('summary ledger: partial late usage fills field by field, repeats never double-count and the status stays settled', async t => {
+  const { boot } = await harness(t)
+  const { ledger } = await boot()
+  const id = await ledger.start(sessionId, 'compaction-partial', 'pressure')
+  await ledger.finish(sessionId, id, 'cancelled')
+  await ledger.recordUsage(sessionId, id, { inputTokens: 500, cacheReadTokens: 100 })
+  await ledger.recordUsage(sessionId, id, { outputTokens: 40 })
+  const stats = ledger.stats(sessionId)
+  assert.deepEqual(counters(stats), { input: 600, output: 40, cacheRead: 100, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
+  assert.equal(stats.recent[0].status, 'cancelled')
+  await ledger.recordUsage(sessionId, id, { inputTokens: 500, cacheReadTokens: 100, outputTokens: 40 })
+  await ledger.recordUsage(sessionId, id, { outputTokens: 999 })
+  assert.deepEqual(counters(ledger.stats(sessionId)), { input: 600, output: 40, cacheRead: 100, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
+})
+
+test('summary ledger: usage recorded before finish survives the settle, in either notification order', async t => {
+  const { boot } = await harness(t)
+  const { ledger } = await boot()
+  for (const order of ['usage-first', 'finish-first']) {
+    const id = await ledger.start(sessionId, `compaction-${order}`, 'pressure')
+    if (order === 'usage-first') await ledger.recordUsage(sessionId, id, { inputTokens: 500, cacheReadTokens: 100, outputTokens: 40 })
+    await ledger.finish(sessionId, id, 'cancelled', order === 'finish-first' ? { outputTokens: 40 } : undefined)
+    if (order === 'finish-first') await ledger.recordUsage(sessionId, id, { inputTokens: 500, cacheReadTokens: 100 })
+    const stats = ledger.stats(sessionId)
+    const row = stats.recent.find(item => item.id === id)
+    assert.equal(row.status, 'cancelled')
+    assert.equal(row.input, 600); assert.equal(row.output, 40)
+    assert.equal(row.cacheRead, 100, 'cache components come from the first notification that establishes input')
+  }
+  const stats = ledger.stats(sessionId)
+  assert.deepEqual(counters(stats), { input: 1200, output: 80, cacheRead: 200, cacheWrite: 0, attempts: 2, unknownAttempts: 0 })
+})
+
+test('summary ledger: cache components arriving before or after the billed input complete it exactly once', async t => {
+  const { boot } = await harness(t)
+  const { ledger } = await boot()
+  const cacheFirst = await ledger.start(sessionId, 'compaction-cache-first', 'pressure')
+  await ledger.finish(sessionId, cacheFirst, 'cancelled')
+  await ledger.recordUsage(sessionId, cacheFirst, { cacheReadTokens: 100 })
+  await ledger.recordUsage(sessionId, cacheFirst, { inputTokens: 500 })
+  let row = ledger.stats(sessionId).recent.find(item => item.id === cacheFirst)
+  assert.equal(row.input, 600, 'cache arriving first must complete the later billed input')
+  assert.equal(row.cacheRead, 100)
+  const inputFirst = await ledger.start(sessionId, 'compaction-cache-late', 'pressure')
+  await ledger.finish(sessionId, inputFirst, 'cancelled')
+  await ledger.recordUsage(sessionId, inputFirst, { inputTokens: 500, outputTokens: 40 })
+  await ledger.recordUsage(sessionId, inputFirst, { cacheReadTokens: 100 })
+  row = ledger.stats(sessionId).recent.find(item => item.id === inputFirst)
+  assert.equal(row.input, 600, 'cache arriving later must adjust the billed input exactly once')
+  assert.equal(row.output, 40); assert.equal(row.cacheRead, 100)
+  await ledger.recordUsage(sessionId, inputFirst, { cacheReadTokens: 200 })
+  assert.equal(ledger.stats(sessionId).recent.find(item => item.id === inputFirst).input, 600, 'a repeated cache notification never double-counts')
+  const stats = ledger.stats(sessionId)
+  assert.deepEqual(counters(stats), { input: 1200, output: 40, cacheRead: 200, cacheWrite: 0, attempts: 2, unknownAttempts: 1 }, 'the cache-first attempt never delivered output, so its usage stays partially unknown')
+})
+
+test('summary ledger: a settled attempt awaiting late usage is never archived and stays fillable', async t => {
+  const { boot, saved } = await harness(t)
+  const { ledger, seed } = await boot()
+  const awaiting = { id: 'awaiting-late', compactionId: 'compaction-awaiting', trigger: 'pressure',
+    startedAt: 1, endedAt: 2, status: 'cancelled', input: null, output: null, cacheRead: null, cacheWrite: null }
+  await seed([awaiting, ...Array.from({ length: 127 }, (_, index) => settledFixture(index + 1, { inputTokens: 2, outputTokens: 1, cacheReadTokens: 1, cacheWriteTokens: 1 }))])
+  const id = await ledger.start(sessionId, 'new-after-full', 'manual')
+  await ledger.finish(sessionId, id, 'generated', { inputTokens: 2, outputTokens: 1 })
+  const persisted = await saved()
+  assert.ok(persisted.recent.some(item => item.id === 'awaiting-late'), 'an attempt awaiting late usage must never be archived')
+  assert.equal(persisted.archived.attempts, 1, 'a fully known settled attempt takes the archive slot instead')
+  const before = ledger.stats(sessionId)
+  await ledger.recordUsage(sessionId, 'awaiting-late', { inputTokens: 500, cacheReadTokens: 100, outputTokens: 40 })
+  const stats = ledger.stats(sessionId)
+  assert.equal(stats.input, before.input + 600); assert.equal(stats.output, before.output + 40)
+  assert.equal(stats.cacheRead, before.cacheRead + 100); assert.equal(stats.unknownAttempts, before.unknownAttempts - 1)
+})
+
+test('summary ledger: a full queue of settled but unknown attempts refuses new starts instead of losing late usage', async t => {
+  const { boot } = await harness(t)
+  const { ledger, seed } = await boot()
+  const unknown = Array.from({ length: 128 }, (_, index) => ({ id: `unknown-${index}`, compactionId: `compaction-${index}`, trigger: 'pressure',
+    startedAt: 1000 + index, endedAt: 2000 + index, status: 'cancelled', input: null, output: null, cacheRead: null, cacheWrite: null }))
+  await seed(unknown)
+  await assert.rejects(ledger.start(sessionId, 'refused-safe', 'manual'), /unsettled/i)
+  await ledger.recordUsage(sessionId, 'unknown-3', { inputTokens: 500, cacheReadTokens: 100, outputTokens: 40 })
+  const stats = ledger.stats(sessionId)
+  assert.equal(stats.input, 600); assert.equal(stats.unknownAttempts, 127)
 })

@@ -10,11 +10,17 @@ export function idleStatusSchema() { return z.object({
   status: z.enum(['off', 'waiting', 'scheduled', 'checking', 'compacting', 'completed', 'skipped', 'cancelled', 'failed']),
   dueAt: count().nullable(), message: z.string().max(300), beforeTokens: count().optional(), afterTokens: count().optional(),
   reasonCode: z.string().max(100).optional(), restored: z.boolean().optional(), windowTokens: count().optional(), minimumPercent: z.number().min(0).max(100).optional(), updatedAt: count().optional(),
+  compactionPhase: z.enum(['summarizing', 'repairing']).optional(),
 }) }
 export function inspectQuerySchema() { return z.object({ sessionId: sessionId(), atSeq: seq().nullable(), offset: count(), category: z.union([category(), z.literal('all')]), group: z.enum(['summary', 'tool', 'message', 'instruction']).optional(), search: z.string().max(200), sort: z.enum(['size', 'position']), archived: z.boolean() }).strict() }
 export function contentQuerySchema() { return z.object({ sessionId: sessionId(), cutSeq: seq(), id: z.string().min(1).max(100), offset: count(), sourceOffset: count().optional() }).strict() }
 const contentRowSchema = () => z.object({ id: z.string(), seq: seq(), title: z.string().max(160), source: z.string().max(200), category: category(), tokens: count(), current: z.boolean(), images: count() }).strict()
 const contextDeltaSchema = () => z.object({ fromSeq: count(), toSeq: count(), beforeTokens: count(), afterTokens: count(), deltaTokens: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER) }).strict()
+const goalReadoutSchema = () => z.object({
+  phase: z.string().min(1).max(100),
+  blockedReason: z.object({ code: z.string().min(1).max(100), message: z.string().max(4000) }).strict().nullable(),
+  roundsStarted: count(), maxGoalRounds: count(),
+}).strict()
 export function inspectionSchema() { return z.object({
   sessionId: sessionId(), cursor: seq(), cutSeq: seq(), sampledAt: count(), historical: z.boolean(),
   pressure: z.object({ projected: count(), input: count(), window: count().nullable() }).nullable(),
@@ -24,6 +30,7 @@ export function inspectionSchema() { return z.object({
   usage: z.object({ input: count(), output: count(), cacheRead: count(), uncached: count(), cacheWrite: count() }).nullable(),
   summaryUsage: z.object({ input: count(), output: count(), attempts: count(), unknownAttempts: count(), since: count() }).strict().optional(),
   contextGrowth: z.object({ sinceCompaction: contextDeltaSchema().nullable(), lastToolResult: contextDeltaSchema().nullable() }).strict().optional(),
+  goal: goalReadoutSchema().optional(),
   pressureHistory: z.array(z.object({ seq: seq(), time: count(), tokens: count().nullable(), window: count().nullable(), kind: z.enum(['reply', 'replace', 'current']) })).max(40),
   rows: z.array(contentRowSchema()).max(50),
   total: count(), offset: count(), pageSize: count(), activeCount: count(), archivedCount: count(),

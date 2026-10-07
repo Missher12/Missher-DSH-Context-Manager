@@ -1,45 +1,68 @@
 {
-  "version": "0.7.0-local.1",
-  "sourceRepository": "Missher12/Missher-DSH-Inter",
-  "sourceCommit": "383913fe07cac9a5de38fc26e2fb003ef42d977d",
-  "sourceAdditionalFix": null,
-  "acceptedPackageSha256": "f52563b7e381cb63f1ec707fe55aedff3ec1533f4f79ddac93c0f2c7706986f1",
-  "runtimeFiles": [
-    {
-      "path": "lib/chart-data.js",
-      "sha256": "ef2fdcc99a850031126ffcc484e8ca4da86e7e10bceee78d9df7b8497920af80"
-    },
-    {
-      "path": "lib/client.js",
-      "sha256": "392f94c7c56dcb51a2f4e1535317a29ce9695ea189bf3605750cd0f43665e9fa"
-    },
-    {
-      "path": "lib/diagnostics.js",
-      "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
-    },
-    {
-      "path": "lib/engine.js",
-      "sha256": "bbe71574402fcf6ade56a08d4fa62d6ce3716701f82ca6b197f214124d5bc882"
-    },
-    {
-      "path": "lib/index.js",
-      "sha256": "a55269a86ceb5c95d4076bfba81fce11708031659cfc09019ea8c649e8048f5d"
-    },
-    {
-      "path": "lib/inspector-fold.js",
-      "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
-    },
-    {
-      "path": "lib/inspector.js",
-      "sha256": "da2c3321639a3645b7ef6d274a69612562381b28d765dfb284026c5cead0bf64"
-    },
-    {
-      "path": "lib/policy.js",
-      "sha256": "842eb7d99d3ed229a0b9c6bfb3efc45865d534746207d3b05334c5cae9f0608e"
-    },
-    {
-      "path": "lib/typert.js",
-      "sha256": "03a89d2a0874f55b8b5ea3cc9f934d2fff49e1b16cf96d7e666111d5299c28dc"
-    }
-  ]
+  "version": "0.8.0-local.7",
+  "candidatePackageSha256": "d749f3c21f7e90fb969376ee009a01ef1603690edfeef780496e94f3ad206ffd",
+  "hostBaseCommit": "bf8ab76129ed186e84e6578c666746d77bfd8aaa",
+  "hostPatchSha256": "28cea3203b0209a711f059bb02a063b09663f0a6bf3bfe1b655442f48cd336a0",
+  "sourceAndRuntime": {
+    "cordis.patch.yml": "dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69",
+    "lib/chart-data.js": "265cf3ec203a0914827c958c482b628bd53e617a65b2336a63b82b88556f9bea",
+    "lib/client.js": "c26ad589f87d503b19f1b123d2647ba2b80be44f009a7efd72152e3e1aa48b27",
+    "lib/diagnostics.js": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+    "lib/engine.js": "617c690dbe3e36191445be2aedc5909842d1e49ca3becfe3fce9d6f0e243e9b5",
+    "lib/index.js": "197e337f894c2266eb80f87b21d43e0a9265d9dce53bd33914aa4e30ef7ff274",
+    "lib/inspector-fold.js": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+    "lib/inspector.js": "9e7f1aab054da2c1f6ae1e3c983f886c9e7c62ca7846138c6fd5b75263b0baca",
+    "lib/policy.js": "af8dc6430da15e78d69e188e449bbc6fab25a445c59789434b82d7d22ffcb9b2",
+    "lib/typert.js": "63a50135482eb41636b85cd9f772d49e23eb54b473042358bbe91686c70161e1",
+    "package.json": "b51ce23ee6b3b7d3677cb1276ae51991fa84b3701b781749c5360eda9e05abe6",
+    "pnpm-lock.yaml": "998a55bb5882795c0a22fcb32b0d9565600a3e641e0f9c95891ce7780416f8cf",
+    "src/chart-data.ts": "210c23a93895d52e0e0f24c2c4be762db6ec6f4c1c56f9f06ab8fd084ba2a94f",
+    "src/checkpoint.ts": "eb0e9d3930a09e6f90ae52bb17fa46a31c112a3d07faa75eaa23579204b8a990",
+    "src/client.css": "5c25c9600a445cce09776ffd0e1a11814f8ba46173fc4700e75aa650c96454fe",
+    "src/client.tsx": "bb8a271d8dfb6451f5b0116bdb249eae09ca38f37e6f5b4d735ac7eff6563205",
+    "src/deepseek-period.ts": "9595514bbe9d8053bd769a91ca98c6deed6eaa14383aeba2a63164f0db4105e5",
+    "src/diagnostics-types.ts": "2bdf8ede181dfc2d87dbc1d87c237f4eaafe5536e90712ef3efbcaf833b8a885",
+    "src/diagnostics.ts": "3dd0dc4b33f1662090cc67f39d20f3d29258456b64bce78f80075a5f06f9d5df",
+    "src/engine.ts": "79643033e261a5db28d460568ac903d280e8c80631ea17296d7882651441c881",
+    "src/idle-store.ts": "7f2557091f79f1bcca0d2e49c942a3bef508e0c0c61fa6a74c9b2ccd012656a1",
+    "src/idle-types.ts": "cdb989feb45fce705715dd8ef29a9271d50ca8c9c99fdfd7d60d00c2bdd32e21",
+    "src/idle.ts": "423f58ba62bbd8912cab38baf1f398c00b8b80aef7be123c702a6683d69bb7c0",
+    "src/index.ts": "73eaf8637d343bfd2464a2ada20c83435798c6181ca859a97e11d7447637ac2d",
+    "src/inspector-charts.tsx": "937d0c457b111596ff190bfc280b2be322b403482ef3e9ecbe9558c3ff8d7570",
+    "src/inspector-fold.ts": "50c9c9a4414c8b7b737b40c6f45fd43fd74439d55af86dcb042c67fff29b1b4a",
+    "src/inspector-locales.ts": "8513076e8ae5041065b8d9a82de3463574125f3b4404a42dc9229bb169c62080",
+    "src/inspector-types.ts": "3afb9536214483651bc69186850e064cb21b22d74b7008b1d16611c1ed1b1036",
+    "src/inspector-view.tsx": "acaa16cb21e09097916180086f345f5ea8b2ba40bc31fd66ce5f67bce099acf9",
+    "src/inspector-wire.ts": "2630d3aa1d1d4916f2a6469b119b73bc4ead55d501a47b1e79bf5413ba7cf6bd",
+    "src/inspector.css": "a8d34f1f4804f3d63d62899213d16206537afe78eed8056a4c8165ef786b65cb",
+    "src/inspector.ts": "eb5a78bc3b76bda8fe295c7096f6bf490a05cbe9cfdeca5668a21b67d95a307a",
+    "src/overview.tsx": "51561ff9ee20d269a1bbe36f39b12faa2015bd112d6f3fe4c8eef2f5b78143b6",
+    "src/peak-indicator.css": "bc82c70fab146b5656e5d828c192bba8a48ba14b17465a593f61e9af492b64e7",
+    "src/peak-indicator.tsx": "aafbf44cafa1ea90368ce7a657dfcaf34a1e5cf01b98548b721e21d4dcb0d610",
+    "src/policy.ts": "3fc3debae43ea76266fee4f40e5fb9e95664f17e7b8ef2c8e501175bd911e6f1",
+    "src/pressure-history.ts": "15ebe3c814ec74a18c0c68f2d47006b3c69fc4fc1d01e7f6510b76df1fa9a65d",
+    "src/readonly-view.ts": "46b5483bea24f3c7c91c9903c100fa092de8466dc5b02ca46b606fe46ba92d88",
+    "src/styles.d.ts": "aaba130925aed4d5acbcc59b90dda1de7b21c3d2ec166aaeeca4b9456cc0c5f2",
+    "src/summary-ledger.ts": "c7e9d1826460dffe6a2acb7b34aa60885dd431ca2cfec030c42af237cfed83f2",
+    "src/typert.ts": "a96bfda9165db4d1d24c985cb20a6c5215f9e7242ec6d0d0f3c21ca8d3d35538",
+    "tests/absolute-budget.test.mjs": "e93c951f01ad608cf0896273db653c062dd0d53cba7e8115c783e8625aeef2f2",
+    "tests/chart-data.test.mjs": "83829052140f439da2fa1f55072cc64de5e2afb3ce81ab24268b473d69137ee9",
+    "tests/checkpoint.test.mjs": "a0932e84c79decea9aba2bfdcb71d5e8eef7db48de73b4987a78298f32fddd88",
+    "tests/compatibility.test.mjs": "0b3555dad93b52ad3063dcab56b54ea2adb250696805efe6953d08c960f16da6",
+    "tests/deepseek-period.test.mjs": "dd43d75653a986f3e2297e7be784d09a25f3e9b6b17d176c261128ead71d39df",
+    "tests/diagnostics.test.mjs": "d6fa7a20a8d56d0d0ea8f1722c93696bd3050a1fdbc92a2ac6361b0d1cceebc1",
+    "tests/idle-recovery.test.mjs": "6a9a5d50813eea6c706da8358fbdca76c1571d5f5df51d0f2f95dd8698f50d9b",
+    "tests/idle-store.test.mjs": "1a30d26add905fa0ab0c9baeab68b08c1397f16425e8f79bae14382f256256ea",
+    "tests/inspector-wire.test.mjs": "77a2dbc1e35f39ffe410762d966a461388382ea4f34d8bd884ced1037cfdfe6c",
+    "tests/inspector.test.mjs": "543729bb9a3c64d2b500a89bb853c3f5ed506abf136bb42a8572395c9a0f736a",
+    "tests/loop.test.mjs": "134050ecfe9911b96bf6756e17d14baf56a06211ef680845cc62d0cfb5895234",
+    "tests/repair-format.test.mjs": "0afe357a34212c4c975b419daee130fdb78d58d068172cb51d0ca0ef40a9ad04",
+    "tests/settings.test.mjs": "9d01100686e9c56f849f8891ecc7ef7e75afe452f857ed705fa6f06506d8b593",
+    "tests/summary-ledger.test.mjs": "3a045d48fd52c1bab84ee4f94bb6944604e41d34e17f28b02b2a4c696ef698b2",
+    "tests/summary-source.test.mjs": "0fd60ee5191bb599ff402b58abc69bb965f531a98682cd50387fc553ef1256ec"
+  },
+  "dailyInstalled": false,
+  "releasePublished": false,
+  "marketplaceUpdated": false,
+  "hostCommit": "4de855b52156eead14c475a8a007e58b415051f7"
 }

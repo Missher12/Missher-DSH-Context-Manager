@@ -6,11 +6,13 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.7.0-local.2**. This is an independently installable Cordis Bundle, not a desktop application or an implementation of Codex or Claude Code compaction. This revision changes packaging, dependency declarations and documentation only; its nine runtime files retain the validated `0.7.0-local.1` bytes.
+Package: `@missher/dsh-context-manager`. Source version: **0.8.0-local.7**, an isolated-validated source candidate that has not replaced the daily installation. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+
+The candidate requires `BasicCompactionEngine.supportsSummaryAbortCommit === true` and `storageDomain.registerDrain(domainName, drain)` support for both Context domains and their storage backends. Missing support blocks billable compaction while retaining the task and keeping settings/inspection available. This repository includes the nine accepted 0.8 runtime files. Use the matching host fixes listed in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md); a source publication does not mean updated desktop installers or plugin Release assets have been published. This candidate has not changed the daily profile, Goal limits or MSE quotas.
 
 ## Host and platform requirements
 
-The full tested baseline is **the custom Missher DeepSeek Harness Desktop 0.2.0-rc.2 on Intel macOS (x64)**, including maintenance-range selection and protected tool-result pruning. Plugin-level acceptance is not established for Windows, Linux, Apple Silicon, an unmodified official rc.2 host, or official 0.2.1-alpha.1. Availability of a desktop download does not establish plugin compatibility on that platform.
+The earlier 0.7 full tested baseline was **the custom Missher DeepSeek Harness Desktop 0.2.0-rc.2 on Intel macOS (x64)**, including maintenance-range selection and protected tool-result pruning. Plugin-level acceptance is not established for Windows, Linux, Apple Silicon, an unmodified official rc.2 host, or official 0.2.1-alpha.1. Availability of a desktop download does not establish plugin compatibility on that platform.
 
 | Host condition | Behavior |
 | --- | --- |
@@ -26,7 +28,9 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. The repository Git URL is another option: prebuilt `lib` files are tracked and there are no install-time build hooks. A fixed tarball is preferable for reproducible installation.
+Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. For this 0.8 candidate, use the matching host described in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md). The committed runtime files match the accepted frozen package.
+
+The following command is the previous stable 0.7 release example, not the 0.8 candidate. The candidate package hash and validation scope are recorded in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md).
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
@@ -58,10 +62,12 @@ Edit parameters only in **Settings → Context Manager** and save. Updating the 
 | Summary output limit | 8192 tokens, also bounded by the actual model and request |
 | Maximum compactions per request / summary timeout | 2 / 90 seconds |
 | Idle compaction / idle delay | Enabled / 15 minutes |
-| Minimum idle occupancy | 65%, and at least target occupancy plus 10 percentage points |
+| Minimum idle occupancy | Percentage floor is max(65%, target + 10%), capped by effective admission |
+| Absolute working-history budget | Disabled; initial values 200,000 → 100,000 tokens |
+| Format repair / output cap | Enabled / 2048 tokens, at most once per transaction |
 | Additional summary focus | Empty, up to 2000 characters |
 
-The actual admission threshold is `min(window × trigger ratio, window − output reserve − safety space) − early-check space`. Measurement happens after the new task joins the request, including system instructions and tool definitions. Compaction can therefore precede the main request. TokenMeter may estimate usage; the target is not an exact tokenizer or losslessness guarantee.
+Percentage admission is `max(0, min(window × trigger ratio, window − output reserve − safety space) − early-check space)`. When enabled, the absolute trigger further caps admission without another early deduction. The effective target is the minimum of percentage target, 80% of percentage admission and the enabled absolute target. The model window remains its real capacity. Measurement happens after the new task joins the request, including system instructions and tool definitions. Compaction can therefore precede the main request. TokenMeter may estimate usage; the target is not an exact tokenizer or losslessness guarantee.
 
 Summaries use the session's actual model and reasoning effort. They can incur provider charges and alter cache reuse. A checkpoint captures the goal, constraints, completed work, pending work, evidence, next action and uncertainties. Structural validation cannot guarantee semantic fidelity. Failure, cancellation, incomplete output, no reduction or exhausted passes stop the attempt instead of retrying indefinitely. Already committed tool pruning is not rolled back; original events remain queryable.
 

@@ -152,3 +152,19 @@ test('current summaries are identified by the host checkpoint marker and filtere
     assert.equal(messages.rows[0].seq, 3)
   } finally { await ctxDispose(f.ctx) }
 })
+
+test('goal stop reason surfaces from the read-only projection and stays separate from context pressure', async () => {
+  const { events, add } = log()
+  add('user/message', user('latest task'), 'append')
+  const f = await service(events, { values: { goal: { goal: { id: 'goal-1', revision: 1, objective: 'finish the task', phase: 'blocked', blockedReason: { code: 'round-limit', message: 'Goal reached its configured limit of 12 rounds.' }, maxGoalRounds: 12 }, roundsStarted: 12, createdAt: 1, updatedAt: 1 } } })
+  try {
+    const snapshot = await f.ctx.contextInspector.inspect(query('goal-subject'), new AbortController().signal)
+    assert.equal(snapshot.goal.phase, 'blocked')
+    assert.equal(snapshot.goal.blockedReason.code, 'round-limit')
+    assert.equal(snapshot.goal.blockedReason.message, 'Goal reached its configured limit of 12 rounds.')
+    assert.equal(snapshot.goal.roundsStarted, 12)
+    assert.equal(snapshot.goal.maxGoalRounds, 12)
+    assert.equal(snapshot.pressure, null, 'a round-limit stop is not context pressure')
+    resultCodec('inspect').parse(snapshot)
+  } finally { await ctxDispose(f.ctx) }
+})

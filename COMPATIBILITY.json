@@ -25,10 +25,12 @@
   "runtimeCapabilities": {
     "idleMaintenanceSelection": "BasicCompactionEngine.selectMaintenanceRange; missing capability skips idle compaction before billing",
     "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true; missing capability skips pruning",
-    "durableMetadata": "storageDomain for idle eligibility and summary usage"
+    "durableMetadata": "storageDomain for idle eligibility and summary usage",
+    "summaryAbortCommit": "BasicCompactionEngine.supportsSummaryAbortCommit === true; otherwise compaction is blocked before a billable call",
+    "storageShutdownDrain": "storageDomain.registerDrain for both context_manager_idle and context_manager_summaries, backed by each actual backend; otherwise compaction is blocked"
   },
   "verification": {
-    "distribution": "Missher DeepSeek Harness Desktop, custom 0.2.0-rc.2 with maintenance-range and protected-pruning extensions",
+    "distribution": "Context 0.8.0-local.7 was accepted with custom rc.2 plus summary commit cancellation and JSON storage drain fixes. See PUBLICATION.md for exact source and validation evidence.",
     "platformsTested": [
       "macOS Intel (x64)"
     ],

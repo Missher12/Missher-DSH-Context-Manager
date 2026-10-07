@@ -1,6 +1,6 @@
 {
   "name": "@missher/dsh-context-manager",
-  "version": "0.7.0-local.2",
+  "version": "0.8.0-local.7",
   "description": "Pre-request compaction and native per-session context inspector for DeepSeek Harness",
   "type": "module",
   "license": "MIT",

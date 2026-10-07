@@ -11,15 +11,18 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.7.0-local.2**。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。本版仅修订发行元数据、依赖声明与说明，9 个运行文件沿用已验收的 `0.7.0-local.1` 字节。
+包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.8.0-local.7**（已完成隔离验收的源码候选，尚未替换日常安装）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
+
+本版新增：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
 
 ## 宿主与平台
 
-完整功能的已测基线是 **Missher DeepSeek Harness Desktop 的定制 0.2.0-rc.2，macOS Intel（x64）**。它包含维护选区和保护工具结果的两个扩展。Windows、Linux、Apple Silicon、本包在纯官方 rc.2 上的完整运行、官方 0.2.1-alpha.1 均未完成插件级验收。桌面应用提供某个平台下载，不代表本插件在该平台已验证。
+此前 0.7 版的完整基线是 **Missher DeepSeek Harness Desktop 的定制 0.2.0-rc.2，macOS Intel（x64）**。0.8 候选还要求下表的提交取消检查和存储关停排空能力；精确组合与验收见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)，不能仅凭相同版本号安装。Windows、Linux、Apple Silicon、本包在纯官方 rc.2 上的完整运行、官方 0.2.1-alpha.1 均未完成插件级验收。桌面应用提供某个平台下载，不代表本插件在该平台已验证。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
 | Host 的 Session、Projection、TokenMeter、StorageDomain、BasicCompactionEngine，以及 Web 会话视图、设置、Remote 和共享 UI 服务可用 | 提供请求前压缩与只读上下文页 |
+| `BasicCompactionEngine.supportsSummaryAbortCommit === true`，且两个 Context 存储域均可注册 `storageDomain.registerDrain` | 允许执行摘要；任一能力缺失则在收费调用前停止并保留任务，设置和只读页仍可用 |
 | `BasicCompactionEngine.selectMaintenanceRange` 可用 | 在宿主维护锁内选择闲置摘要范围，保留最新完整交互 |
 | 缺少维护选区接口 | 明确跳过闲置摘要，不发起该次付费模型请求；手动压缩沿用宿主行为 |
 | `toolResultPruner.supportsProtectedSeqs === true` | 先整理旧文本工具结果；保护当前任务、错误及非纯文本结果 |
@@ -31,7 +34,9 @@ kind: "package-bundle"
 
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：进入 **插件 → 添加插件**，选择下载的 `.tgz` 或填写其 Release 下载地址。也可使用本仓库 Git URL；仓库已跟踪预构建 `lib`，没有安装期构建脚本。固定 tarball 更适合复现版本。
+桌面端：进入 **插件 → 添加插件**，选择下载的 `.tgz` 或填写其 Release 下载地址。本仓库已同步 0.8.0-local.7 的九个预构建运行文件；使用本版时必须配套 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md) 所列宿主修复。Git 源码发布不代表新版桌面安装包或插件 Release 已发布。没有安装期构建脚本。
+
+下方命令是此前 0.7 稳定版示例，不是本轮 0.8 候选；本轮候选的包哈希、宿主要求及验收范围见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
@@ -63,14 +68,16 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 | 摘要输出上限 | 8192 Token，另受实际模型及请求上限约束 |
 | 每请求最多压缩 / 单次摘要超时 | 2 次 / 90 秒 |
 | 闲置整理 / 闲置时长 | 开启 / 15 分钟 |
-| 闲置最低占用 | 65%，且不低于目标占用加 10 个百分点 |
+| 闲置最低占用 | 百分比基线为 max(65%, 目标 + 10%)，最终不超过有效检查线 |
+| 绝对工作历史软预算 | 默认关闭；启用起点为 200,000 → 100,000 Token |
+| 格式修复 / 修复输出上限 | 开启 / 2048 Token，同一事务最多一次 |
 | 额外摘要重点 | 空，最多 2000 字符 |
 
-实际检查线为 `min(窗口 × 触发比例, 窗口 − 输出预留 − 安全空间) − 提前检查空间`。它在新任务已经进入请求后测量，包括系统指令、工具定义等；必要时先整理再执行主请求。TokenMeter 可能使用估算值，目标占用不是精确分词或无损承诺。
+百分比检查线为 `max(0, min(窗口 × 触发比例, 窗口 − 输出预留 − 安全空间) − 提前检查空间)`；启用绝对预算后再与绝对软触发取较小值，不重复扣除提前量。目标取百分比目标、百分比检查线的 80% 与启用的绝对软目标中的较小值。200k → 100k 是验证起点，不是模型容量或最优性承诺。它在新任务已经进入请求后测量，包括系统指令、工具定义等；必要时先整理再执行主请求。TokenMeter 可能使用估算值，目标占用不是精确分词或无损承诺。
 
 摘要使用会话的实际模型和推理级别，可能产生 API 费用并改变缓存命中。摘要包含目标、约束、完成、待办、证据、下一步与未知事项；结构校验不保证语义无损。失败、取消、未完成、没有缩减或超过次数时停止本次尝试，不无限重试。已提交的工具整理不会因此撤销，原始记录仍可查询。
 
-闲置从任务**正常完成**起计时，后台忙碌时有界延后；新消息、模型切换、停止或停用会使旧计划失效。每个完成资格最多发起一次闲置摘要，先持久登记再请求。重启只恢复已登记且重新加载会话的未尝试资格，至少等待 5 秒复查；未知结局的在途请求不会重复计费重发。应用退出时不运行，不扫描或激活所有旧会话。
+闲置从任务**正常完成**起计时，后台忙碌时有界延后；新消息、模型切换、停止或停用会使旧计划失效。每个完成资格最多发起一次闲置摘要，先持久登记再请求。重启只恢复已登记且重新加载会话的未尝试资格，至少等待 5 秒复查；未知结局的在途请求不会重复计费重发。新输入使请求前摘要取消时，新任务留在宿主队列；不保证当前宿主自动唤醒，应按停止原因继续。应用退出时不运行，不扫描或激活所有旧会话。
 
 选择内置官方 DeepSeek 路由时还会显示峰谷时段与费用比较提示，第三方路由隐藏。它使用插件内 **2026-09-29 的价格政策及 2026 年日历快照**，不是实时价格服务；未知模型或年份不补造。实际费用以 [DeepSeek 官方价格说明](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)和账单为准。
 

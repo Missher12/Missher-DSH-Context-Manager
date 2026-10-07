@@ -464,3 +464,32 @@ test('current context shows one full 1M window and every K bucket without a basi
     assert.equal(card.querySelectorAll('.cmv-key:disabled').length,3,'unclassified usage, free space and reserve are not content filters')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
+
+test('settings renders the absolute soft budget and repair controls with explainable preview and validation', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextPage, { form })))
+    const trigger = document.querySelector('#context-manager-absoluteTriggerTokens')
+    const target = document.querySelector('#context-manager-absoluteTargetTokens')
+    const repair = document.querySelector('#context-manager-formatRepairMaxTokens')
+    assert.ok(trigger && target && repair, 'new controls must render')
+    assert.equal(trigger.disabled, true, 'absolute fields start blocked until the strategy is enabled')
+    const toggle = [...document.querySelectorAll('.cm-row')].find(row => row.textContent.includes('绝对工作历史软预算'))?.querySelector('button[role="switch"]')
+    assert.ok(toggle, 'absolute budget toggle renders')
+    await act(async () => toggle.click())
+    assert.equal(trigger.disabled, false)
+    // The example window must exceed the absolute trigger for it to bind.
+    await act(async () => Simulate.change(document.querySelector('#context-manager-example'), { target: { value: '1000000' } }))
+    await act(async () => Simulate.change(trigger, { target: { value: '200000' } }))
+    await act(async () => Simulate.change(target, { target: { value: '100000' } }))
+    const preview = document.querySelector('.cm-native-example .cm-hint').textContent
+    assert.match(preview, /绝对软预算/)
+    assert.match(preview, /200,000/)
+    await act(async () => Simulate.change(target, { target: { value: '170000' } }))
+    assert.match(document.querySelector('.cm-error')?.textContent ?? '', /至少低 20%/)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})

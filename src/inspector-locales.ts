@@ -41,6 +41,9 @@ export const zh = {
   currentReturn: '返回当前上下文', historical: '历史截面', historyHint: '回复后的有效内容，包含该回复；不是完整请求原文',
   idle: '闲置整理', idleUnknown: '状态读取失败', idleWait: '等待任务完成', minutes: '分钟后检查', restored: '已恢复',
   updated: '更新于', trigger: '触发', target: '目标', effort: '推理级别', reserved: '输出预留',
+  gateAbsolute: '绝对软预算', gatePercent: '百分比预算', gateHard: '硬上限',
+  absoluteTrigger: '绝对软预算', repairing: '摘要格式修复中',
+  goalStop: '任务停止原因（Goal）', goalIndependent: '该限制与上下文占用无关，压缩不会解除', goalRounds: '轮',
   details: '数值明细', requests: '逐次请求', turn: '轮', step: '步', noCalls: '暂无回复记录',
 } as const
 export type InspectorLocaleKey = keyof typeof zh
@@ -86,6 +89,9 @@ export const en: Record<InspectorLocaleKey, string> = {
   currentReturn: 'Return to current context', historical: 'Historical cut', historyHint: 'Effective content after the reply, including the reply; not the full request',
   idle: 'Idle compaction', idleUnknown: 'Status unavailable', idleWait: 'Waiting for completion', minutes: 'min until check', restored: 'Restored',
   updated: 'Updated', trigger: 'Trigger', target: 'Target', effort: 'Reasoning effort', reserved: 'Output reserve',
+  gateAbsolute: 'Absolute soft budget', gatePercent: 'Percentage budget', gateHard: 'Hard envelope',
+  absoluteTrigger: 'Absolute soft budget', repairing: 'Repairing summary format',
+  goalStop: 'Goal stop reason', goalIndependent: 'Unrelated to context occupancy; compaction does not lift this limit', goalRounds: 'rounds',
   details: 'Values', requests: 'Requests', turn: 'turn', step: 'step', noCalls: 'No reply records',
 }
 export type InspectorText = (key: InspectorLocaleKey) => string

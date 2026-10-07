@@ -87,7 +87,7 @@ export function ContextPage({ form }: { form: ConfigForm<Values> }) {
   </section>
 }
 
-const numericKeys = ['triggerPercent', 'targetPercent', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent'] as const
+const numericKeys = ['triggerPercent', 'targetPercent', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
@@ -137,10 +137,12 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     text={draft[key]} disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])}
     overridden={draft[key] !== String(defaults[key])} overriddenLabel="自定义" resetLabel="恢复推荐值" invalidLabel="请输入有效数字"
     onEdit={text => edit({ [key]: text })} onReset={() => edit({ [key]: String(defaults[key]) })}/>
-  const toggle = (key: 'enabled' | 'idleEnabled', label: string, hint: string, blocked = false) => <div className="cm-native-toggle">
+  const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled', label: string, hint: string, blocked = false) => <div className="cm-native-toggle">
     <div className="cm-row"><span>{label}</span><Switch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
     <p className="cm-hint">{hint}</p>
   </div>
+  const admissionLabel = preview ? preview.admissionSource === 'absolute' ? '绝对软预算' : preview.admissionSource === 'hard' ? '硬上限' : '百分比' : ''
+  const targetLabel = preview ? preview.targetSource === 'absolute' ? '绝对软目标' : '百分比目标' : ''
   return <section aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
     <SettingsForm labels={{ unavailable: '正在读取上下文设置…', readOnly: '当前连接不支持保存设置。', saveFailed: feedback, save: '保存设置', saving: '保存中…' }}
@@ -155,6 +157,9 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
         </div>
         {numeric('triggerPercent', '上下文用到多少时压缩（%）', '按当前模型窗口计算。新消息会计入检查，输出预留和安全空间可能使实际阈值更低。')}
         {numeric('targetPercent', '压缩后目标占用（%）', '这是软目标。必要指令、任务信息和完整工具调用优先保留，实际结果可能不同。')}
+        {toggle('absoluteEnabled', '绝对工作历史软预算', '按会话当前实际占用 Token 设置独立的软触发与软目标，与百分比、输出预留和窗口硬约束取更保守值。不修改模型窗口声明；关闭后沿用原百分比策略。', !draft.enabled)}
+        {numeric('absoluteTriggerTokens', '绝对软触发（Token）', '以会话当前实际占用 Token 为单位，达到后即先压缩，即使百分比门槛尚未满足。', !draft.enabled || !draft.absoluteEnabled)}
+        {numeric('absoluteTargetTokens', '绝对软目标（Token）', '压缩后的软目标占用；须比绝对软触发至少低 20%。与百分比目标取更保守值。', !draft.enabled || !draft.absoluteEnabled)}
         {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
         {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
         <details className="cm-native-advanced"><summary>高级设置</summary>
@@ -167,9 +172,11 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('safetyPercent', '窗口安全空间（%）', '推荐 2%，在模型输出预留之外保留。')}
           {numeric('summaryMaxTokens', '摘要输出上限（Token）', '摘要沿用当前会话实际使用的模型和推理级别。')}
           {numeric('maxPasses', '每个请求最多压缩次数', '可设 1 或 2。闲置整理只尝试一次，没有新增任务不会重复整理。')}
+          {toggle('formatRepairEnabled', '摘要格式修复', '摘要结构校验失败时，仅把失败输出与结构要求重发一次（不重发历史）。关闭后格式失败直接保留原文并终止。', !draft.enabled)}
+          {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）', '修复请求的输出上限；其输入只包含有界失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled)}
           {numeric('timeoutMs', '单次摘要超时（毫秒）', '超时后停止；不会自动循环重试。')}
           <div className="cm-native-example"><label htmlFor="context-manager-example">触发示例窗口（Token）</label><Input id="context-manager-example" type="number" min="1000" step="1000" value={exampleWindow} onChange={e => setExampleWindow(Number(e.target.value))}/>
-            <p className="cm-hint">{preview ? `约 ${preview.admission.toLocaleString()} Token 开始检查，目标约 ${preview.target.toLocaleString()} Token。` : '填写有效参数后查看示例。'} 示例假设输出预留 8%，执行按实际模型计算。</p>
+            <p className="cm-hint">{preview ? `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}），目标约 ${preview.target.toLocaleString()} Token（${targetLabel}）。` : '填写有效参数后查看示例。'} 示例假设输出预留 8%，执行按实际模型计算。</p>
           </div>
         </details>
         {invalid && <p role="alert" className="cm-error">{invalid}</p>}

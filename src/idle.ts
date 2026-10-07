@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from './index.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type { IdleEligibility } from './idle-store.ts'
-import type { Policy } from './policy.ts'
+import { idleFloorTokens, type Policy } from './policy.ts'
 
 interface Entry {
   epoch: number
@@ -280,9 +280,17 @@ export class IdleCompactor {
         this.assertReady(agent, entry, epoch, generation, route, current)
         if (entry.idleSince + current.idleMinutes * 60000 > Date.now()) throw new IdleSkipped('delay_changed', '闲置时长已调整，等待下次检查')
         before = this.ctx.tokenMeter.measure(agent.session).totalTokens
-        const minimum = Math.max(current.idleMinPercent, current.targetPercent + 10)
-        entry.status = { ...entry.status, beforeTokens: before, windowTokens: window, minimumPercent: minimum }
-        if (!allowBelow && before < window * minimum / 100) throw new IdleSkipped('below_threshold', `当前约 ${(before / window * 100).toFixed(1)}%，未达到闲置整理门槛 ${minimum}%`)
+        const minimumPercent = Math.max(current.idleMinPercent, current.targetPercent + 10)
+        // The idle floor keeps its percentage meaning but never exceeds the
+        // effective request admission (output reserve, safety, absolute soft
+        // trigger included), so the settings page and both maintenance paths
+        // show one consistent threshold.
+        const minimumTokens = idleFloorTokens(current, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
+        const percentFloor = window * minimumPercent / 100
+        entry.status = { ...entry.status, beforeTokens: before, windowTokens: window, minimumPercent, ...(minimumTokens < percentFloor ? { minimumTokens } : {}) }
+        if (!allowBelow && before < minimumTokens) throw new IdleSkipped('below_threshold', minimumTokens < percentFloor
+          ? `当前约 ${(before / window * 100).toFixed(1)}%，未达到闲置整理门槛（有效阈值 ${minimumTokens.toLocaleString()} Token）`
+          : `当前约 ${(before / window * 100).toFixed(1)}%，未达到闲置整理门槛 ${minimumPercent}%`)
       }
       checkPressure()
       release = this.ctx.contextManager.acquireIdle()

@@ -187,7 +187,7 @@ test('idle: failed and cancelled tasks never arm a timer', { timeout: 8000 }, as
     }) } : { mainFail: true }, {}, history(28000))
     try {
       agent.followup(message())
-      if (cancel) { await entered; agent.cancel('user') }
+      if (cancel) { await entered; agent.cancel({ kind: 'user' }) }
       await agent.whenIdle(); assert.notEqual(idleState(ctx, agent).status, 'scheduled')
       t.mock.timers.tick(900000); await immediate(); assert.equal(adapter.summaries.length, 0)
     } finally { await ctx.fiber.dispose() }
@@ -248,6 +248,9 @@ for (const kind of ['fail', 'noShrink', 'malformed']) test(`idle: ${kind} keeps 
     agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off'].includes(idleState(ctx, agent).status)); const before = agent.session.deriveMessages()
     t.mock.timers.tick(900000); await drainUntil(() => idleState(ctx, agent).status === 'failed')
     assert.deepEqual(agent.session.deriveMessages(), before)
+    // None of these failures is a value-level type mismatch, so no repair call
+    // is allowed: error finishes, prose and size failures all stop after one
+    // bounded attempt and keep the original context.
     t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length, 1)
     assert.equal(adapter.requests.length, 1)
   } finally { await ctx.fiber.dispose() }
@@ -320,6 +323,8 @@ for (const kind of ['fail', 'noShrink', 'malformed']) test(`real loop: ${kind} p
   const { ctx, adapter, agent } = await fixture({ [kind]: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
+    // Error finishes, prose and size failures are not value-level type
+    // mismatches, so the narrow repair is never offered: exactly one attempt.
     assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(adapter.summaries.length, 1)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     assert.equal(agent.session.snapshotEvents().filter(e => e.type === 'compaction/summary').length, 0)
@@ -335,7 +340,7 @@ test('real loop: cancelling the summary keeps the new task and never starts work
   try {
     const task = message(); agent.followup(task); await entered
     assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0)
-    agent.cancel('user'); await agent.whenIdle()
+    agent.cancel({ kind: 'user' }); await agent.whenIdle()
     assert.equal(adapter.requests.length, 0); assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
   } finally { await ctx.fiber.dispose() }
 })
@@ -476,7 +481,7 @@ test('real loop: an adapter ignoring cancellation cannot hold the summary mainte
   const { ctx, adapter, agent } = await fixture({ pause: async () => { started(); await blocked } })
   try {
     const task = message(); agent.followup(task); await entered
-    agent.cancel('user'); await agent.whenIdle()
+    agent.cancel({ kind: 'user' }); await agent.whenIdle()
     assert.equal(adapter.requests.length, 0)
     assert.ok(agent.session.deriveMessages().some(item => item.id === task.id))
     const usage = ctx.contextManager.summaryLedger.stats(String(agent.id))
@@ -590,6 +595,8 @@ test('layered failure preserves original history when pruning committed before a
     assert.equal(events.filter(event => event.type === 'compaction/prune').length, 1)
     assert.equal(events.filter(event => event.type === 'compaction/summary').length, 0)
     assert.equal(adapter.requests.length, 0)
+    // Prose is not a value-level type mismatch, so the narrow repair never
+    // runs; the single bounded attempt keeps the original history.
     assert.equal(adapter.summaries.length, 1)
     assert.ok(events.some(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'text' && block.text === 'original evidence '.repeat(2200))))
     const current = agent.session.deriveMessages()

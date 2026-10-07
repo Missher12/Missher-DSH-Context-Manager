@@ -51,9 +51,10 @@ function RequestStatus({ data, policy, stale, t }: { data: Inspection; policy: P
   const pressure = data.pressure
   const gate = policy && pressure?.window && data.model?.maxTokens != null ? budget(policy, pressure.window, data.model.maxTokens) : null
   const status = stale ? 'stale' : data.historical ? 'historical' : policy && !policy.enabled ? 'off' : !gate || !pressure ? 'unknown' : pressure.projected >= gate.admission ? 'compactFirst' : 'continue'
+  const source = gate ? gate.admissionSource === 'absolute' ? t('gateAbsolute') : gate.admissionSource === 'hard' ? t('gateHard') : t('gatePercent') : ''
   const recent = data.requests.at(-1)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-quick"><article className="cmv-card"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div><span className="cmv-muted">{t('gate')} {formatTokens(gate?.admission)} Token</span></article>
+  return <div className="cmv-quick"><article className="cmv-card"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div><span className="cmv-muted">{t('gate')} {formatTokens(gate?.admission)} Token{gate ? ` · ${source}` : ''}</span></article>
     <article className="cmv-card cmv-latest"><div><h3>{t('recent')}</h3><div className="cmv-small-number">{formatTokens(recent?.input ?? pressure?.input)} <small>Token</small></div><span className="cmv-muted">{recent ? `${recent.turn} ${t('turn')} · ${recent.step} ${t('step')}` : t('noRequest')}</span></div><CacheDonut value={hit} t={t}/></article>
   </div>
 }
@@ -143,7 +144,8 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
     <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span></div><Tooltip label={t('settingsHint')} portal><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(retry + 1)}>{t('refresh')}</Button></header>
-      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% → ${t('target')} ${accepted.value.policy.targetPercent}%` : ''}</span></div>
+      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% → ${t('target')} ${accepted.value.policy.targetPercent}%${accepted.value.policy.absoluteEnabled ? ` · ${t('absoluteTrigger')} ${formatTokens(accepted.value.policy.absoluteTriggerTokens)} → ${formatTokens(accepted.value.policy.absoluteTargetTokens)}` : ''}` : ''}</span></div>
+      {safeData?.goal?.blockedReason && !safeData.historical && <div className="cmv-notice"><span role="status">{t('goalStop')}：{safeData.goal.blockedReason.code} · {safeData.goal.blockedReason.message} · {safeData.goal.roundsStarted}/{safeData.goal.maxGoalRounds} {t('goalRounds')}。{t('goalIndependent')}</span></div>}
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')} portal><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
