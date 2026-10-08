@@ -1,0 +1,43 @@
+name: Context recovery portability
+
+on:
+  push:
+    branches:
+      - main
+      - 'codex/context-windows-recovery-*'
+    paths:
+      - 'src/recovery-journal.ts'
+      - 'scripts/check-recovery-platform.mjs'
+      - '.github/workflows/context-portability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated compiler
+        shell: bash
+        run: npm install --prefix "$CONTEXT_CI_DEPS" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.21.5
+      - name: Exercise recovery on the native filesystem
+        run: node scripts/check-recovery-platform.mjs
+      - name: Preserve platform result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-recovery-${{ matrix.os }}
+          path: recovery-platform-result.json
+          if-no-files-found: warn
