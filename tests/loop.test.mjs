@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { setImmediate as immediate } from 'node:timers/promises'
 import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import { writeFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { zstdCompressSync, zstdDecompressSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Storage from '@deepseek-ai/dsh-storage'
@@ -11,7 +12,7 @@ import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmAdapter, createUserMessage, createMessage, createToolResultMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
-import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -104,11 +105,46 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
   ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; adapter.order.push('tool'); return [{ type: 'text', text: options.toolOutputs?.[adapter.work - 1] ?? options.toolOutput ?? 'tool complete' }] } }))
-  const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' }, ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
+  const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' },
+    meta: { delegationDepth: options.seeded ? 1 : 0, ...(options.seeded ? { isSeeded: true, parentSession: SessionId('seed') } : {}) },
+    ...(options.seeded ? { inheritedEventCount: SessionLogOffset(seed.length) } : {}),
+    ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
   return { ctx, adapter, agent }
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
 const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed')
+
+// A valid in-memory surface does not establish that the persisted event log can
+// be opened. Exercise the physical V4 encoder, a complete Zstandard frame on
+// disk, the strict installed decoder and detached Session restoration together.
+async function assertPhysicalSessionRestore(session) {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-context-v4-roundtrip-'))
+  try {
+    const events = session.snapshotEvents()
+    const header = sessionFormatCatalog.encodeCurrentHeader(session.header, session.inheritedEventCount)
+    const rows = [header, ...events.map(event => sessionFormatCatalog.encodeCurrentEvent(event))]
+    const bytes = Buffer.from(rows.map(row => JSON.stringify(row)).join('\n') + '\n')
+    const file = join(dir, 'session.v4.jsonl.zstd')
+    // This fixture deliberately stores one complete frame. A one-shot decoder
+    // must not be used for a real log containing multiple appended frames.
+    await writeFile(file, zstdCompressSync(bytes), { flag: 'wx' })
+    const decoded = zstdDecompressSync(await readFile(file))
+    assert.deepEqual(decoded, bytes, 'the complete physical log, not only its header, was decoded')
+    const lines = decoded.toString('utf8').trimEnd().split('\n')
+    assert.equal(lines.length, events.length + 1)
+    const restore = sessionFormatCatalog.createRestore(JSON.parse(lines[0]), { recovery: 'strict', validation: 'current' })
+    for (const line of lines.slice(1)) restore.decodeRow(JSON.parse(line))
+    const artifact = restore.finish()
+    assert.equal(artifact.events.length, events.length)
+    assert.equal(artifact.inheritedEventCount, session.inheritedEventCount, 'preserve the real inherited prefix')
+    assert.deepEqual(artifact.header, session.header)
+    const reopened = Session.fromRestore(SessionId(artifact.header.id), artifact.events, artifact.header,
+      SessionLogOffset(artifact.inheritedEventCount), 'detached')
+    assert.deepEqual(reopened.snapshotEvents().slice(0, events.length), events)
+    assert.deepEqual(reopened.deriveMessages(), session.deriveMessages())
+    return reopened
+  } finally { await rm(dir, { recursive: true, force: true }) }
+}
 
 const idleState = (ctx, agent) => ctx.contextManager.idleStatus(agent.id)
 async function drainUntil(predicate) {
@@ -564,6 +600,91 @@ function toolHistory({ error = false, rich = false, baseSize = 1000 } = {}) {
   return session.snapshotEvents()
 }
 
+const idlePrunePolicy = { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1,
+  idleMinPercent: 10, recentTokens: 1000 }
+
+for (const scenario of [
+  { outcome: 'success', seeded: false }, { outcome: 'success', seeded: true },
+  { outcome: 'malformed', seeded: false }, { outcome: 'cancelled', seeded: false },
+]) test(`idle pruning regression: manual ${scenario.outcome}${scenario.seeded ? ' with inherited history' : ''} remains reloadable`, { timeout: 12000 }, async t => {
+  let entered
+  const started = new Promise(resolve => { entered = resolve })
+  const pause = signal => new Promise((_resolve, reject) => {
+    entered()
+    if (signal.aborted) reject(signal.reason)
+    else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })
+  const { ctx, adapter, agent } = await fixture({ pruner: true, contextWindow: 20000,
+    seeded: scenario.seeded, malformed: scenario.outcome === 'malformed',
+    ...(scenario.outcome === 'cancelled' ? { pause } : {}) },
+  { ...idlePrunePolicy, idleEnabled: false }, toolHistory())
+  try {
+    if (ctx.toolResultPruner.supportsProtectedSeqs !== true) { t.skip('Requires enhanced host protected-pruning contract'); return }
+    agent.followup(message()); await agent.whenIdle(); completed(agent)
+    assert.equal(adapter.summaries.length, 0, 'preparation must not compact before the idle operation')
+    const before = agent.session.snapshotEvents(), surface = agent.session.deriveMessages()
+    const original = before.find(event => event.type === 'tool/result')
+    assert.ok(ctx.toolResultPruner.pruneContent(original.data.message.content), 'the real text result qualifies for pruning')
+    assert.equal(before.findLast(event => event.type === 'turn/start' || event.type === 'turn/end').type, 'turn/end')
+    const prune = ctx.toolResultPruner.pruneSession.bind(ctx.toolResultPruner)
+    let pruneCalls = 0
+    ctx.toolResultPruner.pruneSession = (...args) => { pruneCalls++; return prune(...args) }
+    await agent.runMaintenance(async () => {
+      assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session)), false)
+    })
+    assert.equal(pruneCalls, 0, 'the no-turn guard must run before calling the mutating pruner')
+    assert.deepEqual(agent.session.snapshotEvents(), before, 'the guard must not append even a prune marker')
+    const abort = new AbortController()
+    const operation = ctx.compaction.compactNow(agent, abort.signal)
+    if (scenario.outcome === 'cancelled') {
+      const rejected = assert.rejects(operation)
+      await started; abort.abort(new Error('cancel idle fixture')); await rejected
+    } else if (scenario.outcome === 'malformed') {
+      await assert.rejects(operation)
+    } else {
+      assert.ok(await operation)
+    }
+    const events = agent.session.snapshotEvents(), added = events.slice(before.length)
+    assert.equal(pruneCalls, 0)
+    assert.deepEqual(events.slice(0, before.length), before, 'original text and tool lineage stay unchanged')
+    assert.equal(added.filter(event => event.type === 'compaction/prune' || event.type === 'tool/result').length, 0)
+    assert.equal(added.filter(event => event.type === 'compaction/start').length, 1)
+    assert.equal(added.filter(event => event.type === 'compaction/end').length, 1, 'failed/cancelled maintenance closes its bracket')
+    assert.equal(added.filter(event => event.type === 'compaction/summary').length, scenario.outcome === 'success' ? 1 : 0)
+    assert.equal(adapter.summaries.length, 1)
+    if (scenario.outcome !== 'success') assert.deepEqual(agent.session.deriveMessages(), surface)
+    const reopened = await assertPhysicalSessionRestore(agent.session)
+    assert.equal(reopened.header.isSeeded, scenario.seeded)
+    if (scenario.seeded) assert.ok(reopened.inheritedEventCount > 0)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('idle pruning regression: timer compacts eligible tool history without a turn-outside replacement and reloads', { timeout: 12000 }, async t => {
+  const { ctx, adapter, agent } = await fixture({ pruner: true, contextWindow: 20000 }, idlePrunePolicy, toolHistory())
+  clock(t)
+  try {
+    if (ctx.toolResultPruner.supportsProtectedSeqs !== true) { t.skip('Requires enhanced host protected-pruning contract'); return }
+    agent.followup(message()); await agent.whenIdle()
+    await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
+    const before = agent.session.snapshotEvents()
+    assert.ok(ctx.toolResultPruner.pruneContent(before.find(event => event.type === 'tool/result').data.message.content))
+    const prune = ctx.toolResultPruner.pruneSession.bind(ctx.toolResultPruner)
+    let pruneCalls = 0
+    ctx.toolResultPruner.pruneSession = (...args) => { pruneCalls++; return prune(...args) }
+    t.mock.timers.tick(defaults.idleMinutes * 60000)
+    await drainUntil(() => idleState(ctx, agent).status === 'completed')
+    const events = agent.session.snapshotEvents(), added = events.slice(before.length)
+    assert.equal(pruneCalls, 0)
+    assert.equal(adapter.summaries.length, 1)
+    assert.equal(added.filter(event => event.type === 'compaction/summary').length, 1)
+    assert.equal(added.filter(event => event.type === 'compaction/prune' || event.type === 'tool/result').length, 0)
+    assert.deepEqual(events.slice(0, before.length), before)
+    await assertPhysicalSessionRestore(agent.session)
+    t.mock.timers.tick(86400000); await immediate()
+    assert.equal(adapter.summaries.length, 1, 'successful idle maintenance must not repeat')
+  } finally { await ctx.fiber.dispose() }
+})
+
 test('layered admission: real protected pruning can admit a rebuilt request without a paid summary', { timeout: 8000 }, async t => {
   const { ctx, agent, adapter } = await fixture({ pruner: true }, {}, toolHistory())
   try {
@@ -576,6 +697,7 @@ test('layered admission: real protected pruning can admit a rebuilt request with
     assert.equal(events.filter(event => event.type === 'compaction/prune').length, 1)
     assert.ok(events.some(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'text' && block.text.length > 30000)), 'original remains in the durable transcript')
     completed(agent)
+    await assertPhysicalSessionRestore(agent.session)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -583,11 +705,24 @@ for (const flags of [{ error: true }, { rich: true }]) test(`protected pruning k
   const { ctx, agent } = await fixture({ pruner: true }, { enabled: false }, toolHistory(flags))
   try {
     if (ctx.toolResultPruner.supportsProtectedSeqs !== true) { t.skip('Requires enhanced host protected-pruning contract'); return }
-    agent.followup(message()); await agent.whenIdle()
     const original = agent.session.surface.replaceGeneration
-    await agent.runMaintenance(async () => {
+    const tool = agent.session.snapshotEvents().find(event => event.type === 'tool/result')
+    const prune = ctx.toolResultPruner.pruneSession.bind(ctx.toolResultPruner)
+    let pruneCalls = 0, checked = false
+    ctx.toolResultPruner.pruneSession = (session, options) => {
+      pruneCalls++
+      assert.ok(options.protectedSeqs.has(tool.seq), 'the error/rich tool result is explicitly protected')
+      return prune(session, options)
+    }
+    const release = ctx.on('agent/pre-step', ({ agent: current }) => {
+      if (current !== agent || checked) return
+      checked = true
+      assert.equal(agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end').type, 'turn/start')
       assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session)), false)
     })
+    agent.followup(message()); await agent.whenIdle(); release()
+    assert.ok(checked)
+    assert.equal(pruneCalls, 1, 'protection must be tested inside an open turn, not bypassed by the idle guard')
     assert.equal(agent.session.surface.replaceGeneration, original)
     assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/prune').length, 0)
   } finally { await ctx.fiber.dispose() }
@@ -621,15 +756,24 @@ test('maintenance planning retains the latest completed interaction verbatim', {
 test('maintenance selection uses surface order after a prior replacement gets a newer log sequence', async () => {
   const { ctx, agent } = await fixture({ pruner: true }, { enabled: false }, toolHistory())
   try {
-    const task = message(); agent.followup(task); await agent.whenIdle()
-    await agent.runMaintenance(async signal => {
-      // This fixture has exactly one old tool result. Deliberately use the
-      // public full-pass pruner to produce real replacement order on old SDKs.
+    // Create the prior replacement within a real model turn. Pruning from the
+    // later idle maintenance itself produced a valid surface but an invalid V4
+    // log; that old failure is retained separately in the audit evidence.
+    let replacement
+    const release = ctx.on('agent/request-error', ({ agent: current }, next) => {
+      if (current !== agent || replacement !== undefined) return next()
       const result = ctx.toolResultPruner.pruneSession(agent.session)
       assert.equal(result.pruned.length, 1)
-      const replacement = result.pruned[0].replacementSeq
+      replacement = result.pruned[0].replacementSeq
+      return next()
+    }, true)
+    const task = message(); agent.followup(task); await agent.whenIdle(); release()
+    assert.notEqual(replacement, undefined)
+    await agent.runMaintenance(async signal => {
       const latest = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.id === task.id).seq
-      assert.ok(replacement > latest)
+      const original = agent.session.snapshotEvents().find(event => event.type === 'tool/result' && event.surfaceOp === 'append').seq
+      assert.ok(replacement > original, 'a newer sequence replaces an older surface position')
+      assert.ok(replacement > latest, 'log order still differs from the older tool node surface order')
       const range = await ctx.compaction.selectMaintenanceRange(agent, signal)
       assert.ok(range)
       const surface = [...agent.session.surface.nodes]
@@ -638,6 +782,7 @@ test('maintenance selection uses surface order after a prior replacement gets a 
       assert.ok(!selected.includes(latest), 'the latest task remains outside the range')
     })
     assert.deepEqual(agent.session.deriveMessages().find(item => item.id === task.id).content, task.content)
+    await assertPhysicalSessionRestore(agent.session)
   } finally { await ctx.fiber.dispose() }
 })
 

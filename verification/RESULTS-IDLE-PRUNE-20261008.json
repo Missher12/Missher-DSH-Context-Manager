@@ -1,0 +1,134 @@
+{
+  "version": "0.9.0-local.2",
+  "at": "2026-10-08T15:59:54.245669+00:00",
+  "sourceFilesVerified": 141,
+  "packageMembersVerified": 19,
+  "runtimeFilesVerified": 12,
+  "changedRuntime": [
+    "lib/engine.js"
+  ],
+  "enhancedSdk": {
+    "tests": 242,
+    "pass": 240,
+    "fail": 0,
+    "skipped": 2
+  },
+  "naturalOldSdk": {
+    "tests": 48,
+    "pass": 48,
+    "fail": 0,
+    "skipped": 0
+  },
+  "independentTargeted": {
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0
+  },
+  "physicalCodecRoundtrip": true,
+  "typeChecks": [
+    "enhanced host/client",
+    "natural old host/client"
+  ],
+  "isolatedCurrentDesktop": {
+    "enabled": 174,
+    "allActive": true,
+    "clients": 11,
+    "gracefulShutdown": true,
+    "modelOrExternalNetworkAttempts": 0
+  },
+  "dailyMacIntel": {
+    "enabled": 175,
+    "allActive": true,
+    "clients": 11,
+    "nativeWindowLoadedVisible": true,
+    "sessionCount": 55,
+    "learningRecords": 26,
+    "learningEvents": 160,
+    "protectedFilesExactBeforeStartup": 584,
+    "unrelatedPackageFilesPreserved": 3811,
+    "sessionCredentialAndContextDomainBytesUnchangedAfterStartup": true,
+    "learningContentsAndSpendsPreserved": true,
+    "mseRuntimeScheduleOnlyChanges": true
+  },
+  "admission": "Already exited. Fresh no-App/Host, stable protected data, released journal lock, empty pending journal/jobs/settlements, no active ticketed plans; persisted settings/code bound and current rolling budget fence checked. Not a new live RPC observation.",
+  "logAudit": {
+    "completeMultiframeFiles": 55,
+    "events": 48144,
+    "legalPrunes": 27,
+    "outsideTurnReplacements": 0,
+    "allBytesRecheckedAtAdmission": true,
+    "initialFirstFrameOnlyScanInvalidated": true
+  },
+  "packageEquivalence": {
+    "version": "0.9.0-local.2",
+    "releaseAndInstallPackageSha256": "a924d50e95018e6cb65da0d511819830f5f36a06bf11da3591a54dcd07bea6b9",
+    "frozenBehaviorPackageSha256": "446ff04dd1f1811fc15302694cbe42c5b426ca48165d5ee0ea169ab5fc0b2e45",
+    "documentationChanges": [
+      "COMPATIBILITY.json",
+      "README.en.md",
+      "README.md"
+    ],
+    "other16FilesIdentical": true,
+    "runtimeFiles": [
+      {
+        "path": "lib/chart-data.js",
+        "sha256": "758c64d2722904eb30a27e0a410ac70d3d9f64f676a393a871ff08a6f9991ff4"
+      },
+      {
+        "path": "lib/client.js",
+        "sha256": "a59ece8dcdbb51d8de11392839a289862b0d4ac5134ac8629a4e9863c56c6ccf"
+      },
+      {
+        "path": "lib/compaction-cycles.js",
+        "sha256": "b9e929a463ffbcb5d9d446080a3217c4dfa81acc6bc0079712c84d153843684b"
+      },
+      {
+        "path": "lib/diagnostics.js",
+        "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
+      },
+      {
+        "path": "lib/engine.js",
+        "sha256": "8dc373ae7c884b0969a6124662d42f46c4716bdb6a69b6905eb7e381be439b40"
+      },
+      {
+        "path": "lib/history-tools.js",
+        "sha256": "65d63ea58f56e954ae7c76b25ab7f2dfca629eb7a8fda228f835f6c5a0d4187e"
+      },
+      {
+        "path": "lib/index.js",
+        "sha256": "4d8a6409b7e2b8bd00b50ff16f8030f26261c630d6e4e481bbbc4e966a0dc173"
+      },
+      {
+        "path": "lib/inspector-fold.js",
+        "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
+      },
+      {
+        "path": "lib/inspector.js",
+        "sha256": "282e0b19dd5353b8e323e7fe3494855225670bbc3dae267c185f72c3ab415896"
+      },
+      {
+        "path": "lib/policy.js",
+        "sha256": "1530c1c9d655e7712b54c6bc01402ea35396b86c3a8ba02b083a365f27a763bf"
+      },
+      {
+        "path": "lib/typert.js",
+        "sha256": "a8089af307aa78d49d6315ba0b917ee1f360215db646d8f2715e311c068ad26a"
+      },
+      {
+        "path": "lib/working-set.js",
+        "sha256": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
+      }
+    ]
+  },
+  "requestedRealModelCalls": 0,
+  "unverified": [
+    "Real provider quality",
+    "Full backend resumeAgent",
+    "Remote Windows/Ubuntu Desktop",
+    "Remote already damaged log recovery",
+    "Native UI clicks",
+    "Marketplace acceptance"
+  ],
+  "retainedFailure": "Initial online preflight found the App already exited; used an explicit fresh offline admission. First post-start check ran before the Host appeared; waited for actual backend readiness and reran without reinstall or rollback."
+}

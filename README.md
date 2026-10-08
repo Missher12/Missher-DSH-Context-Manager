@@ -11,10 +11,16 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前版本为 **0.9.0-local.1**（预发布）。这是可单独安装的 Cordis Bundle，仓库与安装包均包含对应的十二个运行文件；[本版下载与验证范围](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)列出安装、备份与验收结果。
+包名为 `@missher/dsh-context-manager`，当前版本为 **0.9.0-local.2**（预发布）。这是可单独安装的 Cordis Bundle，仓库与安装包均包含对应的十二个运行文件；[本版下载与验证范围](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)列出安装、备份与验收结果。
 
 继续保留：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
 
+
+### local.2 修复历史日志重载
+
+旧版在任务结束后的闲置／手动压缩中可能裁剪工具结果，写入回合之外的替换事件，导致 V4 严格日志重载失败；摘要成功或失败都可能触发。本版只在日志存在开放任务回合时调用工具裁剪器，闲置和手动维护继续生成合法摘要。没有放宽日志校验、伪造回合或改写已有历史。
+
+此更新防止继续产生该类事件，**不会自动修复已损坏的日志**。遇到已有会话无法恢复时，先保留原日志及完整备份，再针对原件副本验证恢复；不要删除会话或恢复元数据。
 
 ### 0.9 工作集压缩
 
@@ -34,7 +40,7 @@ kind: "package-bundle"
 
 ## 宿主与平台
 
-本版在 macOS Intel 上通过增强 SDK 237 项（235 通过，2 项旧 SDK 专用）和自然旧 SDK 48/48 回归；并在当前 Missher 定制 rc.2 桌面完成整组加载、实际安装、重启和只读 RPC 检查。local.9 的三端原生恢复日志回归是历史证据，新工作集的 Windows/Ubuntu 完整桌面与真实模型验收仍单列。详见[发布说明](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
+本版在 macOS Intel 上通过增强 SDK 242 项（240 通过，2 项旧 SDK 专用）和自然旧 SDK 48/48 回归；10 项缺陷与相邻保护回归包含真实 V4 编码、落盘及 Session 重载。当前桌面基线为 Missher 定制 rc.2，实际安装结果单独记录在发布说明中。local.9 的三端原生恢复日志回归是历史证据，新工作集的 Windows/Ubuntu 完整桌面与真实模型验收仍单列。详见[发布说明](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
@@ -42,7 +48,8 @@ kind: "package-bundle"
 | 通过 DSH profile 启动，插件恢复目录可独占读写 | 插件检查最终取消状态后同步提交摘要；已收到用量先进入恢复日志，再写原数据域 |
 | 宿主没有新增取消标记、存储排空或维护选区钩子 | 使用插件自己的事务、恢复日志及选区逻辑；不修改宿主、不另装兼容包 |
 | 没有 profile 路径的自定义嵌入环境 | 仍需宿主存储排空能力；否则在付费调用前拒绝 |
-| `toolResultPruner.supportsProtectedSeqs === true` | 先整理旧文本工具结果；保护当前任务、错误及非纯文本结果 |
+| 支持保护裁剪，且日志存在开放任务回合 | 可整理旧文本工具结果；保护当前任务、错误及非纯文本结果 |
+| 闲置／手动维护没有开放回合 | 跳过工具裁剪，保留合法的摘要检查点 |
 | 缺少保护裁剪能力 | 跳过工具结果整理，保留正常摘要路径 |
 
 包不按 DSH 版本号设置硬性准入范围；这不等于兼容所有版本。必要服务缺失仍会加载失败。可选能力按上表降级，无需另装兼容包。预设文件基线与能力说明见 [COMPATIBILITY.json](./COMPATIBILITY.json)。其中 `sourceSha` 是生成预设的源码基线，不是纯官方整包验收声明。
@@ -51,14 +58,14 @@ kind: "package-bundle"
 
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：等待任务结束并备份 profile 与数据，进入 **插件 → 添加插件**，选择 [0.9 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz) 或填写该下载地址，更新现有同名插件。无需安装 SDK、本机编译或另装兼容插件；没有安装期构建脚本。
+桌面端：等待任务结束并备份 profile 与数据，进入 **插件 → 添加插件**，选择 [0.9 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.2/missher-dsh-context-manager-0.9.0-local.2.tgz) 或填写该下载地址，更新现有同名插件。无需安装 SDK、本机编译或另装兼容插件；没有安装期构建脚本。
 
 备份须同时保留会话、`context_manager_idle`、`context_manager_summaries`、新增的 `context_manager_cycles` 和 profile 内 `.context-manager-recovery`。回滚后保留周期元数据，避免再次升级时丢失防重复记录；不要用旧备份覆盖后续工作。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.2/missher-dsh-context-manager-0.9.0-local.2.tgz
 ```
 
 安装前保留旧包与配置，等待任务结束；更新后**完整退出并重启目标应用或 profile**。检查插件版本及三个入口 `context-manager`、`context-manager-engine`、`context-manager-inspector` 全部运行，再打开会话顶部“轨迹”后的“上下文”。旧进程可能缓存包导出表，仅刷新页面或切换开关不能替代重启。不要同时启用旧包名与新包名。
@@ -112,7 +119,7 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 
 ## 验证与限制
 
-本轮完成增强 SDK 构建与 Host/Client 类型检查、235 项通过（2 项旧环境专用另跑）、自然旧 SDK 48/48、协调者独立 40/40，以及当前桌面隔离整组加载和 macOS 实际安装。日常 175 个启用项全部 active、11 份前端字节匹配；没有调用真实模型。版本、绑定哈希与分层结果见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
+本轮完成增强 SDK 构建与 Host/Client 类型检查、240 项通过（2 项旧环境专用另跑）、自然旧 SDK 48/48，协调者重新执行 10/10 定向回归。覆盖手动成功、失败、取消、继承历史、自动闲置、任务内实际裁剪和错误／富媒体保护，使用真实 V4 codec 和 Session 恢复入口。实际安装、整组加载与绑定哈希见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
 
 合成长任务回放验证了压缩间隔、来源回查、配对及计费协议；不能证明真实模型摘要的信息保真、吞吐或收益。Windows/Ubuntu 完整桌面、Apple Silicon 和其他官方宿主需要各自验收。压缩后重试不会完整重跑宿主 `preStep` 动态装配，需要用现有工具核实文件和任务状态。历史证据保存在 [verification](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification)。
 

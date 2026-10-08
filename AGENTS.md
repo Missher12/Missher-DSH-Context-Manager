@@ -1,3 +1,7 @@
+# 2026-10-08 Context 0.9.0-local.2 日志完整性修复
+
+仅在真实开放任务回合内调用工具裁剪器，避免 idle/manual 回合外 replacement 导致 V4 重载拒绝；摘要与任务内裁剪保持。原文不改，已有坏日志不自动恢复。沿用独立冻结候选，旧 Release、canonical 脏源码和旧 lib 保留。精确安装与发布状态见 [PUBLICATION.md](./PUBLICATION.md)；下方 local.1 是此前阶段。
+
 # 2026-10-08 0.9 工作集公开交付
 
 本公开导出包含已验收的 0.9.0-local.1 源码与十二个匹配运行件。工作集压缩、周期防重复和同会话原文工具由原 Context 负责人单写；协调者独立验收并完成 macOS 日常安装。正式说明、精确包绑定和限制见 [PUBLICATION.md](./PUBLICATION.md)。下方候选、未安装及 canonical 旧 lib 约束是历史记录；canonical 脏源码及旧生成件保持，公开导出的 lib 对应本版本。不要用历史包覆盖新数据。

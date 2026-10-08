@@ -314,6 +314,10 @@ export default class ContextEngine extends BasicCompactionEngine {
       pruneSession(session: Agent['session'], options: { protectedSeqs: ReadonlySet<SessionSeq> }): { pruned: readonly unknown[] }
     } | undefined
     if (pruner?.supportsProtectedSeqs !== true) return false
+    // V4 tool/result replacements require an open turn. Maintenance owns no
+    // turn; its user-message checkpoint remains valid without tool pruning.
+    const turn = agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
+    if (turn?.type !== 'turn/start') return false
     const recentBudget = Math.min(this.ctx.contextManager.snapshot().recentTokens, Math.max(1000, measurement.totalTokens * 0.2))
     let recent = 0
     const recentSeqs = new Set<SessionSeq>()

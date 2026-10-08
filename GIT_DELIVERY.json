@@ -1,12 +1,12 @@
 {
-  "version": "0.9.0-local.1",
+  "version": "0.9.0-local.2",
   "sourceRepository": "Missher12/Missher-DSH-Context-Manager",
-  "baseCommit": "77eb6d3424bce3cdc21239454f35644e714b8bfa",
-  "acceptedPackageSha256": "0f693c0b82b40d9b3cffcfab5d3abdd8079342b005f3372d53cb895edd406fcc",
-  "behaviorValidatedAndInstalledPackageSha256": "07dcec382c5a0956d40281b6d38b234d4a633c3a172b52967709a3466cdc2faf",
-  "frozenSourceBindingSha256": "b29a131b7bd2cbfdab91443bde4fbd80f21c38ba1f2bda847bbdb6decaea012d",
-  "publicationSourceBindingSha256": "bdb8adfa28451d1d67d3527306c6ad67537439646a74e36f574aaf15748b8868",
-  "publicationSourceBindingScope": "Frozen 141 paths excluding this self-referential GIT_DELIVERY.json; publication docs/evidence not in the frozen set are tracked by Git.",
+  "baseCommit": "56a97e6bd4a93073a428c846c6f94771e54adefd",
+  "acceptedInstallAndReleasePackageSha256": "a924d50e95018e6cb65da0d511819830f5f36a06bf11da3591a54dcd07bea6b9",
+  "frozenBehaviorPackageSha256": "446ff04dd1f1811fc15302694cbe42c5b426ca48165d5ee0ea169ab5fc0b2e45",
+  "frozenSourceBindingSha256": "867ea1f1f7bded447117340d6b405a833ac08efd2a6a990e28a1a79fc00d0515",
+  "publicationSourceBindingSha256": "ea4bdf93458035fd12337fce1bef406375378c411073392dc459ee5fe2b7872c",
+  "publicationSourceBindingScope": "Frozen paths excluding this self-referential GIT_DELIVERY.json. Additional publication evidence is tracked by Git.",
   "runtimeFiles": [
     {
       "path": "lib/chart-data.js",
@@ -26,7 +26,7 @@
     },
     {
       "path": "lib/engine.js",
-      "sha256": "ed742bd7847f194bbd78413fcba5adfe6f31f4b3ca37bd23a28d09a866e83db2"
+      "sha256": "8dc373ae7c884b0969a6124662d42f46c4716bdb6a69b6905eb7e381be439b40"
     },
     {
       "path": "lib/history-tools.js",
@@ -57,16 +57,14 @@
       "sha256": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
     }
   ],
-  "runtimeMatchesFrozenAndInstalledPackage": true,
+  "changedRuntimeFromLocal1": [
+    "lib/engine.js"
+  ],
+  "runtimeMatchesFrozenPackage": true,
   "packageDocumentationChanges": [
     "COMPATIBILITY.json",
     "README.en.md",
     "README.md"
   ],
-  "additionalExportChanges": [
-    "scripts/verify-package-boundary.mjs explicit three new runtime members",
-    "AGENTS.md and PROJECT_CONTEXT.md status",
-    "PUBLICATION.md and verification receipt"
-  ],
-  "scope": "One cross-platform plugin; three packaged documentation files revised for release. All 16 other package files match the frozen and installed behavior package."
+  "scope": "One shared plugin, no Host changes, no existing log repair. All 16 nondocumentation package files match the frozen behavior candidate."
 }
