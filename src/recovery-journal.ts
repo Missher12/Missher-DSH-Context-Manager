@@ -11,6 +11,9 @@ const MAX_ENTRIES = 1024
 const MAX_CHAIN = 1024
 const SHA = /^[a-f0-9]{64}$/u
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u
+// Windows does not expose O_NOFOLLOW. Keep lstat/open/fstat identity checks
+// there; do not imply that it provides the POSIX atomic no-follow guarantee.
+const NO_FOLLOW = fs.constants.O_NOFOLLOW ?? 0
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 type Entry = { domain: string; key: string; generation: string; before: string[]; next: Json }
 type Owner = { schema: 1; pid: number; host: string; token: string }
@@ -82,7 +85,7 @@ function metadata(domain: string, key: string, value: unknown): Json {
 function readRegular(path: string, limit: number): string {
   const stat = fs.lstatSync(path)
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > limit) fail('invalid or oversized journal file')
-  const fd = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+  const fd = fs.openSync(path, fs.constants.O_RDONLY | NO_FOLLOW)
   try {
     const held = fs.fstatSync(fd)
     if (!held.isFile() || held.dev !== stat.dev || held.ino !== stat.ino || held.size > limit) fail('journal file changed while opening')
@@ -92,8 +95,25 @@ function readRegular(path: string, limit: number): string {
   } finally { fs.closeSync(fd) }
 }
 function syncDirectory(root: string): void {
+  // Node's Windows directory handles cannot be flushed like POSIX directory
+  // handles (EPERM). File flushes remain mandatory; no fsync error is ignored.
+  if (process.platform === 'win32') return
   const fd = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY)
   try { fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
+}
+function syncReplacement(root: string): void {
+  if (process.platform !== 'win32') { syncDirectory(root); return }
+  // Flush the published regular file through a writable handle after rename.
+  // This is a file-content barrier, not a claim of POSIX directory durability
+  // or sudden-power-loss protection. A failure poisons the transaction below.
+  const path = join(root, 'pending.json'), stat = fs.lstatSync(path)
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_BYTES) fail('invalid published journal file')
+  const fd = fs.openSync(path, fs.constants.O_RDWR | NO_FOLLOW)
+  try {
+    const held = fs.fstatSync(fd)
+    if (!held.isFile() || held.dev !== stat.dev || held.ino !== stat.ino || held.size > MAX_BYTES) fail('published journal file changed while opening')
+    fs.fsyncSync(fd)
+  } finally { fs.closeSync(fd) }
 }
 function ownerFrom(text: string): Owner {
   let data: unknown
@@ -105,7 +125,7 @@ function ownerFrom(text: string): Owner {
   return data as Owner
 }
 function writeExclusive(path: string, value: unknown): void {
-  const fd = fs.openSync(path, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600)
+  const fd = fs.openSync(path, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | NO_FOLLOW, 0o600)
   const identity = fs.fstatSync(fd)
   try { fs.writeFileSync(fd, JSON.stringify(value) + '\n'); fs.fsyncSync(fd) }
   catch (error) {
@@ -233,11 +253,11 @@ export class RecoveryJournal {
     const temporary = join(this.root, `.pending-${this.owner.token}-${randomUUID()}.tmp`)
     let renamed = false
     try {
-      const fd = fs.openSync(temporary, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600)
+      const fd = fs.openSync(temporary, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | NO_FOLLOW, 0o600)
       try { fs.writeFileSync(fd, text); fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
       fs.renameSync(temporary, join(this.root, 'pending.json'))
       renamed = true
-      syncDirectory(this.root)
+      syncReplacement(this.root)
       this.entries = next
     } catch (error) {
       if (renamed) this.poisoned = true
