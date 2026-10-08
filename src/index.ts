@@ -9,13 +9,41 @@ import { IdleStore, type IdleRecord } from './idle-store.ts'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { SummaryLedger } from './summary-ledger.ts'
 import { join, isAbsolute } from 'node:path'
+import { existsSync } from 'node:fs'
 import type {} from '@deepseek-ai/dsh-app-boot'
 import { RecoveryJournal } from './recovery-journal.ts'
 import { CompactionCycles } from './compaction-cycles.ts'
 import { registerHistoryTools } from './history-tools.ts'
+import { TextArchive, type ArchiveSummary } from './archive.ts'
+import type { ReductionReadout } from './inspector-types.ts'
+import { registerToolResultReduction, type ReductionStats } from './tool-results.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextManager: ContextManager } }
 export interface Config { policy: Volatile<Policy> }
+
+/** Bounded detail list for the per-session reduction readout. */
+const REDUCTION_RECENT_LIMIT = 4
+
+/** Capability/status readout for the new efficiency features. */
+export interface ReductionStatus extends ReductionStats {
+  /** `off` / `observe` / `reduce`, reloaded from the live policy. */
+  readonly mode: Policy['toolResultsMode']
+  /** Absolute archive directory, or undefined when it could not be opened. */
+  readonly archiveDirectory?: string
+  /** Why the archive is unavailable; absent when it opened. */
+  readonly archiveError?: string
+  /** True once the Host reported at least one final tool result through the new seam. */
+  readonly pipelineReported: boolean
+  /** Archived originals, whole archive rather than this session. */
+  readonly archiveOriginals: number
+  /** Durable published/pending/reverted facts; process counters above are diagnostics only. */
+  readonly archive: ArchiveSummary | undefined
+  /**
+   * Confirmed counts per session id. A process-wide counter is never presented
+   * as one session's total.
+   */
+  readonly sessions: ReadonlyMap<string, { published: number; reverted: number }>
+}
 
 /** A single live policy shared by isolated preset engines. */
 export default class ContextManager extends Service {
@@ -24,6 +52,12 @@ export default class ContextManager extends Service {
   summaryLedger!: SummaryLedger
   compactionCycles!: CompactionCycles
   supportsSafeShutdown = false
+  private reductionStats!: () => ReductionStats
+  private pipelineReported!: () => boolean
+  private reductionSessions?: () => ReadonlyMap<string, { published: number; reverted: number }>
+  private archive?: TextArchive
+  private archiveFailure?: string
+  private archiveAbsent?: string
   private idleActive = false
   private readonly idleReaders = new Map<string, () => IdleStatus>()
   private readonly compactReaders = new Map<string, () => CompactPhase | undefined>()
@@ -49,19 +83,34 @@ export default class ContextManager extends Service {
       absoluteEnabled: z.boolean().default(defaults.absoluteEnabled),
       absoluteTriggerTokens: z.number().min(10000).max(1000000000).step(1).default(defaults.absoluteTriggerTokens),
       absoluteTargetTokens: z.number().min(1000).max(1000000000).step(1).default(defaults.absoluteTargetTokens),
+      toolResultsMode: z.union([z.const('off'), z.const('observe'), z.const('reduce')]).default(defaults.toolResultsMode),
+      toolResultsMaxChars: z.number().min(2000).max(4000000).step(1).default(defaults.toolResultsMaxChars),
+      toolResultsMinSavings: z.number().min(100).max(1000000).step(1).default(defaults.toolResultsMinSavings),
+      archiveReadBudget: z.number().min(500).max(6000).step(1).default(defaults.archiveReadBudget),
+      archiveSearchLimit: z.number().min(1).max(8).step(1).default(defaults.archiveSearchLimit),
+      prefixDiagnosticsEnabled: z.boolean().default(defaults.prefixDiagnosticsEnabled),
     }).default(defaults).volatile(),
   })
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'contextManager')
     this.snapshot()
-    registerHistoryTools(ctx)
+    registerHistoryTools(ctx, () => {
+      const { archive, error } = this.archiveAccess(false)
+      const policy = this.snapshot()
+      return { ...(archive === undefined ? {} : { archive }), ...(error === undefined ? {} : { error }),
+        searchLimit: policy.archiveSearchLimit, readBudget: policy.archiveReadBudget }
+    })
     ctx.inject(['sessionProjections'], child => {
       child.sessionProjections.register(diagnosticsProjection)
     })
     ctx.inject(['settings'], child => {
       child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
     })
+    const reduction = registerToolResultReduction(ctx, () => this.snapshot(), () => this.archive$())
+    this.reductionStats = reduction.stats
+    this.pipelineReported = reduction.reported
+    this.reductionSessions = reduction.sessions
   }
 
   protected async [Service.init](): Promise<void> {
@@ -117,6 +166,108 @@ export default class ContextManager extends Service {
   registerDrain(drain: () => Promise<void>): () => void {
     this.drains.add(drain)
     return () => { this.drains.delete(drain) }
+  }
+
+  /**
+   * Open the original-text archive lazily, inside the Host-chosen profile
+   * directory. An unusable location is a bounded feature downgrade: it is
+   * reported and the reducer keeps the Host's own result, while compaction,
+   * settings and the history tools keep working. A read-only caller uses
+   * {@link archiveAccess}, which opens an existing archive but never creates
+   * storage as a side effect of being observed.
+   * @returns the archive, or undefined when it could not be opened.
+   */
+  private archive$(options: { readonly create: boolean } = { create: true }): TextArchive | undefined {
+    if (this.archive !== undefined) return this.archive
+    if (this.archiveFailure !== undefined) return undefined
+    const profile = this.ctx.get('profileContext')
+    if (!profile || !isAbsolute(profile.dir)) {
+      this.archiveFailure = '当前环境没有可用的 profile 目录，原文档案已停用'
+      return undefined
+    }
+    const root = join(profile.dir, '.context-manager-archive')
+    if (!options.create && !existsSync(root)) {
+      this.archiveAbsent = '尚未创建原文档案；启用 reduce 后才有档案'
+      return undefined
+    }
+    try {
+      // `create` is forwarded from the caller: only the reducer may create the
+      // archive directory as a side effect, and a read-only observer must be
+      // able to open an existing archive without ever creating one.
+      this.archive = TextArchive.open(root, { create: options.create })
+    } catch (error) {
+      this.archiveFailure = error instanceof Error ? error.message : String(error)
+      this.ctx.logger.warn('context-manager: 原文档案不可用（工具结果精简保持宿主原结果）：%s', this.archiveFailure)
+      return undefined
+    }
+    this.ctx.effect(() => () => { this.archive?.close(); this.archive = undefined })
+    return this.archive
+  }
+
+  /**
+   * Read-only archive access for the history tools. Never creates storage and
+   * never loads a session; an unavailable archive is reported, not thrown.
+   * @param create - only the reducer may create the archive directory.
+   * @returns the archive plus the reason it is unavailable, if any.
+   */
+  archiveAccess(create = false): { archive?: TextArchive; error?: string } {
+    const archive = this.archive$({ create })
+    if (archive !== undefined) return { archive }
+    return { error: this.archiveFailure ?? this.archiveAbsent ?? '原文档案不可用' }
+  }
+
+  /** Capability, policy and live reduction counters for the inspector. */
+  reductionStatus(): ReductionStatus {
+    const policy = this.snapshot()
+    const stats = this.reductionStats?.() ?? { considered: 0, unverified: 0, wouldReduce: 0, published: 0,
+      reverted: 0, pending: 0, skipped: 0, failed: 0 }
+    const { archive, error } = this.archiveAccess(false)
+    const summary = this.reductionSummary(undefined, 8)
+    return { ...stats, mode: policy.toolResultsMode,
+      ...(archive === undefined ? {} : { archiveDirectory: archive.directory }),
+      ...(error === undefined ? {} : { archiveError: error }),
+      pipelineReported: this.pipelineReported?.() ?? false,
+      archiveOriginals: archive?.size ?? 0,
+      archive: summary,
+      sessions: this.reductionSessions?.() ?? new Map() }
+  }
+
+  /** Bounded reduction summary for one session; never reads an original. */
+  reductionSummary(sessionId?: string, limit = 16) {
+    const { archive } = this.archiveAccess(false)
+    if (archive === undefined) return undefined
+    return archive.summary(sessionId, limit)
+  }
+
+  /**
+   * Session-scoped reduction readout for the read-only context panel. The
+   * durable published/pending/reverted rows come from the archive filtered by
+   * this session; `run` is explicitly the process-wide diagnostic of the
+   * current run, so a process counter is never presented as one session's
+   * total. Nothing here creates the archive, reads an original, or prices
+   * anything: character counts are not a bill.
+   * @param sessionId - the session whose confirmed references are reported.
+   * @returns a plain JSON readout, safe for the strict remote codec.
+   */
+  reductionReadout(sessionId: string): ReductionReadout {
+    const policy = this.snapshot()
+    const stats = this.reductionStats?.() ?? { considered: 0, unverified: 0, wouldReduce: 0, published: 0,
+      reverted: 0, pending: 0, skipped: 0, failed: 0 }
+    const { archive, error } = this.archiveAccess(false)
+    const summary = this.reductionSummary(sessionId, REDUCTION_RECENT_LIMIT)
+    return {
+      mode: policy.toolResultsMode,
+      pipelineReported: this.pipelineReported?.() ?? false,
+      published: summary?.published ?? { references: 0, originalChars: 0, shortenedChars: 0, visibleCharsRemoved: 0 },
+      pending: summary?.pending ?? 0,
+      reverted: summary?.reverted ?? 0,
+      recent: (summary?.recent ?? []).map(owner => ({ contentId: owner.contentId, callId: owner.callId ?? null,
+        tool: owner.tool, shortenedChars: owner.shortenedChars, complete: owner.complete, at: owner.at })),
+      notes: [...(summary?.notes ?? [])],
+      run: { considered: stats.considered, unverified: stats.unverified, wouldReduce: stats.wouldReduce,
+        skipped: stats.skipped, failed: stats.failed, lastSkip: stats.lastSkip ?? null, lastReason: stats.lastReason ?? null },
+      ...(error === undefined ? {} : { archiveError: error }),
+    }
   }
 
   /** One background summary across isolated engines; main request admission is independent. */

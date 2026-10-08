@@ -47,6 +47,21 @@ export const zh = {
   absoluteTrigger: '绝对软预算', repairing: '摘要格式修复中',
   goalStop: '任务停止原因（Goal）', goalIndependent: '该限制与上下文占用无关，压缩不会解除', goalRounds: '轮',
   details: '数值明细', requests: '逐次请求', turn: '轮', step: '步', noCalls: '暂无回复记录',
+  effLine: '用量归因', effHostSource: '宿主投影为准', effEventSource: '仅事件日志', effEventHint: '该截面没有可用的宿主投影，这里只按事件日志折算；分量不完整时是下界，不是账单。',
+  effBusiness: '业务用量', effMaintenance: '整理用量', effUnknownRuns: '用量未知尝试', effRetryCount: '重试',
+  effMissingFields: '缺失分量', effSuspects: '压缩事务期间结算', effNoDifference: '与宿主投影一致', effDifference: '与宿主投影有差异',
+  effCacheUnknown: '缓存命中未知', effPurposeUndivided: '摘要与修复未区分用途，合计显示', effPrefixChanges: '前缀指纹变化',
+  effUnknownValue: '未知',
+  effBoundHint: '宿主投影与事件日志都只包含已回报的分量，下面是已知下界，仍有未知用量。', usageUnknownHint: '没有已回报的用量分量，因此不显示为 0 或完整账单；事件日志里仍有未回报用量的尝试。', effInclusiveNote: '完整输入样本的缓存合计（仅完整样本，不代表上面的已知下界）：',
+  effLedgerInputNote: '总账输入已含缓存，不再另加。',
+  effPrefixOff: '前缀诊断已在设置中关闭', effPrefixNone: '未观察到前缀变化', effComponent: '分量',
+  reductionTitle: '工具结果精简', reductionOff: '关闭', reductionObserve: '观察', reductionReduce: '安全精简',
+  reductionConfirmed: '已确认引用', reductionRemoved: '可见字符减少', reductionPending: '待确认', reductionReverted: '已撤回',
+  reductionPipelineUnknown: '尚未观察到最终结果／能力未确认', reductionPipelineOk: '已接收到最终结果', reductionCharsHint: '字符差只是可见文本长度变化，不是 Token 账单或实际省钱。',
+  reductionRunScope: '本次运行（全进程，不是本会话）', reductionArchiveError: '原文档案不可用', reductionRecent: '本会话最近的引用（含待确认与已撤回）', reductionRowTruncated: '原文不完整（上游已截断）',
+  reductionNoRecent: '本会话尚无确认的精简引用', reductionSkip: '最近跳过原因', reductionTool: '工具', reductionNoNotes: '无附加说明',
+  histUnavailable: '该截面不可用（历史）',
+  runConsidered: '已核对', runWouldReduce: '可精简', runSkipped: '已跳过', runUnverified: '未证实',
 } as const
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
@@ -97,6 +112,21 @@ export const en: Record<InspectorLocaleKey, string> = {
   absoluteTrigger: 'Absolute soft budget', repairing: 'Repairing summary format',
   goalStop: 'Goal stop reason', goalIndependent: 'Unrelated to context occupancy; compaction does not lift this limit', goalRounds: 'rounds',
   details: 'Values', requests: 'Requests', turn: 'turn', step: 'step', noCalls: 'No reply records',
+  effLine: 'Usage attribution', effHostSource: 'Host projection is authoritative', effEventSource: 'Event log only', effEventHint: 'No host projection is available for this cut, so it is folded from the event log alone; with missing components these are lower bounds, not a bill.',
+  effBusiness: 'Business usage', effMaintenance: 'Maintenance usage', effUnknownRuns: 'attempts without usage', effRetryCount: 'retries',
+  effMissingFields: 'missing components', effSuspects: 'settled during a compaction transaction', effNoDifference: 'matches the host projection', effDifference: 'differs from the host projection',
+  effCacheUnknown: 'Cache hit unknown', effPurposeUndivided: 'Summary and repair purposes are not split; shown as one figure', effPrefixChanges: 'Prefix fingerprint changes',
+  effUnknownValue: 'Unknown',
+  effBoundHint: 'Both the Host projection and the event-log fold carry only what was reported, so this is a known lower bound with usage still unknown.', usageUnknownHint: 'No usage component was reported, so this is not a zero or a complete bill; the event log still has attempts without usage.', effInclusiveNote: 'Cache-inclusive total of complete input samples only; it is not the known bound above:',
+  effLedgerInputNote: 'The ledger input already includes cache, so it is not added again.',
+  effPrefixOff: 'Prefix diagnostics are switched off in settings', effPrefixNone: 'No prefix change observed', effComponent: 'Component',
+  reductionTitle: 'Tool-result reduction', reductionOff: 'Off', reductionObserve: 'Observe', reductionReduce: 'Safe reduce',
+  reductionConfirmed: 'Confirmed references', reductionRemoved: 'Visible characters removed', reductionPending: 'Pending', reductionReverted: 'Reverted',
+  reductionPipelineUnknown: 'No final result observed yet / capability unconfirmed', reductionPipelineOk: 'Final results received', reductionCharsHint: 'A character delta is a visible-text difference, not a token bill or a real saving.',
+  reductionRunScope: 'This run (process-wide, not this session)', reductionArchiveError: 'Original archive unavailable', reductionRecent: 'Latest references in this session (pending and reverted included)', reductionRowTruncated: 'original incomplete (already truncated upstream)',
+  reductionNoRecent: 'No confirmed reduced reference in this session yet', reductionSkip: 'Latest skip reason', reductionTool: 'Tool', reductionNoNotes: 'No further notes',
+  histUnavailable: 'Unavailable for this cut (historical)',
+  runConsidered: 'examined', runWouldReduce: 'reducible', runSkipped: 'skipped', runUnverified: 'unverified',
 }
 export type InspectorText = (key: InspectorLocaleKey) => string
 /** Select the panel dictionary from the native locale. */

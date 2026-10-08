@@ -39,6 +39,73 @@ export interface AdmissionReadout {
   /** Recorded metadata for the measured route; missing values never imply zero. */
   window: number | null; outputReserve: number | null
 }
+/** One usage component: a known sum plus how many samples did not report it. */
+export interface FieldTotalReadout { sum: number; reported: number; missing: number }
+/** One settlement folded from this cut's event log; a missing component stays null. */
+export interface EfficiencyRequestRow {
+  seq: number; time: number; turn: number; step: number
+  /** How the settlement was observed; `attempt` usually means a failed or cancelled call. */
+  settledBy: 'message' | 'attempt'
+  routeKnown: boolean; retry: number; provider: string; model: string
+  uncachedInput: number | null; cacheRead: number | null; cacheWrite: number | null; output: number | null
+  /** Settled while a compaction transaction owned the turn; the purpose stays unconfirmed. */
+  maintenanceSuspect: boolean
+}
+export interface EfficiencyChange { seq: number; time: number; changed: ('prefix' | 'toolSchema' | 'toolOrder')[]; note: string }
+export interface EfficiencyFingerprint { prefix: string; toolSchema: string; toolOrder: string; tools: number; systemChars: number }
+/**
+ * Read-only attribution for one immutable cut. `accounting` says which source
+ * is authoritative: `host-projection` quotes `host` and keeps the mirrored fold
+ * as a cross-check, while `event-log` (a historical cut or a missing
+ * projection) quotes only the fold and must be read with its completeness
+ * fields. Summary and repair usage stays one undivided figure because the
+ * existing ledger has no durable purpose field.
+ */
+export interface EfficiencyReadout {
+  accounting: 'host-projection' | 'event-log'
+  host: { uncachedInputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; outputTokens: number } | null
+  mirrored: {
+    settledAttempts: number; retries: number; withoutUsage: number
+    uncachedInput: FieldTotalReadout; cacheRead: FieldTotalReadout; cacheWrite: FieldTotalReadout
+    output: FieldTotalReadout; cacheInclusiveInput: FieldTotalReadout
+    complete: boolean
+  }
+  /** Non-empty entries mean the log could not reproduce the Host's own total. */
+  differences: { field: 'uncachedInputTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'outputTokens'; host: number; mirrored: number; delta: number }[]
+  /** Cache components stay null when no attempt reported them; the ledger input already includes cache. */
+  summaryAndRepair: { source: string; input: number; output: number; cacheRead: number | null; cacheWrite: number | null; attempts: number
+    unknownAttempts: number; purposeSplit: false; note: string } | null
+  maintenanceSuspects: number
+  cacheHitRatio: number | null
+  requests: EfficiencyRequestRow[]
+  /** Null when prefix diagnostics are switched off or no request header was seen. */
+  fingerprint: EfficiencyFingerprint | null
+  changes: EfficiencyChange[]
+}
+/**
+ * Per-session confirmed tool-result reduction. `published`/`pending`/`reverted`
+ * come from the durable archive rows filtered by this session; `run` is a
+ * process-wide diagnostic for the current run and is labelled as such, never
+ * presented as this session's total.
+ */
+export interface ReductionReadout {
+  mode: 'off' | 'observe' | 'reduce'
+  /** True once the Host reported a final tool result through the new seam. */
+  pipelineReported: boolean
+  published: { references: number; originalChars: number; shortenedChars: number; visibleCharsRemoved: number }
+  pending: number
+  reverted: number
+  /**
+   * This session's durable confirmed references, newest first and bounded. The
+   * pair (contentId, callId) is the grant identity: cross-call dedup lets one
+   * stored original carry several owners, so contentId alone is not unique.
+   */
+  recent: { contentId: string; callId: string | null; tool: string; shortenedChars: number; complete: boolean; at: number }[]
+  notes: string[]
+  run: { considered: number; unverified: number; wouldReduce: number; skipped: number; failed: number; lastSkip: string | null; lastReason: string | null }
+  /** Why the archive is unavailable for this run; absent when it opened. */
+  archiveError?: string
+}
 export type InspectedCompaction = CompactionEntry & { trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
 /** Read-only host goal projection; the context page never mutates it. */
 export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
@@ -53,6 +120,14 @@ export interface Inspection {
   usage: { input: number; output: number; cacheRead: number; uncached: number; cacheWrite: number } | null
   /** Separate metadata ledger since this version began recording summary calls. */
   summaryUsage?: { input: number; output: number; attempts: number; unknownAttempts: number; since: number }
+  /**
+   * Attribution of this cut. A historical cut carries only the event-log fold
+   * (no host projection, no ledger), so current figures are never shown as
+   * historical ones.
+   */
+  efficiency?: EfficiencyReadout
+  /** Confirmed per-session tool-result reduction; absent for a historical cut. */
+  reduction?: ReductionReadout
   /** Differences between replayed host projections, never an exact token bill. */
   contextGrowth?: ContextGrowth
   /** Goal stop reason as recorded by the host, distinct from context pressure. */

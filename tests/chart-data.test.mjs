@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { composition, percentages, usageSlices } from '../lib/chart-data.js'
+import { composition, percentages, usageCompleteness, usageSlices } from '../lib/chart-data.js'
 import { defaults } from '../lib/policy.js'
 
 test('the full window includes unclassified occupancy and free capacity without repricing content', () => {
@@ -92,4 +92,24 @@ test('disabled, unknown and historical policies never invent a compaction reserv
     assert.equal(chart.limit,null); assert.equal(chart.reserve,null); assert.equal(chart.free,680000)
     assert.equal(chart.slices.some(slice=>slice.id==='reserve'),false)
   }
+})
+
+test('the main usage total is only complete when the evidence is: empty stays zero, unknown is not zero', () => {
+  const field = (sum, reported, missing) => ({ sum, reported, missing })
+  const eff = mirrored => ({ mirrored: { settledAttempts: 0, retries: 0, withoutUsage: 0,
+    uncachedInput: field(0, 0, 0), cacheRead: field(0, 0, 0), cacheWrite: field(0, 0, 0), output: field(0, 0, 0),
+    cacheInclusiveInput: field(0, 0, 0), complete: true, ...mirrored } })
+  // No event-log readout to qualify with: the caller must not invent a bound.
+  assert.equal(usageCompleteness(undefined), null)
+  // A session that never settled an attempt is a genuine, complete zero.
+  assert.equal(usageCompleteness(eff({})), 'complete')
+  // Host buckets of zero plus attempts that never reported usage are not a zero.
+  assert.equal(usageCompleteness(eff({ settledAttempts: 2, withoutUsage: 2, output: field(0, 0, 2), complete: false })), 'unknown')
+  assert.equal(usageCompleteness(eff({ settledAttempts: 1, output: field(0, 0, 1), complete: false })), 'unknown')
+  // Some components known: a labelled lower bound, not a complete figure.
+  assert.equal(usageCompleteness(eff({ settledAttempts: 2, withoutUsage: 1, uncachedInput: field(60, 1, 1),
+    output: field(20, 1, 1), cacheRead: field(30, 1, 0), cacheWrite: field(10, 1, 0), complete: false })), 'partial')
+  // Every settled attempt reported every component.
+  assert.equal(usageCompleteness(eff({ settledAttempts: 2, uncachedInput: field(60, 2, 0), cacheRead: field(30, 2, 0),
+    cacheWrite: field(10, 2, 0), output: field(20, 2, 0), complete: true })), 'complete')
 })

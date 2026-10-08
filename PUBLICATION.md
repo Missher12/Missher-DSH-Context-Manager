@@ -1,40 +1,17 @@
-# Context 0.9.0-local.2：修复闲置压缩导致的历史重载失败
+# Context 0.10.0-local.1 候选验证
 
-旧版可能在任务回合已经结束后裁剪工具结果，写出回合之外的替换事件，使 V4 严格日志重载拒绝该会话。摘要成功和摘要失败都可能触发。本版仅在真实日志仍有开放回合时调用工具裁剪器；闲置和手动压缩继续生成合法摘要，任务执行中的裁剪及保护保持。
+当前分支用于对冻结的上下文效率升级运行 CI，还未成为 main、tag 或 Release，也未安装到日常 DSH。当前已发布版本仍为 [0.9.0-local.2](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.9.0-local.2)。
 
-没有放宽日志校验、伪造回合或修改 Host、MSE、Goal、模型与预算。十二个运行文件相对 local.1 **只改变 engine.js**。自动工作集、原文回查和此前 Windows 恢复日志修复继续保留，各平台共用同一个包。
+新版增加安全工具结果精简、保留原文与同会话/合法继承前缀回读、实际用量归因和原生上下文页面。默认 observe，只观察；使用 reduce 才对新成功的可识别纯文本结果尝试精简。原文 blob 默认上限为 512 MiB，三份索引清单各自上限 64 MiB；没有自动清理原文或关闭长期保留的选项。
 
-## 下载与安装
+精确来源与包文件绑定见 GIT_DELIVERY.json。包 SHA256 为 `32d87ca6c961c75e516003acf32065bf7500a9da0d549190ef15e3a863ef7b95`，23 个成员含 16 个运行文件。本分支没有修改冻结业务或用另一份 SDK 替代增强基线。
 
-1. 下载 [0.9.0-local.2 通用安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.2/missher-dsh-context-manager-0.9.0-local.2.tgz)，对照 [SHA256SUMS](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.2/SHA256SUMS)。大小 193799 bytes，SHA256：`a924d50e95018e6cb65da0d511819830f5f36a06bf11da3591a54dcd07bea6b9`。
-2. 等当前任务结束，完整备份 profile、会话及插件数据。Context 需保留 `.context-manager-recovery` 和 `context_manager_idle`、`context_manager_summaries`、`context_manager_cycles` 三个域。
-3. 在 **插件 → 添加插件** 中更新现有 `@missher/dsh-context-manager`，选择包或填写上述 URL，无需另装兼容插件或编译。
-4. 完整退出并重开 DSH，确认版本和 `context-manager`、`context-manager-engine`、`context-manager-inspector` 正常加载。
+r2 仅修正引用列表的一处文案，对应 locales 与 client 两文件变化；设置和传输协议定向 29/29 通过。下列完整回归基于 r1，未改模块逐字节一致，不称 r2 重跑全量。r1 增强 SDK 全量为 279 通过、2 个仅旧能力场景跳过；旧 SDK 指定历史 48 项及新适配 28 项通过。旧 SDK 额外全量仍有 46 失败/6 取消，含 idle 的额外子集仍有 4 失败，失败证据保留，不能称所有旧宿主全面兼容。独立本机反例分别为核心 13、归因 8、归档故障 3、生命周期 3 项通过。
 
-**此更新防止继续生成该类事件，不会自动修复已有坏日志。** 保留受损原件、完整备份，在副本上单独验证恢复；不要通过删除会话或恢复日志排错。本机日志通过检查，不能替代另一台电脑的受损样本。
+CI 将分别运行 archive 与 recovery 的 Windows/Ubuntu/macOS × Node22/24 矩阵，仅验证原生文件系统和明确的故障合同。archive 三例要求真实故障命中并记录原文、清单及总物理字节；原文配额断言不等于整个目录总配额。实际浏览器页面被 ERR_BLOCKED_BY_CLIENT 拦截，视觉未验收。完整 Host、UI、V4/分叉恢复仍由负责人单独验收，CI 不启动 Desktop、不调用模型，不替代这些结果。
 
-## 验证范围
-
-| 层级 | 结果 |
-| --- | --- |
-| 增强 SDK 构建和 Host/Client 类型 | 通过 |
-| 完整增强 SDK | 242 项：240 通过、0 失败、2 旧能力缺失场景另测 |
-| 自然旧 SDK 构建、类型与专项 | 48/48，无跳过 |
-| 缺陷与相邻保护定向回归 | 负责人及协调者独立各 10/10 |
-| 源码和包绑定 | 141 源文件、19 包成员、12 运行文件核对一致 |
-| 当前桌面整组隔离加载 | 174 启用项 active，11 客户端匹配，正常 IPC 关闭 |
-| 本机 Intel Mac 实际安装 | 175 启用项 active、11 客户端匹配、55 会话及 26 学习/160 事件保留 |
-
-新回归包含手动摘要成功、畸形失败、取消、继承历史、自动闲置，以及开放回合内真实裁剪和错误／富媒体保护。使用实际 V4 编码、完整 Zstandard 落盘校验、严格 codec 和 Session.fromRestore；不会通过守卫短路伪造裁剪覆盖。没有真实模型或嵌入调用。这不是完整后端 resumeAgent、真实供应商摘要质量或另一台 Windows/Ubuntu 的原生桌面验收。
-
-本机此前完整多帧扫描共 55 日志、48,144 事件及 27 次合法裁剪，独立 zstd 检查字节和事件数量；安装前再次确认全部日志 SHA 未变。首次仅扫描首帧的旧结果已明确撤回，没有将无效扫描算作通过。其他设备的受损日志不在这台 Mac，未自动改写。
-
-本机使用下方正式包完成安装并启动，19 个包文件回读一致；完整新鲜备份后 584 个受保护文件启动前一致。App 和其他插件保持，会话、凭据、三个 Context 域在启动后也逐字节保持；MSE 只变动既有运行计划的定时字段，内容与费用不变。首次检查早于后台 Host 就绪，等待实际 Host 后复查通过，没有重复安装或回滚。
-
-正式包只将冻结候选的中英文 README 与兼容说明更新为公开安装口径，其余 16 文件逐字节一致。冻结行为包 SHA 为 `446ff04dd1f1811fc15302694cbe42c5b426ca48165d5ee0ea169ab5fc0b2e45`；旧归档与原反例保持。精确绑定见 [GIT_DELIVERY.json](./GIT_DELIVERY.json)，安装和分层结果见 [验证记录](./verification/RESULTS-IDLE-PRUNE-20261008.json)。
+仅当正式 CI 和最终独立验收完成后，协调者才可推进 main/tag/Release；日常安装和重启另按明确交接执行。
 
 ## English
 
-This prerelease fixes idle/manual compaction writing a tool-result replacement outside a turn, which can make the strict V4 reader reject history. The pruning API now requires a real open turn in the log. Valid maintenance summaries and protected in-turn pruning remain available; only engine.js changes among the twelve runtime files.
-
-Use the shared package, back up all Context domains and the recovery journal, update the existing plugin and fully restart. This prevents new occurrences; it does not repair an already damaged log. Keep the original and validate recovery separately on a copy. Independent regression passed 10/10 with actual physical codecs and Session restoration. Enhanced SDK passed 240 with two old-only skips, and natural old SDK passed 48/48. Remote-device Desktop behavior and real-model quality remain separate acceptance layers.
+This is a frozen CI candidate, not a release or daily installation. Archive and recovery are separate native-filesystem matrices; no replacement SDK, Desktop, or model call is used. Extra legacy full-suite failures remain recorded. Final Host/UI/storage acceptance and all required CI results are required before main/tag/release publication.

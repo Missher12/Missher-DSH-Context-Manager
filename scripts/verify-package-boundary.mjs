@@ -14,8 +14,8 @@ const read = name => execFileSync('tar', ['-xOf', archive, `package/${name}`], {
 const manifest = JSON.parse(read('package.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
 const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
-  'lib/chart-data.js', 'lib/client.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/engine.js',
-  'lib/history-tools.js', 'lib/index.js', 'lib/policy.js', 'lib/working-set.js', 'package.json',
+  'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
+  'lib/history-tools.js', 'lib/index.js', 'lib/policy.js', 'lib/reducer.js', 'lib/tool-results.js', 'lib/working-set.js', 'package.json',
   ...(inspector ? ['lib/inspector.js', 'lib/inspector-fold.js', 'lib/typert.js'] : [])].map(p => `package/${p}`).sort()
 assert.deepEqual(members, expected, 'Package must not contain another plugin, verification fixtures, or local profiles')
 assert.equal(manifest.name, '@missher/dsh-context-manager')

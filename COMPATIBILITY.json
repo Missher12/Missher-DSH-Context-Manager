@@ -31,44 +31,25 @@
     "journalDurability": "Mandatory regular-file fsync on every platform; POSIX directory fsync, Windows published-file O_RDWR fsync after rename. Failure refuses writes; no power-loss or network-filesystem guarantee. Windows ACL inherited from profile.",
     "workingSet": "Automatic recent-history preference plus bounded checkpoint, with whole tool groups, protected instructions and complete pressure validation; custom total caps optional.",
     "cycleAccounting": "context_manager_cycles v1 stores durable request hashes and original-source watermarks. Existing summary/idle schemas remain unchanged.",
-    "historyRead": "Optional tools/sessionQuery/sessions: bounded read-only original text lookup in the executing agent session; no vectors or network."
+    "historyRead": "Optional tools/sessionQuery/sessions: bounded read-only original text lookup in the executing agent session; no vectors or network.",
+    "toolResultReduction": "Reduction runs through the Host's final tool-result seam and publishes only a verified short value; the reducer never rewrites another plugin's bytes. A reference counts as confirmed only when the final Host result still carries the short text; pending/reverted stay separate and character deltas are not billing.",
+    "originalArchive": "Profile-local .context-manager-archive with durable outcome rows, cross-restart rebuild and physical quota reconciliation; every read path is read-only. Retention is unconditional: no purge action, no retention switch, and uninstalling never deletes it.",
+    "usageAttribution": "attributeSession folds the current immutable cut and keeps the Host tokenUsage projection authoritative when present; the four buckets stay mutually exclusive. Partial samples yield a labelled known lower bound, all-unknown yields unknown, and the summary ledger stays one undivided figure because it has no durable purpose field.",
+    "forkInheritedOriginals": "A forked session may read back only the originals granted inside its inherited prefix, bounded by boundary validity, reference count, scanned events and a total-log cap checked before the observation is materialised."
   },
   "verification": {
-    "distribution": "0.9.0-local.2 idle-pruning log-integrity fix; see PUBLICATION.md and verification/RESULTS-IDLE-PRUNE-20261008.json.",
-    "enhancedSdk": {
-      "total": 242,
-      "passed": 240,
-      "failed": 0,
-      "skipped": 2
-    },
-    "naturalOldSdk": {
-      "total": 48,
-      "passed": 48,
-      "failed": 0,
-      "skipped": 0
-    },
-    "independentTargetedTests": 10,
+    "distribution": "0.10.0-local.1 tool-result reduction, read-only original archive and usage-attribution candidate. Full regression on the enhanced SDK and an isolated legacy-SDK subset are recorded in verification/context-efficiency-20261009/READY.md; browser, isolated Host and real-model acceptance stay separate. Not installed in the daily environment.",
     "platformsTested": [
-      "macOS Intel x64: SDK tests, Loader, installation and read-only RPC"
+      "macOS Intel (x64)"
     ],
     "platformsNotVerified": [
-      "Windows full Desktop working-set behavior",
-      "Ubuntu full Desktop working-set behavior",
-      "macOS Apple Silicon"
+      "macOS Apple Silicon",
+      "Windows",
+      "Linux"
     ],
-    "historicalJournalTests": "local.9 native Node 22/24 filesystem checks passed on Windows, Ubuntu and macOS; distinct from current complete Desktop acceptance.",
-    "officialHarnessOnly": "Full plugin acceptance on an unmodified official rc.2 was not performed. Optional capabilities follow runtimeCapabilities.",
+    "officialHarnessOnly": "Full plugin acceptance on unmodified official rc.2 was not performed. Missing optional capabilities follow runtimeCapabilities.",
     "realProviderCompactionTested": false,
-    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not a full-compatibility assertion.",
-    "physicalCodecRoundtripTested": true,
-    "previousDesktopBaseline": {
-      "version": "0.9.0-local.1",
-      "enabledLoaderEntries": 175,
-      "allActive": true,
-      "clientFilesMatched": 11,
-      "nativeWindowLoadedVisible": true,
-      "nativeClicksRetested": false
-    },
-    "currentDesktopAcceptance": "Exact installed-package and Loader evidence is recorded in PUBLICATION.md; separate from the physical-codec test."
+    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit.",
+    "sdkUsedForFullRegression": "Enhanced combined SDK at /Users/missher/Documents/Deepseek-harness-Cordis/coordination/2026-10-07/context-long-task/context-receiver/combined-sdk-r1 (BINDING.json sha256 ef82a169ccd0c8ed2a77ff85a10fe481360e47c40bf6a73acb82fdc5a58901e1); the isolated legacy stage keeps the naturally linked older SDK."
   }
 }

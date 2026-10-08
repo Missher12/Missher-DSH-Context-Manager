@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client'
 import { Simulate } from 'react-dom/test-utils'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { defaults } from '../lib/policy.js'
+import { TYPERT } from '../lib/typert.js'
 
 const require = createRequire(import.meta.url)
 // Render the host's actual control implementations. Their CSS modules are
@@ -151,6 +152,73 @@ test('inspector cancels stale Session reads, never flashes another Session and r
     assert.equal(calls.at(-1).signal.aborted, true); assert.equal(listeners.size, 0)
     dom.window.close(); delete globalThis.window; delete globalThis.document
   }
+})
+
+test('the session total and every legend row follow one completeness rule instead of a bare zero', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const state = { status: 'ready', writable: true, revision: 1, value: { policy: { ...defaults } } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => state }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const field = (sum, reported, missing) => ({ sum, reported, missing })
+  const efficiency = mirrored => ({ accounting: 'host-projection', host: { uncachedInputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 },
+    mirrored: { settledAttempts: 0, retries: 0, withoutUsage: 0, uncachedInput: field(0, 0, 0), cacheRead: field(0, 0, 0),
+      cacheWrite: field(0, 0, 0), output: field(0, 0, 0), cacheInclusiveInput: field(0, 0, 0), complete: true, ...mirrored },
+    differences: [], summaryAndRepair: null, maintenanceSuspects: 0, cacheHitRatio: null, requests: [], fingerprint: null, changes: [] })
+  const zero = { input: 0, uncached: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
+  const fixture = (usage, efficiencyReadout) => ({ sessionId: 'total-session', cursor: 3, cutSeq: 3, sampledAt: 1000, historical: false,
+    pressure: null, official: null, usage, model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0,
+    archivedCount: 0, requests: [], requestCount: 0, pressureHistory: [], compactions: [], efficiency: efficiencyReadout })
+  let payload = fixture(zero, efficiency({}))
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }),
+    // Each case reads its own Session so a stale response can never be shown.
+    inspect: async query => ({ ...payload, sessionId: query.sessionId }), content: () => { throw new Error('content is lazy') } }
+  const root = createRoot(document.getElementById('root'))
+  const render = async target => { await act(async () => root.render(React.createElement(client.ContextInspectorView, { target, form, api, pulse }))); await act(async () => new Promise(resolve => setTimeout(resolve, 230))) }
+  const total = () => document.querySelector('[data-usage-completeness]')
+  const number = () => total().querySelector('strong').textContent
+  const unit = () => total().querySelector('span').textContent
+  const legend = () => [...document.querySelectorAll('[data-legend-missing]')]
+  try {
+    // A session that never settled an attempt is a normal, complete zero.
+    await render('total-empty')
+    assert.equal(total().dataset.usageCompleteness, 'complete')
+    assert.equal(number(), '0'); assert.equal(unit(), 'Token')
+    assert.deepEqual(legend().map(row => row.dataset.legendMissing), ['0', '0', '0', '0'])
+    // Host buckets of zero plus attempts that never reported usage are not a zero.
+    payload = fixture(zero, efficiency({ settledAttempts: 2, withoutUsage: 2, output: field(0, 0, 2), complete: false }))
+    await render('total-unknown')
+    assert.equal(total().dataset.usageCompleteness, 'unknown')
+    assert.equal(number(), '—'); assert.equal(unit(), '未知')
+    assert.ok(!/\d/.test(number()), 'an unreported total is not rendered as a complete number')
+    assert.equal(legend().length, 4)
+    assert.ok(legend().every(row => row.dataset.legendMissing === 'unknown'), 'every legend row shares the unknown state')
+    assert.ok(legend().every(row => row.querySelector('dd').textContent === '—未知'),
+      'the legend does not present the unreported buckets as measured zeros')
+    assert.ok(document.querySelector('[data-usage-bound="unknown"]'))
+    // Known buckets stay visible, but the total is a labelled lower bound and the
+    // rows that really carry unreported samples say so.
+    payload = fixture({ input: 90, uncached: 60, cacheRead: 30, cacheWrite: 0, output: 20 },
+      efficiency({ host: { uncachedInputTokens: 60, cacheReadTokens: 30, cacheWriteTokens: 0, outputTokens: 20 }, settledAttempts: 2,
+        withoutUsage: 1, uncachedInput: field(60, 1, 1), cacheRead: field(30, 1, 0), cacheWrite: field(0, 1, 0), output: field(20, 1, 1), complete: false }))
+    await render('total-partial')
+    assert.equal(total().dataset.usageCompleteness, 'partial')
+    assert.equal(number(), '≥ 110'); assert.equal(unit(), 'Token')
+    assert.deepEqual(legend().map(row => row.dataset.legendMissing), ['1', '0', '0', '1'])
+    assert.match(legend()[0].querySelector('dd').textContent, /^60/)
+    assert.match(legend()[0].querySelector('dd small').textContent, /1 未知/)
+    assert.ok(!legend()[1].querySelector('dd small').textContent.includes('未知'),
+      'a fully reported row does not borrow the lower-bound wording')
+    assert.ok(document.querySelector('[data-usage-bound="partial"]'))
+    // Every settled attempt reported every component: the plain total returns.
+    payload = fixture({ input: 90, uncached: 60, cacheRead: 30, cacheWrite: 0, output: 20 },
+      efficiency({ host: { uncachedInputTokens: 60, cacheReadTokens: 30, cacheWriteTokens: 0, outputTokens: 20 }, settledAttempts: 2,
+        uncachedInput: field(60, 2, 0), cacheRead: field(30, 2, 0), cacheWrite: field(0, 2, 0), output: field(20, 2, 0) }))
+    await render('total-complete')
+    assert.equal(total().dataset.usageCompleteness, 'complete')
+    assert.equal(number(), '110'); assert.equal(unit(), 'Token')
+    assert.equal(document.querySelector('[data-usage-bound]'), null)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
 test('read-only view hides only its own composer, restores drafts and reads only the selected body by default', async () => {
@@ -593,5 +661,256 @@ test('settings migrates a legacy draft, preserves custom caps across modes and v
     await click('自定义占用上限')
     assert.equal(document.getElementById('context-manager-targetPercent').value, '50')
     assert.equal(document.getElementById('context-manager-absoluteTargetTokens').value, '130000')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+test('settings expose the tool-result mode, thresholds and prefix switch with legacy fill-in and invalid empty numbers', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const listeners = new Set(); const writes = []
+  // A legacy document: none of the new keys exist yet.
+  const legacy = { ...defaults }
+  for (const key of ['toolResultsMode', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit', 'prefixDiagnosticsEnabled']) delete legacy[key]
+  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 3, value: { policy: legacy } }
+  const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
+    async mutate(ops, revision) { writes.push({ ops, revision }); snapshot = { ...snapshot, revision: revision + 1, value: { policy: ops[0].value } }; listeners.forEach(cb => cb()); return true } }
+  const root = createRoot(document.getElementById('root'))
+  const button = text => [...document.querySelectorAll('button')].find(b => b.textContent === text)
+  const save = () => button('保存设置')
+  const edit = (key, value) => act(async () => Simulate.change(document.getElementById(`context-manager-${key}`), { target: { value } }))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
+    // Legacy fill-in: defaults appear without overwriting anything else, and the
+    // default mode stays observe.
+    assert.equal(document.querySelector('#context-manager-toolResultsMaxChars').value, '200000')
+    assert.equal(document.querySelector('#context-manager-toolResultsMinSavings').value, '400')
+    assert.equal(document.querySelector('#context-manager-archiveReadBudget').value, '6000')
+    assert.equal(document.querySelector('#context-manager-archiveSearchLimit').value, '3')
+    assert.equal(button('观察').getAttribute('aria-pressed'), 'true')
+    assert.equal(button('安全精简').getAttribute('aria-pressed'), 'false')
+    assert.match(document.body.textContent, /引用原文长期保留，卸载不会删除/)
+    assert.match(document.body.textContent, /不是 Token 口径/)
+    // An unimplemented retention switch must not be offered.
+    assert.equal(document.body.textContent.includes('archiveRetention'), false)
+    // Empty is invalid, never zero.
+    await edit('toolResultsMaxChars', '')
+    assert.equal(document.querySelector('#context-manager-toolResultsMaxChars').value, '')
+    assert.equal(save().disabled, true)
+    await edit('toolResultsMaxChars', '1999')
+    assert.equal(save().disabled, true, 'a value below the documented minimum stays invalid')
+    await act(async () => button('安全精简').click())
+    await edit('toolResultsMaxChars', '120000'); await edit('archiveSearchLimit', '8')
+    assert.equal(save().disabled, false)
+    await act(async () => save().click())
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].ops[0].value.toolResultsMode, 'reduce')
+    assert.equal(writes[0].ops[0].value.toolResultsMaxChars, 120000)
+    assert.equal(writes[0].ops[0].value.archiveSearchLimit, 8)
+    assert.equal(writes[0].ops[0].value.toolResultsMinSavings, defaults.toolResultsMinSavings)
+    assert.equal(writes[0].ops[0].value.archiveReadBudget, defaults.archiveReadBudget)
+    assert.equal(writes[0].ops[0].value.prefixDiagnosticsEnabled, true)
+    assert.match(document.body.textContent, /已保存/)
+    // Re-read after the accepted write keeps the saved mode selected.
+    assert.equal(button('安全精简').getAttribute('aria-pressed'), 'true')
+    assert.equal(button('观察').getAttribute('aria-pressed'), 'false')
+    // Empty input never becomes a saved zero, even together with a valid mode.
+    await edit('archiveReadBudget', '')
+    assert.equal(save().disabled, true)
+    assert.equal(writes.length, 1)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('the panel renders codec-parsed attribution and reduction data without inventing values', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const state = { status: 'ready', writable: true, revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => state }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  // The delivered figure is the real codec's own output: schema and view agree.
+  const inspection = {
+    sessionId: 'attributed-session', cursor: 4, cutSeq: 4, sampledAt: 1000, historical: false,
+    pressure: null, official: null, model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50,
+    activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, pressureHistory: [], compactions: [],
+    usage: { input: 1040, output: 7, cacheRead: 400, uncached: 600, cacheWrite: 40 },
+    efficiency: { accounting: 'host-projection',
+      host: { uncachedInputTokens: 600, cacheReadTokens: 400, cacheWriteTokens: 40, outputTokens: 7 },
+      mirrored: { settledAttempts: 3, retries: 1, withoutUsage: 1,
+        uncachedInput: { sum: 130, reported: 2, missing: 0 }, cacheRead: { sum: 110, reported: 2, missing: 0 },
+        cacheWrite: { sum: 10, reported: 1, missing: 1 }, output: { sum: 12, reported: 2, missing: 0 },
+        cacheInclusiveInput: { sum: 250, reported: 1, missing: 1 }, complete: false },
+      differences: [{ field: 'uncachedInputTokens', host: 600, mirrored: 130, delta: 470 }],
+      summaryAndRepair: { source: 'summary-ledger', input: 900, output: 120, cacheRead: 800, cacheWrite: 0, attempts: 2,
+        unknownAttempts: 1, purposeSplit: false, note: '现有摘要总账的累计值，含失败与取消尝试；账本没有持久用途字段' },
+      maintenanceSuspects: 1, cacheHitRatio: 0.44,
+      requests: [{ seq: 2, time: 5, turn: 3, step: 1, settledBy: 'attempt', routeKnown: true, retry: 1, provider: 'offline',
+        model: 'fixture', uncachedInput: null, cacheRead: null, cacheWrite: null, output: null, maintenanceSuspect: false }],
+      fingerprint: null, changes: [] },
+    reduction: { mode: 'reduce', pipelineReported: false,
+      published: { references: 2, originalChars: 4000, shortenedChars: 900, visibleCharsRemoved: 3100 },
+      pending: 1, reverted: 0,
+      recent: [{ contentId: 'sha256:aaa', callId: 'call-1', tool: 'bash', shortenedChars: 900, complete: true, at: 5 }],
+      notes: ['visibleCharsRemoved 是可见文本字符差，不是账单金额或 Token 计费节省'],
+      run: { considered: 9, unverified: 1, wouldReduce: 2, skipped: 1, failed: 0, lastSkip: 'no_savings', lastReason: '低于最小节省' },
+      archiveError: '原文档案目录不可写' },
+  }
+  const codec = TYPERT.invocations.find(item => item.method === 'inspect').result.create()
+  const parsed = codec.parse(inspection)
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }),
+    inspect: async () => parsed, content: () => { throw new Error('content must not be read for this assertion') } }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'attributed-session', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    const text = document.body.textContent
+    assert.match(text, /业务用量/)
+    assert.match(text, /整理用量/)
+    assert.match(text, /用量未知尝试 1/)
+    assert.match(text, /宿主投影为准/)
+    assert.match(text, /摘要与修复未区分用途，合计显示/)
+    assert.match(text, /工具结果精简 · 安全精简/)
+    assert.match(text, /已确认引用 2/)
+    assert.match(text, /可见字符减少 3,100/)
+    assert.match(text, /待确认 1/)
+    assert.match(text, /尚未观察到最终结果／能力未确认/, 'an unreported pipeline stays unconfirmed instead of claiming host support')
+    assert.match(text, /原文档案不可用/)
+    assert.match(text, /本次运行（全进程，不是本会话）/)
+    assert.match(text, /字符差只是可见文本长度变化，不是 Token 账单或实际省钱/)
+    assert.ok(!/NaN|undefined|Infinity/u.test(text), 'no fabricated or broken number reaches the panel')
+    assert.equal(document.querySelector('[data-efficiency="host-projection"]').dataset.efficiency, 'host-projection')
+    assert.equal(document.querySelector('[data-reduction-mode]').dataset.reductionMode, 'reduce')
+    assert.equal(document.querySelector('[data-run-scope="process"]').textContent.includes('本次运行'), true)
+    assert.equal(document.querySelector('[data-maintenance-split="false"]').textContent.includes('未区分用途'), true)
+    // A historical cut shows the unavailable marker for the session archive
+    // instead of today's confirmed figures.
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'attributed-session', form,
+      api: { ...api, inspect: async () => codec.parse({ ...inspection, historical: true, cutSeq: 2, usage: null,
+        reduction: undefined, efficiency: { ...inspection.efficiency, accounting: 'event-log', host: null, summaryAndRepair: null, fingerprint: null } }) },
+      pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    const historical = document.body.textContent
+    assert.match(historical, /该截面不可用（历史）/)
+    assert.match(historical, /仅事件日志/)
+    assert.ok(!historical.includes('已确认引用 2'), 'a historical cut never shows the current archive result')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+test('the attribution line shows the known lower bound, never a fabricated zero or a complete bill', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const state = { status: 'ready', writable: true, revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => state }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const codec = TYPERT.invocations.find(item => item.method === 'inspect').result.create()
+  const field = (sum, reported, missing) => ({ sum, reported, missing })
+  const base = { sessionId: 'bounds', cursor: 4, cutSeq: 4, sampledAt: 1000, historical: false, pressure: null, official: null,
+    model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [],
+    requestCount: 0, pressureHistory: [], compactions: [] }
+  const render = async inspection => {
+    const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }), inspect: async () => codec.parse(inspection),
+      content: () => { throw new Error('content must not be read here') } }
+    const root = createRoot(document.getElementById('root'))
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'bounds', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    return root
+  }
+  try {
+    // 1. A historical cut with partial usage: one complete input sample plus a
+    //    later sample that reported only uncached input and output. The four
+    //    mutually exclusive buckets add up to 69 + 40 + 5 + 30 = 144; the derived
+    //    cache-inclusive input covers the complete sample alone (105), so the old
+    //    fallback would have shown 135 and silently dropped 9 known characters of
+    //    reported input.
+    const partial = { ...base, historical: true, usage: null,
+      efficiency: { accounting: 'event-log', host: null,
+        mirrored: { settledAttempts: 2, retries: 0, withoutUsage: 0,
+          uncachedInput: field(69, 2, 0), cacheRead: field(40, 1, 1), cacheWrite: field(5, 1, 1), output: field(30, 2, 0),
+          cacheInclusiveInput: field(105, 1, 1), complete: false },
+        differences: [], summaryAndRepair: null, maintenanceSuspects: 0, cacheHitRatio: 0.42,
+        requests: [], fingerprint: null, changes: [] } }
+    let root = await render(partial)
+    let text = document.body.textContent
+    assert.equal(document.querySelector('[data-known-bound]').dataset.knownBound, '144')
+    assert.match(document.querySelector('[data-known-bound]').textContent, /144/, 'the known bound adds every reported bucket sum')
+    assert.ok(!document.querySelector('[data-known-bound]').textContent.includes('135'), 'the cache-inclusive subtotal is not the bound')
+    assert.match(text, /业务用量 ≥ /)
+    assert.equal(document.querySelector('[data-efficiency="event-log"]').dataset.bounded, 'true')
+    assert.match(text, /已知下界/)
+    assert.match(text, /完整输入样本的缓存合计/)
+    await act(async () => root.unmount())
+
+    // 2. Nothing reported at all: four zero buckets are not a zero reading.
+    const unknown = { ...base, historical: true, usage: null,
+      efficiency: { accounting: 'event-log', host: null,
+        mirrored: { settledAttempts: 0, retries: 0, withoutUsage: 2,
+          uncachedInput: field(0, 0, 0), cacheRead: field(0, 0, 0), cacheWrite: field(0, 0, 0), output: field(0, 0, 0),
+          cacheInclusiveInput: field(0, 0, 0), complete: false },
+        differences: [], summaryAndRepair: null, maintenanceSuspects: 0, cacheHitRatio: null,
+        requests: [], fingerprint: null, changes: [] } }
+    root = await render(unknown)
+    text = document.body.textContent
+    assert.match(text, /业务用量 — 未知/, 'an all-unknown cut shows unknown instead of a zero total')
+    assert.ok(!/业务用量 [≈≥] 0 Token/u.test(text), 'a zero total is never fabricated from unreported samples')
+    assert.match(text, /用量未知尝试 2/)
+    await act(async () => root.unmount())
+
+    // 3. Positive control: every component reported for every settlement, so the
+    //    host total is quoted as complete, and the ledger input already contains
+    //    cache and must not be added a second time.
+    const complete = { ...base, usage: { input: 1040, output: 30, cacheRead: 400, uncached: 600, cacheWrite: 40 },
+      efficiency: { accounting: 'host-projection',
+        host: { uncachedInputTokens: 600, cacheReadTokens: 400, cacheWriteTokens: 40, outputTokens: 30 },
+        mirrored: { settledAttempts: 2, retries: 0, withoutUsage: 0,
+          uncachedInput: field(600, 2, 0), cacheRead: field(400, 2, 0), cacheWrite: field(40, 2, 0), output: field(30, 2, 0),
+          cacheInclusiveInput: field(1040, 2, 0), complete: true },
+        differences: [], summaryAndRepair: { source: 'summary-ledger', input: 900, output: 120, cacheRead: 800, cacheWrite: 0,
+          attempts: 1, unknownAttempts: 0, purposeSplit: false, note: '账本没有持久用途字段' },
+        maintenanceSuspects: 0, cacheHitRatio: 0.4, requests: [], fingerprint: null, changes: [] },
+      reduction: { mode: 'observe', pipelineReported: true, published: { references: 0, originalChars: 0, shortenedChars: 0, visibleCharsRemoved: 0 },
+        pending: 0, reverted: 0, recent: [], notes: [], run: { considered: 1, unverified: 0, wouldReduce: 0, skipped: 1, failed: 0, lastSkip: 'no_savings', lastReason: null } } }
+    root = await render(complete)
+    text = document.body.textContent
+    assert.match(text, /业务用量 ≈ 1\.1K Token/, 'a complete reading is quoted as the host total')
+    assert.equal(document.querySelector('[data-efficiency="host-projection"]').dataset.bounded, 'false')
+    assert.ok(!/≥/u.test(document.querySelector('[data-efficiency="host-projection"]').textContent), 'a complete reading carries no lower-bound marker')
+    assert.match(text, /整理用量 ≈ 1\.0K Token/, 'the ledger total is input plus output')
+    assert.ok(!/整理用量 ≈ 1\.8K/u.test(text), 'the ledger input already includes cache read and write')
+    assert.match(text, /总账输入已含缓存，不再另加/)
+    assert.equal(document.querySelector('[data-maintenance-split="false"]').textContent.includes('未区分用途'), true)
+    await act(async () => root.unmount())
+  } finally { dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('every grant of a deduplicated original renders with its own call identity', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const state = { status: 'ready', writable: true, revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => state }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const codec = TYPERT.invocations.find(item => item.method === 'inspect').result.create()
+  // One stored original granted to two different calls of the same session.
+  const owners = [{ contentId: 'sha256:shared', callId: 'call-1', tool: 'tool:bash', shortenedChars: 900, complete: true, at: 5 },
+    { contentId: 'sha256:shared', callId: 'call-2', tool: 'tool:bash', shortenedChars: 700, complete: false, at: 9 }]
+  const inspection = { sessionId: 'grants', cursor: 4, cutSeq: 4, sampledAt: 1000, historical: false, pressure: null, official: null,
+    model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [],
+    requestCount: 0, pressureHistory: [], compactions: [], usage: null,
+    efficiency: { accounting: 'event-log', host: null, mirrored: { settledAttempts: 1, retries: 0, withoutUsage: 0,
+        uncachedInput: { sum: 10, reported: 1, missing: 0 }, cacheRead: { sum: 0, reported: 1, missing: 0 },
+        cacheWrite: { sum: 0, reported: 1, missing: 0 }, output: { sum: 1, reported: 1, missing: 0 },
+        cacheInclusiveInput: { sum: 10, reported: 1, missing: 0 }, complete: true },
+      differences: [], summaryAndRepair: null, maintenanceSuspects: 0, cacheHitRatio: 0, requests: [], fingerprint: null, changes: [] },
+    reduction: { mode: 'reduce', pipelineReported: true, published: { references: 2, originalChars: 2000, shortenedChars: 1600, visibleCharsRemoved: 400 },
+      pending: 0, reverted: 0, recent: owners, notes: [], run: { considered: 2, unverified: 0, wouldReduce: 2, skipped: 0, failed: 0, lastSkip: null, lastReason: null } } }
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }), inspect: async () => codec.parse(inspection),
+    content: () => { throw new Error('content must not be read here') } }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'grants', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    // The list key is the grant identity (contentId + callId), so two grants of
+    // one deduplicated original stay two distinct, ordered rows.
+    const rows = document.querySelectorAll('[data-reduced-chars]')
+    assert.equal(rows.length, 2, 'both grants of the shared original are rendered')
+    assert.deepEqual([...rows].map(row => row.dataset.callId), ['call-1', 'call-2'])
+    assert.deepEqual([...rows].map(row => row.dataset.reducedChars), ['900', '700'])
+    assert.match(document.body.textContent, /sha256:shared/)
+    assert.ok(!/NaN|undefined/u.test(document.body.textContent))
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })

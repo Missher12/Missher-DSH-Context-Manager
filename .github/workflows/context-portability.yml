@@ -1,16 +1,21 @@
-name: Context recovery portability
+name: Context storage portability
 
 on:
   push:
     branches:
       - main
       - 'codex/context-windows-recovery-*'
+      - 'codex/context-efficiency-*'
     paths:
       - 'src/**'
       - 'lib/**'
       - 'package.json'
       - 'tests/recovery-journal.test.mjs'
       - 'scripts/check-recovery-platform.mjs'
+      - 'scripts/archive-faults.mjs'
+      - 'scripts/archive-faults.upstream.json'
+      - 'scripts/check-archive-platform.mjs'
+      - 'tests/archive-ci-report.test.mjs'
       - '.github/workflows/context-portability.yml'
   workflow_dispatch:
 
@@ -53,3 +58,35 @@ jobs:
             recovery-platform-result.json
             recovery-journal-tests.txt
           if-no-files-found: warn
+
+  archive:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        node: ['22', '24']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install isolated compiler
+        shell: bash
+        env:
+          CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
+        run: npm install --prefix "$CONTEXT_CI_DEPS" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.21.5
+      - name: Validate fault evidence checks
+        run: node --test --test-concurrency=1 tests/archive-ci-report.test.mjs
+      - name: Exercise archive faults and reopen on the native filesystem
+        env:
+          CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
+        run: node scripts/check-archive-platform.mjs
+      - name: Preserve archive platform result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-archive-${{ matrix.os }}-node${{ matrix.node }}
+          path: archive-platform-results/
+          if-no-files-found: error

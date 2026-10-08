@@ -12,8 +12,9 @@ import { contextGroups } from './chart-data.ts'
 import { pressureHistory } from './pressure-history.ts'
 export { pressureHistory } from './pressure-history.ts'
 import { indexContext, MAX_EVENTS } from './inspector-fold.ts'
+import { attributeSession } from './efficiency.ts'
 import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
-import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout } from './inspector-types.ts'
+import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout } from './inspector-types.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type {} from './index.ts'
 import { idleQuerySchema } from './inspector-wire.ts'
@@ -127,6 +128,44 @@ export class ContextInspector extends TypertRemoteService {
       const goalState = values?.goal
       const admission = query.atSeq === null ? this.admission(query.sessionId, cut) : undefined
       const summary = query.atSeq === null ? this.ctx.contextManager.summaryLedger?.stats(query.sessionId) : undefined
+      // The Host projection is authoritative for the current cut only. A
+      // historical cut keeps the event-log fold and omits every current
+      // ledger/archive figure instead of passing them off as old values.
+      const attribution = attributeSession(observation.events.slice(0, cut + 1), {
+        ...(query.atSeq !== null || usage === undefined ? {} : { host: { source: 'host-token-usage',
+          uncachedInputTokens: usage.uncachedInputTokens, cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens } }),
+        ...(summary === undefined ? {} : { summary: { source: 'summary-ledger', input: summary.input, output: summary.output,
+          cacheRead: summary.cacheRead, cacheWrite: summary.cacheWrite, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts } }),
+        fingerprint: this.ctx.contextManager.snapshot?.().prefixDiagnosticsEnabled ?? true,
+      })
+      const reductions = query.atSeq === null ? this.ctx.contextManager.reductionReadout?.(query.sessionId) : undefined
+      const efficiency: EfficiencyReadout = {
+        accounting: attribution.accounting,
+        host: attribution.host === undefined ? null : { uncachedInputTokens: attribution.host.uncachedInputTokens,
+          cacheReadTokens: attribution.host.cacheReadTokens, cacheWriteTokens: attribution.host.cacheWriteTokens,
+          outputTokens: attribution.host.outputTokens },
+        mirrored: { settledAttempts: attribution.mirrored.settledAttempts, retries: attribution.mirrored.retries,
+          withoutUsage: attribution.mirrored.withoutUsage, uncachedInput: { ...attribution.mirrored.uncachedInput },
+          cacheRead: { ...attribution.mirrored.cacheRead }, cacheWrite: { ...attribution.mirrored.cacheWrite },
+          output: { ...attribution.mirrored.output }, cacheInclusiveInput: { ...attribution.mirrored.cacheInclusiveInput },
+          complete: attribution.mirrored.complete },
+        differences: attribution.differences.map(item => ({ field: item.field, host: item.host, mirrored: item.mirrored, delta: item.delta })),
+        summaryAndRepair: attribution.summaryAndRepair === undefined ? null : { source: attribution.summaryAndRepair.source,
+          input: attribution.summaryAndRepair.input, output: attribution.summaryAndRepair.output,
+          cacheRead: attribution.summaryAndRepair.cacheRead ?? null, cacheWrite: attribution.summaryAndRepair.cacheWrite ?? null,
+          attempts: attribution.summaryAndRepair.attempts, unknownAttempts: attribution.summaryAndRepair.unknownAttempts,
+          purposeSplit: attribution.summaryAndRepair.purposeSplit, note: attribution.summaryAndRepair.note },
+        maintenanceSuspects: attribution.maintenanceSuspects,
+        cacheHitRatio: attribution.cacheHitRatio,
+        requests: attribution.requests.map(item => ({ seq: item.seq, time: item.time, turn: item.turn, step: item.step,
+          settledBy: item.settledBy, routeKnown: item.routeKnown, retry: item.retry, provider: item.provider, model: item.model,
+          uncachedInput: item.uncachedInput, cacheRead: item.cacheRead, cacheWrite: item.cacheWrite, output: item.output,
+          maintenanceSuspect: item.maintenanceSuspect })),
+        fingerprint: attribution.fingerprint === null ? null : { ...attribution.fingerprint },
+        changes: attribution.changes.map(item => ({ seq: item.seq, time: item.time, changed: [...item.changed], note: item.note })),
+      }
+      signal.throwIfAborted()
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
         const trigger = entry.kind === 'compact' ? triggers.get(entry.id) : undefined
@@ -145,6 +184,8 @@ export class ContextInspector extends TypertRemoteService {
         official: query.atSeq === null && official ? { system: official.systemTokens, tools: official.toolsTokens, messages: official.messageTokens } : null,
         usage: query.atSeq === null && usage ? { input: usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens, output: usage.outputTokens, cacheRead: usage.cacheReadTokens, uncached: usage.uncachedInputTokens, cacheWrite: usage.cacheWriteTokens } : null,
         ...(summary ? { summaryUsage: { input: summary.input, output: summary.output, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts, since: summary.since } } : {}),
+        efficiency,
+        ...(reductions === undefined ? {} : { reduction: reductions }),
         ...(query.atSeq === null ? { contextGrowth: contextGrowth(this.ctx.sessionProjections, observation, cut, signal) } : {}),
         model: config ? { provider: config.provider, model: config.model, effort: config.reasoningEffort === undefined ? null : String(config.reasoningEffort), maxTokens: typeof config.maxTokens === 'number' && Number.isFinite(config.maxTokens) && config.maxTokens >= 0 ? config.maxTokens : null } : null,
         ...(query.atSeq === null && goalState ? { goal: { phase: goalState.goal.phase,

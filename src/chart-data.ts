@@ -57,6 +57,24 @@ export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'press
   return { content, used, measured, free, reserve, limit, total, window, overflow: window !== null && used > window, slices: slices.map((item, index) => ({ ...item, share: shares[index]! })) }
 }
 
+/**
+ * How complete the session's usage evidence is. `null` means there is no
+ * event-log readout to qualify against, so a caller must not invent a bound.
+ * An empty session that never settled an attempt stays a plain, complete zero.
+ */
+export type UsageCompleteness = 'unknown' | 'partial' | 'complete'
+export function usageCompleteness(efficiency: Inspection['efficiency'] | undefined): UsageCompleteness | null {
+  if (efficiency === undefined) return null
+  const fields = [efficiency.mirrored.uncachedInput, efficiency.mirrored.cacheRead,
+    efficiency.mirrored.cacheWrite, efficiency.mirrored.output]
+  const reported = fields.reduce((total, field) => total + field.reported, 0)
+  const missing = fields.reduce((total, field) => total + field.missing, 0)
+  if (efficiency.mirrored.settledAttempts === 0 && missing === 0) return 'complete'
+  if (reported === 0 && (missing > 0 || efficiency.mirrored.withoutUsage > 0)) return 'unknown'
+  if (missing > 0 || !efficiency.mirrored.complete) return 'partial'
+  return 'complete'
+}
+
 /** Disjoint usage buckets: the cached input is already part of total input. */
 export function usageSlices(usage: Inspection['usage']) {
   if (usage === null) return null

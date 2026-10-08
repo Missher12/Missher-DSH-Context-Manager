@@ -27,6 +27,22 @@ export interface Policy {
   absoluteTriggerTokens: number
   /** Saved absolute occupancy cap. Active only in custom mode with the absolute budget enabled. */
   absoluteTargetTokens: number
+  /** `off` keeps the Host result; `observe` measures without changing it; `reduce` publishes a verified short result. */
+  toolResultsMode: 'off' | 'observe' | 'reduce'
+  /** Bounded input window; a larger result is never a reduction candidate. */
+  toolResultsMaxChars: number
+  /** Minimum byte saving before a short result is worth publishing. */
+  toolResultsMinSavings: number
+  // Retention is unconditional: an original referenced by a live session is
+  // never expired and uninstalling never deletes it. There is no purge action,
+  // so no `archiveRetention` switch is offered — a setting nothing implements
+  // would be a false promise.
+  /** Extra characters one archive read may return. Bounded by the tool's own output limit. */
+  archiveReadBudget: number
+  /** Result budget for archive hits inside `context_history_search`. */
+  archiveSearchLimit: number
+  /** Read-only request-prefix fingerprint diagnostics. Never changes the request. */
+  prefixDiagnosticsEnabled: boolean
 }
 
 export const defaults: Policy = {
@@ -36,6 +52,9 @@ export const defaults: Policy = {
   idleEnabled: true, idleMinutes: 15, idleMinPercent: 65, summaryInstructions: '',
   formatRepairEnabled: true, formatRepairMaxTokens: 2048,
   absoluteEnabled: false, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000,
+  toolResultsMode: 'observe', toolResultsMaxChars: 200000, toolResultsMinSavings: 400,
+  archiveReadBudget: 6000, archiveSearchLimit: 3,
+  prefixDiagnosticsEnabled: true,
 }
 
 /** Validate at the settings/request boundary; invalid policy never admits work. */
@@ -45,14 +64,18 @@ export function validatePolicy(p: Policy): void {
   if (typeof p.idleEnabled !== 'boolean') throw new Error('闲置自动压缩开关必须是布尔值')
   if (typeof p.formatRepairEnabled !== 'boolean') throw new Error('摘要格式修复开关必须是布尔值')
   if (typeof p.absoluteEnabled !== 'boolean') throw new Error('绝对工作历史软预算开关必须是布尔值')
+  if (typeof p.prefixDiagnosticsEnabled !== 'boolean') throw new Error('请求前缀指纹诊断开关必须是布尔值')
+  if (p.toolResultsMode !== 'off' && p.toolResultsMode !== 'observe' && p.toolResultsMode !== 'reduce') throw new Error('工具结果精简模式必须为 off、observe 或 reduce')
   if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
-  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'summaryInstructions'>, [number, number]> = {
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions'>, [number, number]> = {
     recentTokens: [1000, 128000],
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],
     safetyPercent: [1, 10], summaryMaxTokens: [256, 32768], maxPasses: [1, 2], timeoutMs: [1000, 300000],
     idleMinutes: [1, 1440], idleMinPercent: [10, 95],
     formatRepairMaxTokens: [256, 8192],
     absoluteTriggerTokens: [10000, 1_000_000_000], absoluteTargetTokens: [1000, 1_000_000_000],
+    toolResultsMaxChars: [2000, 4_000_000], toolResultsMinSavings: [100, 1_000_000],
+    archiveReadBudget: [500, 6000], archiveSearchLimit: [1, 8],
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
     const value = p[key as keyof typeof ranges]
@@ -60,7 +83,7 @@ export function validatePolicy(p: Policy): void {
   }
   if (p.historyMode === 'custom' && p.targetPercent > p.triggerPercent - p.earlyPercent - 10) throw new Error('自定义占用上限须比实际检查阈值至少低 10 个百分点')
   if (p.historyMode === 'custom' && p.absoluteEnabled && p.absoluteTargetTokens > Math.floor(p.absoluteTriggerTokens * 0.8)) throw new Error('绝对占用上限须比绝对软触发至少低 20%')
-  for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens'] as const) {
+  for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const) {
     if (!Number.isInteger(p[key])) throw new Error(`${key} 必须是整数`)
   }
 }

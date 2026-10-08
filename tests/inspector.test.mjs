@@ -59,14 +59,18 @@ test('registered message projections, explicit skill attribution and tool frame 
   assert.equal(index.requests[0].input, null, 'missing usage is unknown, not zero')
 })
 
-async function service(events, projections) {
+async function service(events, projections, extra = {}) {
   const ctx = new Context(); const reads = []; let disposals = 0
-  ctx.provide('contextManager', { idleStatus: () => ({ status: 'waiting', dueAt: null, message: '等待任务完成' }) })
+  // Only capabilities a real Manager also exposes are added; a missing service
+  // method stays missing so the panel reports it as unavailable instead of a
+  // catch block inventing an empty statistic.
+  ctx.provide('contextManager', { idleStatus: () => ({ status: 'waiting', dueAt: null, message: '等待任务完成' }), ...extra.contextManager })
   ctx.provide('sessions', { messageProjections: [] })
   ctx.provide('sessionProjections', { restore: () => ({ snapshot: { values: {} }, checkpoint: {} }) })
   ctx.provide('sessionQuery', { async observeSession(sessionId, options) {
     reads.push({ sessionId, ...options })
-    return { cursor: events.length - 1, events, projections,
+    const log = typeof events === 'function' ? events(sessionId) : events
+    return { cursor: log.length - 1, events: log, projections: typeof projections === 'function' ? projections(sessionId) : projections,
       [Symbol.dispose]() { disposals++ } }
   } })
   await ctx.plugin(Inspector)
@@ -166,5 +170,141 @@ test('goal stop reason surfaces from the read-only projection and stays separate
     assert.equal(snapshot.goal.maxGoalRounds, 12)
     assert.equal(snapshot.pressure, null, 'a round-limit stop is not context pressure')
     resultCodec('inspect').parse(snapshot)
+  } finally { await ctxDispose(f.ctx) }
+})
+// Two sessions with genuinely different logs, ledgers and durable archive
+// results: the readout must be scoped to the queried session and must never
+// present a current ledger, archive or host projection as a historical value.
+function attributionLog(label) {
+  const events = []
+  const add = (type, data, surfaceOp) => { events.push({ seq: events.length, time: 1000 + events.length, type, data, ...(surfaceOp === undefined ? {} : { surfaceOp }) }); return events.length - 1 }
+  add('system/message', { turn: 1, step: 1, message: createMessage({ role: 'system', content: text(`${label} system prefix`), source: { kind: 'system-prompt' } }) }, 'append')
+  add('request/header', { header: { config: { provider: 'offline', model: label, maxTokens: 1024 }, tools: [{ name: 'bash', description: 'run', parameters: {} }] } })
+  add('compaction/start', { compactionId: `${label}-compact`, turn: 2, kind: 'compact' })
+  add('llm/retry-started', { turn: 3, step: 1, attempt: 1 })
+  // A settlement whose provider never reported any component: unknown, not zero.
+  add('assistant/attempt', { turn: 3, step: 1, stream: [] })
+  // A settlement during the open compaction transaction: purpose unconfirmed.
+  add('assistant/message', { turn: 2, step: 1, message: assistant(`${label} reply`), stream: [], usage: { inputTokens: 100, cacheReadTokens: 40, outputTokens: 7 } }, 'append')
+  add('compaction/end', { compactionId: `${label}-compact`, turn: 2, status: 'completed' })
+  // A settlement that reported all four components: the only one a cache-hit
+  // ratio may be derived from.
+  add('assistant/message', { turn: 4, step: 1, message: assistant(`${label} later reply`), stream: [],
+    usage: { inputTokens: 30, cacheReadTokens: 70, cacheWriteTokens: 10, outputTokens: 5 } }, 'append')
+  add('user/message', user(`${label} latest task`), 'append')
+  return events
+}
+const attributionQuery = sessionId => ({ ...query(sessionId) })
+
+test('attribution and reduction readouts are session-scoped, codec-clean, switch-gated, and absent from history', async () => {
+  const logs = { 'sess-a': attributionLog('alpha'), 'sess-b': attributionLog('beta') }
+  const usage = { 'sess-a': { uncachedInputTokens: 600, cacheReadTokens: 400, cacheWriteTokens: 40, outputTokens: 7 },
+    'sess-b': { uncachedInputTokens: 90, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 3 } }
+  const ledgers = { 'sess-a': { input: 900, output: 120, cacheRead: 800, cacheWrite: 0, attempts: 2, unknownAttempts: 1, since: 111, recent: [] },
+    'sess-b': { input: 50, output: 10, cacheRead: 0, cacheWrite: 0, attempts: 1, unknownAttempts: 0, since: 222, recent: [] } }
+  const archives = { 'sess-a': { mode: 'reduce', pipelineReported: true, published: { references: 2, originalChars: 4000, shortenedChars: 900, visibleCharsRemoved: 3100 },
+      pending: 1, reverted: 0, recent: [{ contentId: 'sha256:aaa', callId: 'call-1', tool: 'bash', shortenedChars: 900, complete: true, at: 5 }], notes: ['可见字符差不是账单'],
+      run: { considered: 9, unverified: 0, wouldReduce: 2, skipped: 1, failed: 0, lastSkip: 'no_savings', lastReason: '低于最小节省' } },
+    'sess-b': { mode: 'observe', pipelineReported: false, published: { references: 0, originalChars: 0, shortenedChars: 0, visibleCharsRemoved: 0 },
+      pending: 0, reverted: 3, recent: [], notes: [], run: { considered: 4, unverified: 1, wouldReduce: 0, skipped: 2, failed: 1, lastSkip: 'unverified_result', lastReason: null },
+      archiveError: '原文档案目录不可写' } }
+  const readouts = []
+  const f = await service(sessionId => logs[sessionId], sessionId => ({ values: { tokenUsage: usage[sessionId] } }), { contextManager: {
+    summaryLedger: { stats: sessionId => ledgers[sessionId] },
+    reductionReadout: sessionId => { readouts.push(sessionId); return archives[sessionId] },
+    snapshot: () => ({ prefixDiagnosticsEnabled: false }),
+  } })
+  try {
+    const a = await f.ctx.contextInspector.inspect(attributionQuery('sess-a'), new AbortController().signal)
+    const b = await f.ctx.contextInspector.inspect(attributionQuery('sess-b'), new AbortController().signal)
+    assert.deepEqual(resultCodec('inspect').parse(a), a)
+    assert.deepEqual(resultCodec('inspect').parse(b), b)
+    // Host projection is authoritative; the mirrored fold keeps its own gaps.
+    assert.equal(a.efficiency.accounting, 'host-projection')
+    assert.deepEqual(a.efficiency.host, usage['sess-a'])
+    assert.equal(a.efficiency.mirrored.complete, false)
+    assert.equal(a.efficiency.mirrored.withoutUsage, 1, 'an attempt without reported usage is unknown, not a zero sample')
+    assert.equal(a.efficiency.mirrored.retries, 1)
+    assert.equal(a.efficiency.mirrored.uncachedInput.sum, 130)
+    assert.equal(a.efficiency.mirrored.cacheRead.sum, 110)
+    assert.equal(a.efficiency.mirrored.output.sum, 12)
+    assert.equal(a.efficiency.mirrored.cacheWrite.missing, 1, 'a component the provider never reported stays missing')
+    assert.equal(a.efficiency.mirrored.uncachedInput.missing, 0, 'an attempt without any usage counts once as unknown, not as four missing components')
+    assert.ok(a.efficiency.differences.length > 0, 'the fold cannot reproduce the host total here and must say so')
+    assert.equal(a.efficiency.maintenanceSuspects, 1)
+    assert.equal(a.efficiency.requests.find(row => row.settledBy === 'attempt').routeKnown, true)
+    assert.equal(a.efficiency.requests.find(row => row.maintenanceSuspect).turn, 2)
+    // 70 measured cache-read of 110 measured input; nothing else was measurable.
+    assert.ok(Math.abs(a.efficiency.cacheHitRatio - 70 / 110) < 1e-9)
+    // The prefix switch is really off at the producer: no fingerprint, same numbers.
+    assert.equal(a.efficiency.fingerprint, null)
+    assert.equal(a.efficiency.changes.length, 0)
+    assert.deepEqual(a.efficiency.summaryAndRepair, { source: 'summary-ledger', input: 900, output: 120, cacheRead: 800, cacheWrite: 0,
+      attempts: 2, unknownAttempts: 1, purposeSplit: false, note: a.efficiency.summaryAndRepair.note })
+    assert.match(a.efficiency.summaryAndRepair.note, /用途/u)
+    // Session scoping: neither ledger, archive result nor host bucket leaks across.
+    assert.equal(a.reduction.published.references, 2)
+    assert.equal(a.reduction.pending, 1)
+    assert.equal(b.reduction.published.references, 0)
+    assert.equal(b.reduction.reverted, 3)
+    assert.equal(b.reduction.archiveError, '原文档案目录不可写')
+    assert.equal(Object.hasOwn(a.reduction, 'archiveError'), false)
+    assert.equal(b.reduction.mode, 'observe')
+    assert.equal(b.reduction.run.lastSkip, 'unverified_result')
+    assert.equal(b.efficiency.host.outputTokens, 3)
+    assert.equal(b.efficiency.summaryAndRepair.input, 50)
+    // Read-only repetition: one observation and one readout per call, nothing cached.
+    const again = await f.ctx.contextInspector.inspect(attributionQuery('sess-a'), new AbortController().signal)
+    assert.deepEqual({ ...again, sampledAt: 0 }, { ...a, sampledAt: 0 }, 'a repeated read-only call returns the same reading')
+    assert.deepEqual(readouts, ['sess-a', 'sess-b', 'sess-a'])
+    assert.equal(f.disposals, f.reads.length)
+    // History keeps only the event-log fold; current ledger, archive and host
+    // projection are omitted instead of being shown as old values.
+    const history = await f.ctx.contextInspector.inspect({ ...attributionQuery('sess-a'), atSeq: 5 }, new AbortController().signal)
+    assert.equal(history.historical, true)
+    assert.equal(history.efficiency.accounting, 'event-log')
+    assert.equal(history.efficiency.host, null)
+    assert.equal(history.efficiency.summaryAndRepair, null)
+    assert.equal(history.efficiency.mirrored.settledAttempts, 2, 'the fold still describes that cut')
+    assert.equal(Object.hasOwn(history, 'reduction'), false)
+    assert.equal(Object.hasOwn(history, 'summaryUsage'), false)
+    assert.equal(Object.hasOwn(history, 'admission'), false)
+    assert.deepEqual(resultCodec('inspect').parse(history), history)
+    assert.deepEqual(readouts, ['sess-a', 'sess-b', 'sess-a'], 'a historical read never asks for the current archive readout')
+    assert.equal(f.disposals, f.reads.length)
+    // Positive control for the same switch: switching prefix diagnostics back on
+    // adds the fingerprint and changes no usage number at all.
+    const on = await service(sessionId => logs[sessionId], sessionId => ({ values: { tokenUsage: usage[sessionId] } }), { contextManager: {
+      summaryLedger: { stats: sessionId => ledgers[sessionId] },
+      reductionReadout: sessionId => archives[sessionId],
+      snapshot: () => ({ prefixDiagnosticsEnabled: true }),
+    } })
+    try {
+      const withDiagnostics = await on.ctx.contextInspector.inspect(attributionQuery('sess-a'), new AbortController().signal)
+      assert.equal(withDiagnostics.efficiency.fingerprint.tools, 1)
+      assert.equal(withDiagnostics.efficiency.fingerprint.systemChars, 'alpha system prefix'.length)
+      assert.match(withDiagnostics.efficiency.fingerprint.prefix, /^[a-f0-9]{16}$/u)
+      assert.deepEqual(withDiagnostics.efficiency.mirrored, a.efficiency.mirrored)
+      assert.deepEqual(withDiagnostics.efficiency.summaryAndRepair, a.efficiency.summaryAndRepair)
+      assert.deepEqual(withDiagnostics.efficiency.host, a.efficiency.host)
+    } finally { await ctxDispose(on.ctx) }
+  } finally { await ctxDispose(f.ctx) }
+})
+
+test('attribution reports a missing ledger or archive capability as unavailable, never as zero savings', async () => {
+  const { events, add } = log()
+  add('user/message', user('only a message'), 'append')
+  // No summaryLedger, no reductionReadout and no tokenUsage projection: the
+  // panel must still answer, with the fold and explicit absences.
+  const f = await service(events)
+  try {
+    const result = await f.ctx.contextInspector.inspect(query('bare'), new AbortController().signal)
+    assert.equal(result.efficiency.accounting, 'event-log')
+    assert.equal(result.efficiency.host, null)
+    assert.equal(result.efficiency.summaryAndRepair, null)
+    assert.equal(result.efficiency.fingerprint, null)
+    assert.equal(result.efficiency.mirrored.settledAttempts, 0)
+    assert.equal(Object.hasOwn(result, 'reduction'), false)
+    assert.deepEqual(resultCodec('inspect').parse(result), result)
   } finally { await ctxDispose(f.ctx) }
 })

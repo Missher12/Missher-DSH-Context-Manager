@@ -1,0 +1,11 @@
+{
+  "receivedAt": "2026-10-08T20:31:53.002329+00:00",
+  "upstream": "archive-faults.mjs supplied by Context reviewer",
+  "upstreamSha256": "13a7dd8f2143a0793500340e6f0ef30bd00b24c479c548dddcb08d6e56bbf701",
+  "adaptedSha256": "588552c50375a1332b50f63e5805a904b80f1bcbaf3fbbf79860769c4ed1b9b2",
+  "adaptations": [
+    "Resolve esbuild from CONTEXT_CI_DEPS when provided; do not install a DSH SDK.",
+    "Clarify that native filesystem tests do not imply Desktop/UI tests."
+  ],
+  "testBodiesUnchanged": true
+}

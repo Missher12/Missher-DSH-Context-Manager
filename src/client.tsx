@@ -87,7 +87,7 @@ export function ContextPage({ form }: { form: ConfigForm<Values> }) {
   </section>
 }
 
-const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens'] as const
+const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
@@ -138,7 +138,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     text={draft[key]} disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])}
     overridden={draft[key] !== String(defaults[key])} overriddenLabel="自定义" resetLabel="恢复推荐值" invalidLabel="请输入有效数字"
     onEdit={text => edit({ [key]: text })} onReset={() => edit({ [key]: String(defaults[key]) })}/>
-  const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled', label: string, hint: string, blocked = false) => <div className="cm-native-toggle">
+  const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false) => <div className="cm-native-toggle">
     <div className="cm-row"><span>{label}</span><Switch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
     <p className="cm-hint">{hint}</p>
   </div>
@@ -174,6 +174,13 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
         {!automatic && numeric('absoluteTargetTokens', '绝对占用上限（Token）', '须比绝对软触发至少低 20%，并与百分比占用上限取更保守值。', !draft.enabled || !draft.absoluteEnabled)}
         {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
         {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
+        <div className="cm-native-presets" role="group" aria-label="工具结果精简模式">
+          {([['off', '关闭'], ['observe', '观察'], ['reduce', '安全精简']] as const).map(([toolResultsMode, label]) =>
+            <Button key={toolResultsMode} size="sm" variant="outline" aria-pressed={policy.toolResultsMode === toolResultsMode}
+              disabled={!draft.enabled} onClick={() => edit({ toolResultsMode })}>{label}</Button>)}
+        </div>
+        <p className="cm-hint">工具结果精简：关闭时不介入；观察模式只按规则测算并记录，不改动宿主工具结果；安全精简在确认最终结果保留短文后发布，未确认的引用不计入成果。字符阈值是可见文本长度，不是 Token 口径。引用原文长期保留，卸载不会删除；本版没有清理动作或配额设置。</p>
+        {toggle('prefixDiagnosticsEnabled', '请求前缀指纹诊断', '只读采集并比较请求前缀（系统指令、工具定义与顺序）的指纹，用于说明前缀变化；关闭只停止这项诊断，不删除任何业务用量。', !draft.enabled)}
         <details className="cm-native-advanced"><summary>高级设置</summary>
           {numeric('recentTokens', '近期原文预算（Token）', '可设 1,000–128,000，推荐验证起点为 20,000。指令、受保护当前任务及检查点另计；这是近期原文预算，不是压后总量。', !draft.enabled)}
           {numeric('idleMinPercent', '闲置压缩最低占用（%）', automatic
@@ -183,6 +190,10 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
             text={draft.summaryInstructions} disabled={disabled} invalid={draft.summaryInstructions.length > 2000}
             overridden={!!draft.summaryInstructions} overriddenLabel="自定义" resetLabel="清空" invalidLabel="最多 2000 字符"
             onEdit={summaryInstructions => edit({ summaryInstructions })} onReset={() => edit({ summaryInstructions: '' })}/>
+          {numeric('toolResultsMaxChars', '工具结果输入上限（字符）', '超过该字符数的结果不会被精简，只按远原文处理。可设 2,000–4,000,000。', !draft.enabled || draft.toolResultsMode === 'off')}
+          {numeric('toolResultsMinSavings', '发布精简的最小节省（字符）', '短文至少比原文短这么多字符才值得发布；达到上限与最小节省按可见文本字符比较。可设 100–1,000,000。', !draft.enabled || draft.toolResultsMode === 'off')}
+          {numeric('archiveReadBudget', '单次原文回读预算（字符）', '搜索或读取原文时单个结果返回的字符上限，仍受工具自身输出上限约束。可设 500–6,000。', !draft.enabled)}
+          {numeric('archiveSearchLimit', '搜索原文结果上限（条）', '一次搜索最多返回多少条已存原文命中，超出部分需要收窄关键词。可设 1–8。', !draft.enabled)}
           {numeric('earlyPercent', '提前检查空间（%）', '推荐 1%。为新任务与估算误差提前留出空间。')}
           {numeric('safetyPercent', '窗口安全空间（%）', '推荐 2%，在模型输出预留之外保留。')}
           {numeric('summaryMaxTokens', '摘要输出上限（Token）', '摘要沿用当前会话实际使用的模型和推理级别。')}

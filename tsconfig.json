@@ -22,6 +22,11 @@
     "src/diagnostics-types.ts",
     "src/inspector.ts",
     "src/inspector-fold.ts",
-    "src/typert.ts"
+    "src/efficiency.ts",
+    "src/typert.ts",
+    "src/archive.ts",
+    "src/reducer.ts",
+    "src/tool-results.ts",
+    "src/history-tools.ts"
   ]
 }

@@ -1,8 +1,8 @@
 /** Native-theme charts for one immutable session cut. */
 import { useState } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { Inspection } from './inspector-types.ts'
-import { composition, usageSlices, type ContextGroup } from './chart-data.ts'
+import type { EfficiencyReadout, FieldTotalReadout, Inspection, ReductionReadout } from './inspector-types.ts'
+import { composition, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
 import type { InspectorText } from './inspector-locales.ts'
 import type { Policy } from './policy.ts'
 
@@ -80,19 +80,111 @@ export function CompactionChart({ data, t }: { data: Inspection; t: InspectorTex
   </article>
 }
 
+/** A known sum with unreported samples is a lower bound, never a precise bill. */
+const lowerBound = (fields: readonly FieldTotalReadout[]) => fields.some(field => field.missing > 0)
+
+/**
+ * Current-cut attribution only. The four buckets are mutually exclusive, so
+ * their per-bucket sums add up to every component that was actually reported;
+ * the derived cache-inclusive input covers complete input samples only and must
+ * never stand in for that lower bound. The Host projection is quoted when it
+ * exists, but completeness is judged from the fold's own reported/missing and
+ * unknown-attempt counts: neither source proves a complete bill, so an
+ * incomplete reading is shown as a bound with its unknowns, and a cut with
+ * nothing reported shows unknown instead of a fabricated zero.
+ */
+function EfficiencyLine({ efficiency, t }: { efficiency: EfficiencyReadout; t: InspectorText }) {
+  const host = efficiency.host
+  const mirrored = efficiency.mirrored
+  const components = [mirrored.uncachedInput, mirrored.cacheRead, mirrored.cacheWrite, mirrored.output]
+  const componentSum = components.reduce((total, field) => total + field.sum, 0)
+  const anyReported = components.some(field => field.reported > 0)
+  const hostTotal = host === null ? null : host.uncachedInputTokens + host.cacheReadTokens + host.cacheWriteTokens + host.outputTokens
+  const business = hostTotal ?? componentSum
+  // Known at all: a recorded Host projection, or at least one reported component.
+  const known = hostTotal !== null || anyReported
+  const bounded = !mirrored.complete || lowerBound(components)
+  const source = host === null ? t('effEventSource') : t('effHostSource')
+  const difference = efficiency.differences.length > 0 ? t('effDifference') : t('effNoDifference')
+  const componentsHint = components.map((field, index) => `${t((['uncached', 'read', 'write', 'output'] as const)[index]!)} ${exactTokens(field.sum)}${field.missing > 0 ? ` (${field.missing} ${t('effUnknownValue')})` : ''}`).join(' · ')
+  const maintenance = efficiency.summaryAndRepair
+  const maintenanceTotal = maintenance === null ? null : maintenance.input + maintenance.output
+  return <>
+    <p className="cmv-muted cmv-summary-usage" data-efficiency={efficiency.accounting} data-bounded={String(bounded)}><Tooltip portal label={`${source} · ${difference} · ${t('usageHint')}`}>
+      <span tabIndex={0}>{t('effBusiness')} {known ? `${bounded ? '≥ ' : '≈ '}${formatTokens(business)} Token` : `— ${t('effUnknownValue')}`}</span></Tooltip>
+      <span> · {t('effMaintenance')} {maintenanceTotal === null ? '—' : `≈ ${formatTokens(maintenanceTotal)} Token`}</span>
+      <span> · {t('effUnknownRuns')} {exactTokens(mirrored.withoutUsage)}{mirrored.retries > 0 ? ` · ${t('effRetryCount')} ${exactTokens(mirrored.retries)}` : ''}{host === null ? ` · ${t('effEventSource')}` : ''}{efficiency.cacheHitRatio === null ? ` · ${t('effCacheUnknown')}` : ''}</span>
+    </p>
+    <details className="cmv-request-details"><summary>{t('details')} · {t('effLine')}</summary>
+      <div>
+        <p className="cmv-muted" data-attribution-source={efficiency.accounting}>{source} · {difference}{bounded ? ` · ${t('effBoundHint')}` : ''}{host === null ? ` ${t('effEventHint')}` : ''}</p>
+        <dl className="cmv-usage-legend">{components.map((field, index) => <div key={index}><dt>{t((['uncached', 'read', 'write', 'output'] as const)[index]!)}</dt><dd>{exactTokens(field.sum)}<small>{field.reported} {t('record')}{field.missing > 0 ? ` · ${field.missing} ${t('effUnknownValue')}` : ''}</small></dd></div>)}</dl>
+        <p className="cmv-muted" data-known-bound={componentSum}>{known ? `${t('effBusiness')} ${bounded ? '≥' : '≈'} ${exactTokens(business)} Token` : `${t('effBusiness')} —`} · {componentsHint}</p>
+        <p className="cmv-muted">{t('effInclusiveNote')} {exactTokens(mirrored.cacheInclusiveInput.sum)} Token · {mirrored.cacheInclusiveInput.reported} {t('record')}{mirrored.cacheInclusiveInput.missing > 0 ? ` · ${mirrored.cacheInclusiveInput.missing} ${t('effUnknownValue')}` : ''}</p>
+        {efficiency.differences.map(item => <p key={item.field} className="cmv-muted">{item.field} · {t('effDifference')} {item.delta > 0 ? '+' : ''}{exactTokens(item.delta)} Token</p>)}
+        {maintenance !== null && <p className="cmv-muted" data-maintenance-split={String(maintenance.purposeSplit)}>{t('effPurposeUndivided')} · {exactTokens(maintenance.input)} + {exactTokens(maintenance.output)} Token · {maintenance.attempts} {t('summaryCalls')}{maintenance.unknownAttempts > 0 ? ` · ${maintenance.unknownAttempts} ${t('summaryUnknown')}` : ''} · {t('effLedgerInputNote')}</p>}
+        {efficiency.maintenanceSuspects > 0 && <p className="cmv-muted">{efficiency.maintenanceSuspects} {t('effSuspects')}</p>}
+        {efficiency.fingerprint === null ? <p className="cmv-muted">{t('effPrefixOff')}</p> : efficiency.changes.length === 0
+          ? <p className="cmv-muted">{t('effPrefixNone')}</p>
+          : <div className="cmv-muted"><p>{t('effPrefixChanges')}</p>{efficiency.changes.map(change => <p key={change.seq} data-prefix-change={change.changed.join(',')}>{t('record')} {change.seq} · {change.changed.join(' / ')} · {change.note}</p>)}</div>}
+      </div>
+    </details>
+  </>
+}
+
+/** Session-scoped confirmed reduction facts; the run counters stay labelled as process-wide. */
+function ReductionLine({ reduction, t }: { reduction: ReductionReadout; t: InspectorText }) {
+  const published = reduction.published
+  const mode = reduction.mode === 'off' ? t('reductionOff') : reduction.mode === 'observe' ? t('reductionObserve') : t('reductionReduce')
+  const skip = reduction.run.lastSkip === null ? null : reduction.run.lastSkip + (reduction.run.lastReason === null ? '' : ` · ${reduction.run.lastReason}`)
+  return <>
+    <p className="cmv-muted cmv-summary-usage" data-reduction-mode={reduction.mode}><Tooltip portal label={`${mode} · ${reduction.pipelineReported ? t('reductionPipelineOk') : t('reductionPipelineUnknown')} · ${t('reductionCharsHint')}`}>
+      <span tabIndex={0}>{t('reductionTitle')} · {mode}</span></Tooltip>
+      <span> · {t('reductionConfirmed')} {exactTokens(published.references)} · {t('reductionRemoved')} {exactTokens(published.visibleCharsRemoved)} {t('characters')}</span>
+      <span> · {t('reductionPending')} {exactTokens(reduction.pending)} · {t('reductionReverted')} {exactTokens(reduction.reverted)}</span>
+      {!reduction.pipelineReported && <span> · {t('reductionPipelineUnknown')}</span>}
+      {reduction.archiveError !== undefined && <span className="cmv-error"> · {t('reductionArchiveError')}：{reduction.archiveError}</span>}
+    </p>
+    <details className="cmv-request-details"><summary>{t('details')} · {t('reductionTitle')}</summary>
+      <div>
+        <p className="cmv-muted">{t('reductionCharsHint')}</p>
+        <p className="cmv-muted">{reduction.recent.length === 0 ? t('reductionNoRecent') : t('reductionRecent')}</p>
+        {reduction.recent.map(owner => <p key={`${owner.contentId}:${owner.callId ?? ''}`} className="cmv-muted" data-reduced-chars={owner.shortenedChars} data-call-id={owner.callId ?? ''}>{owner.tool} · {owner.contentId} · {exactTokens(owner.shortenedChars)} {t('characters')}{owner.complete ? '' : ` · ${t('reductionRowTruncated')}`}</p>)}
+        <p className="cmv-muted" data-run-scope="process">{t('reductionRunScope')} · {t('runConsidered')} {exactTokens(reduction.run.considered)} · {t('runWouldReduce')} {exactTokens(reduction.run.wouldReduce)} · {t('runSkipped')} {exactTokens(reduction.run.skipped)} · {t('runUnverified')} {exactTokens(reduction.run.unverified)} · {t('failed')} {exactTokens(reduction.run.failed)}</p>
+        {skip !== null && <p className="cmv-muted">{t('reductionSkip')}：{skip}</p>}
+        {reduction.notes.map((note, index) => <p key={index} className="cmv-muted">{note}</p>)}
+      </div>
+    </details>
+  </>
+}
+
 /** Session consumption is disjoint from the current context composition. */
 export function UsageComposition({ data, t, onCut }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void }) {
   const chart = usageSlices(data.usage)
   const summary = data.historical ? undefined : data.summaryUsage
   const labels = ['uncached', 'read', 'write', 'output'] as const
+  // One completeness rule for the main total and every legend row: a cut with no
+  // reported component must not read as a complete zero, and a partial cut says
+  // which rows carry unreported samples.
+  const completeness = usageCompleteness(data.efficiency)
+  const unknownTotal = completeness === 'unknown'
+  const boundedTotal = completeness === 'partial'
+  const missing = completeness === null || data.efficiency === undefined ? [0, 0, 0, 0]
+    : [data.efficiency.mirrored.uncachedInput, data.efficiency.mirrored.cacheRead,
+      data.efficiency.mirrored.cacheWrite, data.efficiency.mirrored.output].map(field => field.missing)
   return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('usage')}</h3><Tooltip label={t('usageHint')} portal><span tabIndex={0} className="cmv-muted">Token</span></Tooltip></div>
-    {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <><div className="cmv-usage-total"><div className="cmv-number"><strong>{formatTokens(chart.total)}</strong><span>Token</span></div><CacheDonut value={chart.hit} t={t}/></div>
-      {chart.total > 0 && <div className="cmv-stack cmv-usage-stack" role="img" aria-label={`${t('usage')} ${exactTokens(chart.total)} Token`}>{chart.values.map((value, index) => <span key={labels[index]} data-usage={labels[index]} style={{ width: `${value / chart.total * 100}%` }}/>)}</div>}
-      <dl className="cmv-usage-legend">{chart.values.map((value, index) => <div key={labels[index]}><dt><i data-usage={labels[index]}/>{t(labels[index]!)}</dt><dd>{formatTokens(value)}<small>{chart.total ? `${chart.shares[index]!.toFixed(1)}%` : '—'}</small></dd></div>)}</dl>
+    {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <><div className="cmv-usage-total" data-usage-completeness={completeness ?? 'unqualified'}><div className="cmv-number">
+      {unknownTotal ? <><strong>—</strong><span>{t('effUnknownValue')}</span></> : <><strong>{boundedTotal ? '≥ ' : ''}{formatTokens(chart.total)}</strong><span>Token</span></>}</div><CacheDonut value={chart.hit} t={t}/></div>
+      {unknownTotal && <p className="cmv-muted" data-usage-bound="unknown">{t('usageUnknownHint')}</p>}
+      {boundedTotal && <p className="cmv-muted" data-usage-bound="partial">{t('effBoundHint')}</p>}
+      {chart.total > 0 && !unknownTotal && <div className="cmv-stack cmv-usage-stack" role="img" aria-label={`${t('usage')} ${exactTokens(chart.total)} Token`}>{chart.values.map((value, index) => <span key={labels[index]} data-usage={labels[index]} style={{ width: `${value / chart.total * 100}%` }}/>)}</div>}
+      <dl className="cmv-usage-legend">{chart.values.map((value, index) => <div key={labels[index]} data-legend-missing={unknownTotal ? 'unknown' : String(missing[index]!)}><dt><i data-usage={labels[index]}/>{t(labels[index]!)}</dt><dd>{unknownTotal ? '—' : formatTokens(value)}<small>{unknownTotal ? t('effUnknownValue') : <>{chart.total ? `${chart.shares[index]!.toFixed(1)}%` : '—'}{missing[index]! > 0 ? ` · ${missing[index]} ${t('effUnknownValue')}` : ''}</>}</small></dd></div>)}</dl>
     </>}
     {!data.historical && <p className="cmv-muted cmv-summary-usage">{summary
       ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${exactTokens(summary.input)} / ${t('output')} ${exactTokens(summary.output)} Token`} portal><span tabIndex={0}>{t('summaryRecorded')} {formatTokens(summary.input + summary.output)} Token · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
       : t('noSummaryUsage')}</p>}
+    {data.efficiency && <EfficiencyLine efficiency={data.efficiency} t={t}/>}
+    {data.reduction ? <ReductionLine reduction={data.reduction} t={t}/> : data.historical ? <p className="cmv-muted cmv-summary-usage">{t('histUnavailable')}</p> : null}
     {data.requests.length > 0 && <details className="cmv-request-details"><summary>{t('requests')} · {data.requestCount}</summary><div><table><thead><tr><th>{t('record')}</th><th>{t('input')}</th><th>{t('output')}</th><th>{t('read')}</th></tr></thead><tbody>{[...data.requests].reverse().map(request => <tr key={request.seq}><td><button type="button" onClick={() => onCut(request.seq)}>{request.turn} / {request.step}</button></td><td>{formatTokens(request.input)}</td><td>{formatTokens(request.output)}</td><td>{formatTokens(request.cacheRead)}</td></tr>)}</tbody></table></div></details>}
   </article>
 }
