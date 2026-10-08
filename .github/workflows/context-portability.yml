@@ -22,8 +22,6 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
-    env:
-      CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,8 +29,12 @@ jobs:
           node-version: '22'
       - name: Install isolated compiler
         shell: bash
+        env:
+          CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
         run: npm install --prefix "$CONTEXT_CI_DEPS" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.21.5
       - name: Exercise recovery on the native filesystem
+        env:
+          CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
         run: node scripts/check-recovery-platform.mjs
       - name: Preserve platform result
         if: always()
