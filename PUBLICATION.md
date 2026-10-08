@@ -21,7 +21,7 @@
 32d87ca6c961c75e516003acf32065bf7500a9da0d549190ef15e3a863ef7b95  missher-dsh-context-manager-0.10.0-local.1.tgz
 ```
 
-23 个成员、16 个运行文件与冻结源匹配。逐文件绑定见 [GIT_DELIVERY.json](./GIT_DELIVERY.json)，分层结果见 [验证记录](./verification/RESULTS-EFFICIENCY-20261009.json)。
+23 个成员、16 个运行文件与冻结源匹配。公开中英文 README 另行校正两处阶段说明，原包内文档保持；两份公开说明的差异与 SHA 单列记录，其余 92 个冻结产品文件未改。逐文件绑定见 [GIT_DELIVERY.json](./GIT_DELIVERY.json)，分层结果见 [验证记录](./verification/RESULTS-EFFICIENCY-20261009.json)。
 
 | 验证层 | 结果与范围 |
 | --- | --- |

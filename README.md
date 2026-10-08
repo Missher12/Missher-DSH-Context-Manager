@@ -67,7 +67,7 @@ kind: "package-bundle"
 
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：进入 **插件 → 添加插件**，选择下载的 `.tgz` 或填写其 Release 下载地址。本轮开发源码的根 `lib` 仍保留旧版字节，不能用仓库文件夹安装本轮候选；请使用 READY.md 指定的冻结 tarball 与明确列出的宿主基线。没有安装期构建脚本。
+桌面端：进入 **插件 → 添加插件**，选择 [0.10.0-local.1 预发布](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.1) 的 `.tgz` 或填写其下载地址，再正常退出重开。“根 lib 保留旧版”仅指受保护的本机开发工作区；本公开仓库的 `lib` 包含最终 r2 的 16 个运行文件。建议使用带 SHA256 校验的发行包，宿主验证范围见 [PUBLICATION.md](./PUBLICATION.md)。没有安装期构建脚本。
 
 下方命令是此前 0.7 稳定版示例，不是本轮 本轮候选；本轮只使用 READY.md 指定的冻结包。
 
@@ -135,7 +135,7 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 
 历史验证基线（2026-10-03）：真实 AgentLoop/JSONL/存储配合模拟模型，115 项通过；命名修订后 20 项针对性测试通过。定制 rc.2 隔离 Loader/RPC 和受控 Web 深浅主题、1280/800/335px、原文分页、无发送区及卡片等高通过。随后日常 macOS Intel 安装确认三个入口激活及只读 RPC 正常。
 
-0.10.0-local.1 候选的离线证据：源码两套 tsconfig 在工作树与隔离候选均通过；增强 SDK 下完整回归、旧 SDK 隔离子集、真实 codec 往返、service→codec、会话隔离／历史截面、已构建 client 的设置保存与重读、档案只读与本次会话作用域断言均记录在 `verification/context-efficiency-20261009/READY.md`。浏览器截图、隔离 Host 装载与真实模型收益由独立验收方单独执行，尚未完成；本候选未安装到日常环境。
+0.10.0-local.1 r2 的独立类型检查、复建及包边界通过，16 个运行件逐字节一致；文案修改相关设置/传输协议 29/29。r1 增强 SDK 全量为 279 通过、2 个旧能力场景跳过，r2 其余模块保持原字节，不称重跑全量。实际隔离 Host 已完成 Loader 3/3、客户端、RPC 语义 8/8、引用身份 6/6，以及 reduce 设置跨正常退出和新进程冷启动保留。浏览器工具被 ERR_BLOCKED_BY_CLIENT 拦截，视觉与真实模型收益未验收；旧 SDK 额外失败保留，未安装日常环境。完整分层证据和限制见 [PUBLICATION.md](./PUBLICATION.md) 与 [验证记录](./verification/RESULTS-EFFICIENCY-20261009.json)。
 
 这些是分层的历史证据，不代表本次发行在所有平台重新验收。未证明真实模型摘要质量、长期任务语义保留或 Windows/Linux 原生运行。压缩后重试也不会完整重跑宿主 `preStep` 的动态规则/计划装配，需要通过现有工具按需核验文件与任务状态。报告见仓库 [verification](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification)。
 

@@ -208,5 +208,18 @@
     "Real-provider fidelity/savings and remote Qwen tasks not tested",
     "Additional legacy suites retain failures; no universal Host compatibility claim",
     "No daily installation/restart, marketplace acceptance, or remote damaged-log restoration"
-  ]
+  ],
+  "publicDocumentationOverrides": {
+    "README.md": {
+      "frozenSha256": "410037f13f13cefd9f69cea87cde109dc5a5275a2620e4f41597496827fefb43",
+      "publicSha256": "7924c8216f412c8d20ec7a6d98ac876f86784ef00d4bbbf5071a57252228cda4",
+      "reason": "Correct stale installation and Host-acceptance wording in public documentation only; frozen package unchanged."
+    },
+    "README.en.md": {
+      "frozenSha256": "7cf2ecef1f9aa845be9e302481c3229b4313c05fbed0e61d502387836d3be0c9",
+      "publicSha256": "7996a62b019ffe33ab910770c586ca88799cb7087b628d23b5811aa2aa58ded0",
+      "reason": "Correct stale installation and Host-acceptance wording in public documentation only; frozen package unchanged."
+    }
+  },
+  "publicProductFilesIdenticalToFreeze": 92
 }
