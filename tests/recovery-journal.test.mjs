@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
@@ -31,8 +31,8 @@ const validate = (key, value) => {
   return structuredClone(value)
 }
 
-async function fixture(t) {
-  const parent = await mkdtemp(join(tmpdir(), 'dsh-context-recovery-')), root = join(parent, 'journal')
+async function fixture(t, directory = 'journal') {
+  const parent = await mkdtemp(join(tmpdir(), 'dsh-context-recovery-')), root = join(parent, directory)
   const journals = []
   const open = () => { const journal = RecoveryJournal.open(root); journals.push(journal); return journal }
   t.after(async () => {
@@ -54,17 +54,33 @@ function crashWriter(root, extra = '') {
     journal.record(${JSON.stringify(SUMMARIES)}, 'session-test', undefined, ${JSON.stringify(summary(600))});
     ${extra}
     process.exit(0);`
-  const result = spawnSync(process.execPath, ['--input-type=module'], { input: source, encoding: 'utf8', timeout: 5000,
-    env: { PATH: process.env.PATH ?? '', HOME: root, DSH_HOME: root, LANG: 'C.UTF-8' } })
+  const env = { PATH: process.env.PATH ?? '', HOME: root, DSH_HOME: root, LANG: 'C.UTF-8' }
+  if (process.platform === 'win32') {
+    // Keep the Windows loader's system locations; never inherit user-data or
+    // temporary-directory locations through libuv's required-env fallback.
+    for (const name of ['SystemRoot', 'WINDIR']) {
+      const value = Object.entries(process.env).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1]
+      if (value) env[name] = value
+    }
+    const drive = parse(root).root.replace(/[\\/]+$/u, '')
+    Object.assign(env, { USERPROFILE: root, HOMEDRIVE: drive, HOMEPATH: root.slice(drive.length) || '\\',
+      TEMP: root, TMP: root })
+  }
+  const result = spawnSync(process.execPath, ['--input-type=module'], { input: source, encoding: 'utf8', timeout: 5000, env })
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.signal, null)
 }
 
-test('journal: durable write-ahead metadata has private permissions and survives close', async t => {
+test('journal: durable write-ahead metadata uses supported permissions and survives close', async t => {
   const f = await fixture(t), journal = f.open(), value = summary(600)
   journal.record(SUMMARIES, value.sessionId, undefined, value)
-  assert.equal(fs.statSync(f.root).mode & 0o777, 0o700)
-  for (const name of ['pending.json', 'lock.json']) assert.equal(fs.statSync(join(f.root, name)).mode & 0o777, 0o600)
+  assert.equal(fs.lstatSync(f.root).isDirectory(), true)
+  for (const name of ['pending.json', 'lock.json']) assert.equal(fs.lstatSync(join(f.root, name)).isFile(), true)
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(f.root).mode & 0o777, 0o700)
+    for (const name of ['pending.json', 'lock.json']) assert.equal(fs.statSync(join(f.root, name)).mode & 0o777, 0o600)
+  }
+  // Windows inherits the profile's ACL. POSIX mode bits cannot prove its ACL.
   assert.deepEqual(f.saved().entries[0].next, value)
   journal.close()
   assert.equal(fs.existsSync(join(f.root, 'lock.json')), false)
@@ -258,14 +274,21 @@ test('journal: failed acknowledgement is retryable and never silently clears pen
 test('journal: failure after rename freezes writes until reopen instead of trusting stale memory', async t => {
   const f = await fixture(t), journal = f.open(), a = summary(), b = summary(600)
   journal.record(SUMMARIES, a.sessionId, undefined, a)
-  const original = fs.fsyncSync
-  let syncs = 0
-  const mocked = t.mock.method(fs, 'fsyncSync', fd => {
-    if (++syncs === 2) throw new Error('synthetic directory sync failure')
-    return original(fd)
+  const originalSync = fs.fsyncSync, originalRename = fs.renameSync
+  let renamed = false, failures = 0
+  const renameMock = t.mock.method(fs, 'renameSync', (...args) => {
+    originalRename(...args)
+    renamed = true
   })
-  try { assert.throws(() => journal.record(SUMMARIES, a.sessionId, a, b), /directory sync failure/) }
-  finally { mocked.mock.restore() }
+  const syncMock = t.mock.method(fs, 'fsyncSync', fd => {
+    if (renamed) { failures++; throw new Error('synthetic post-rename sync failure') }
+    return originalSync(fd)
+  })
+  try {
+    assert.throws(() => journal.record(SUMMARIES, a.sessionId, a, b), /post-rename sync failure/)
+    assert.equal(renamed, true, 'the failure must follow a real completed replacement')
+    assert.equal(failures, 1)
+  } finally { syncMock.mock.restore(); renameMock.mock.restore() }
   assert.throws(() => journal.record(SUMMARIES, a.sessionId, a, b), /durability is uncertain/)
   assert.deepEqual(f.saved().entries[0].next, b)
   journal.close()
@@ -287,18 +310,29 @@ test('journal: limits reject oversized records, pending files and predecessor hi
   assert.throws(() => f.open(), /oversized/)
 })
 
-test('journal: leaf symlinks cannot redirect journal or lock writes', async t => {
+test('journal: a directory symlink or Windows junction cannot redirect journal writes', async t => {
   const f = await fixture(t), outside = join(f.parent, 'outside')
   fs.mkdirSync(outside)
-  fs.symlinkSync(outside, f.root, 'dir')
+  fs.symlinkSync(outside, f.root, process.platform === 'win32' ? 'junction' : 'dir')
   assert.throws(() => f.open(), /real directory/)
   assert.deepEqual(fs.readdirSync(outside), [])
-  fs.unlinkSync(f.root)
+})
+
+test('journal: a file symlink cannot redirect pending metadata reads or writes', async t => {
+  const f = await fixture(t), outside = join(f.parent, 'outside')
+  fs.mkdirSync(outside)
   const journal = f.open(); journal.close()
   fs.unlinkSync(join(f.root, 'pending.json'))
   const external = join(outside, 'external.json')
   fs.writeFileSync(external, JSON.stringify({ schema: 1, entries: [] }))
-  fs.symlinkSync(external, join(f.root, 'pending.json'))
+  try { fs.symlinkSync(external, join(f.root, 'pending.json'), 'file') }
+  catch (error) {
+    if (process.platform === 'win32' && error.code === 'EPERM') {
+      t.skip('Windows file-symlink creation needs Developer Mode or the symlink privilege; junction coverage still runs')
+      return
+    }
+    throw error
+  }
   assert.throws(() => f.open(), /invalid or oversized/)
   assert.equal(fs.readFileSync(external, 'utf8'), JSON.stringify({ schema: 1, entries: [] }))
 })
@@ -316,4 +350,74 @@ test('journal: replay excludes concurrent records and close, then releases its g
   await assert.rejects(journal.replay(IDLE, target, validate), /concurrent replay/)
   release(); await recovery
   journal.close()
+})
+
+test('journal: regular-file fsync EPERM rejects updates and acknowledgements without dropping pending state', async t => {
+  const f = await fixture(t), journal = f.open(), a = summary(), b = summary(600)
+  const acknowledge = journal.record(SUMMARIES, a.sessionId, undefined, a)
+  const before = fs.readFileSync(join(f.root, 'pending.json')), originalSync = fs.fsyncSync
+  let failures = 0
+  const mocked = t.mock.method(fs, 'fsyncSync', fd => {
+    if (fs.fstatSync(fd).isFile()) {
+      failures++
+      throw Object.assign(new Error('synthetic regular-file flush denied'), { code: 'EPERM' })
+    }
+    return originalSync(fd)
+  })
+  try {
+    assert.throws(() => journal.record(SUMMARIES, a.sessionId, a, b), { code: 'EPERM' })
+    assert.throws(acknowledge, { code: 'EPERM' })
+    assert.equal(failures, 2, 'neither a data write nor an acknowledgement may swallow a file flush failure')
+    assert.deepEqual(fs.readFileSync(join(f.root, 'pending.json')), before)
+  } finally { mocked.mock.restore() }
+  assert.equal(fs.readdirSync(f.root).some(name => name.endsWith('.tmp')), false)
+  journal.record(SUMMARIES, a.sessionId, a, b)
+  journal.close()
+  const target = table([[a.sessionId, a]])
+  await f.open().replay(SUMMARIES, target, validate)
+  assert.deepEqual(target.get(a.sessionId), b)
+  assert.equal(target.writes.length, 1)
+})
+
+test('journal: Chinese characters and spaces in a real path survive orphan-lock recovery', async t => {
+  const f = await fixture(t, '恢复 日志 空格路径'), journal = f.open()
+  journal.close()
+  crashWriter(f.root)
+  const reopened = f.open(), target = table()
+  await reopened.replay(SUMMARIES, target, validate)
+  assert.deepEqual(target.get('session-test'), summary(600))
+  assert.equal(target.writes.length, 1)
+  await reopened.replay(SUMMARIES, target, validate)
+  assert.equal(target.writes.length, 1, 'a second replay never duplicates accounting')
+  assert.deepEqual(f.saved(), { schema: 1, entries: [] })
+})
+
+test('journal: real-platform durability flushes files and never fsyncs a directory on Windows', async t => {
+  const f = await fixture(t), originalSync = fs.fsyncSync
+  const counts = { files: 0, directories: 0, published: 0 }
+  const mocked = t.mock.method(fs, 'fsyncSync', fd => {
+    const held = fs.fstatSync(fd)
+    if (held.isDirectory()) counts.directories++
+    if (held.isFile()) {
+      counts.files++
+      const published = fs.lstatSync(join(f.root, 'pending.json'), { throwIfNoEntry: false })
+      if (published?.isFile() && published.dev === held.dev && published.ino === held.ino) counts.published++
+    }
+    return originalSync(fd)
+  })
+  try {
+    const journal = f.open(), row = summary(600)
+    const acknowledge = journal.record(SUMMARIES, row.sessionId, undefined, row)
+    assert.ok(counts.files > 0, 'actual regular-file fsync calls must remain enabled')
+    assert.deepEqual(f.saved().entries[0].next, row)
+    acknowledge()
+    assert.deepEqual(f.saved().entries, [])
+    journal.close()
+    if (process.platform === 'win32') {
+      assert.equal(counts.directories, 0, 'do not use POSIX directory fsync on a real Windows runtime')
+      assert.ok(counts.published >= 3, 'initialization, record and acknowledgement each flush the published file')
+    } else {
+      assert.ok(counts.directories > 0, 'POSIX directory durability remains enabled')
+    }
+  } finally { mocked.mock.restore() }
 })

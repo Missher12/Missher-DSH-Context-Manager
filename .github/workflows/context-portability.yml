@@ -7,6 +7,7 @@ on:
       - 'codex/context-windows-recovery-*'
     paths:
       - 'src/recovery-journal.ts'
+      - 'tests/recovery-journal.test.mjs'
       - 'scripts/check-recovery-platform.mjs'
       - '.github/workflows/context-portability.yml'
   workflow_dispatch:
@@ -31,15 +32,21 @@ jobs:
         shell: bash
         env:
           CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
-        run: npm install --prefix "$CONTEXT_CI_DEPS" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.21.5
+        run: |
+          npm install --prefix "$CONTEXT_CI_DEPS" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.21.5
+          node --input-type=module -e "import fs from 'node:fs'; import path from 'node:path'; fs.symlinkSync(path.join(process.env.CONTEXT_CI_DEPS, 'node_modules'), 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')"
       - name: Exercise recovery on the native filesystem
         env:
           CONTEXT_CI_DEPS: ${{ runner.temp }}/context-ci-deps
         run: node scripts/check-recovery-platform.mjs
+      - name: Check faults, ownership, and crash recovery
+        run: node --test --test-concurrency=1 tests/recovery-journal.test.mjs > recovery-journal-tests.txt
       - name: Preserve platform result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: context-recovery-${{ matrix.os }}
-          path: recovery-platform-result.json
+          path: |
+            recovery-platform-result.json
+            recovery-journal-tests.txt
           if-no-files-found: warn
