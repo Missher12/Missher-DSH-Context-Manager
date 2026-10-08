@@ -66,7 +66,7 @@ export function ContextReadout({ values, policy }: { values: Readonly<Partial<Se
         <dt>记录的输出预留</dt><dd>{latest?.maxTokens === undefined ? '未记录；执行时由实际路由确定' : `${number(latest.maxTokens)} Token`}</dd>
       </dl>
       <p className="cm-hint">占用读数与 DSH 使用同一数据源：最近输入实测值加上后续内容变化的估算。图像、中文与模型切换可能带来偏差；距窗口上限包含尚需预留的输出空间。</p>
-      <p className="cm-hint">{policy.enabled ? `已保存策略：${policy.triggerPercent}% 触发，提前 ${policy.earlyPercent}% 检查，压缩目标 ${policy.targetPercent}%。输出预留与安全空间可能降低检查线；执行时按实际模型和完整请求确定。` : '自动压缩已关闭，超出安全窗口时暂停。'}</p>
+      <p className="cm-hint">{policy.enabled ? `已保存策略：${policy.triggerPercent}% 触发，提前 ${policy.earlyPercent}% 检查，${policy.historyMode === 'automatic' ? `自动工作集，近期原文偏好 ${number(policy.recentTokens)} Token` : `自定义占用上限 ${policy.targetPercent}%`}。输出预留与安全空间可能降低检查线；执行时按实际模型和完整请求确定。` : '自动压缩已关闭，超出安全窗口时暂停。'}</p>
     </div>
     <div className="cm-field">
       <h3 className="cm-subtitle">上下文由什么组成</h3>

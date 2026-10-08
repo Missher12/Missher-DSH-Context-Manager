@@ -87,12 +87,13 @@ export function ContextPage({ form }: { form: ConfigForm<Values> }) {
   </section>
 }
 
-const numericKeys = ['triggerPercent', 'targetPercent', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens'] as const
+const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
-  const fields = Object.fromEntries(numericKeys.map(key => [key, String(policy[key])])) as Record<NumericKey, string>
-  return { ...policy, ...fields }
+  const normalized = { ...defaults, ...policy }
+  const fields = Object.fromEntries(numericKeys.map(key => [key, String(normalized[key])])) as Record<NumericKey, string>
+  return { ...normalized, ...fields }
 }
 function toPolicy(draft: Draft): Policy {
   const fields = Object.fromEntries(numericKeys.map(key => [key, draft[key].trim() ? Number(draft[key]) : NaN])) as Record<NumericKey, number>
@@ -142,7 +143,8 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     <p className="cm-hint">{hint}</p>
   </div>
   const admissionLabel = preview ? preview.admissionSource === 'absolute' ? '绝对软预算' : preview.admissionSource === 'hard' ? '硬上限' : '百分比' : ''
-  const targetLabel = preview ? preview.targetSource === 'absolute' ? '绝对软目标' : '百分比目标' : ''
+  const automatic = policy.historyMode === 'automatic'
+  const targetLabel = preview ? preview.targetSource === 'absolute' ? '绝对占用上限' : preview.targetSource === 'admission' ? '准入空间限制' : '百分比占用上限' : ''
   return <section aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
     <SettingsForm labels={{ unavailable: '正在读取上下文设置…', readOnly: '当前连接不支持保存设置。', saveFailed: feedback, save: '保存设置', saving: '保存中…' }}
@@ -151,19 +153,32 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
       <fieldset disabled={disabled} className="cm-native-fields">
         {toggle('enabled', '自动压缩', '在执行前检查完整请求，必要时先压缩。关闭后停止自动整理，超出安全窗口时暂停。')}
         <div className="cm-native-presets" role="group" aria-label="压缩策略">
-          {([[70, 40, '提前整理 · 70%'], [80, 55, '均衡 · 80%'], [85, 60, '保留更多 · 85%']] as const).map(([triggerPercent, targetPercent, label]) =>
-            <Button key={triggerPercent} size="sm" variant="outline" aria-pressed={policy.triggerPercent === triggerPercent && policy.targetPercent === targetPercent}
-              onClick={() => edit({ triggerPercent: String(triggerPercent), targetPercent: String(targetPercent) })}>{label}</Button>)}
+          {([[70, '提前整理 · 70%'], [80, '均衡 · 80%'], [85, '稍后整理 · 85%']] as const).map(([triggerPercent, label]) =>
+            <Button key={triggerPercent} size="sm" variant="outline" aria-pressed={policy.triggerPercent === triggerPercent}
+              onClick={() => edit({ triggerPercent: String(triggerPercent) })}>{label}</Button>)}
         </div>
         {numeric('triggerPercent', '上下文用到多少时压缩（%）', '按当前模型窗口计算。新消息会计入检查，输出预留和安全空间可能使实际阈值更低。')}
-        {numeric('targetPercent', '压缩后目标占用（%）', '这是软目标。必要指令、任务信息和完整工具调用优先保留，实际结果可能不同。')}
-        {toggle('absoluteEnabled', '绝对工作历史软预算', '按会话当前实际占用 Token 设置独立的软触发与软目标，与百分比、输出预留和窗口硬约束取更保守值。不修改模型窗口声明；关闭后沿用原百分比策略。', !draft.enabled)}
+        <div className="cm-native-presets" role="group" aria-label="历史保留策略">
+          {([['automatic', '自动工作集'], ['custom', '自定义占用上限']] as const).map(([historyMode, label]) =>
+            <Button key={historyMode} size="sm" variant="outline" aria-pressed={policy.historyMode === historyMode} disabled={!draft.enabled}
+              onClick={() => edit({ historyMode })}>{label}</Button>)}
+        </div>
+        <p className="cm-hint">{automatic
+          ? '保留受保护任务、有界近期原文与滚动检查点。压后总占用按实际内容计算，不使用保存的百分比或绝对占用上限；旧值仍保留。'
+          : '在工作集规划上增加压后总占用上限。必要指令和当前任务不能为满足上限而被删除；无法达到时说明原因并保留任务。切回自动工作集不会删除这些设置。'}</p>
+        {!automatic && numeric('targetPercent', '压后占用上限（%）', '按真实完整窗口计算；须比检查阈值至少低 10 个百分点，输出预留可能进一步降低有效上限。', !draft.enabled)}
+        {toggle('absoluteEnabled', '绝对工作历史软预算', automatic
+          ? '按会话当前实际占用 Token 设置独立的软触发，与百分比、输出预留和窗口硬约束取更保守值。自动工作集不使用保存的绝对占用上限。'
+          : '设置独立的软触发与压后占用上限，分别与百分比及窗口约束取更保守值。不修改模型窗口声明。', !draft.enabled)}
         {numeric('absoluteTriggerTokens', '绝对软触发（Token）', '以会话当前实际占用 Token 为单位，达到后即先压缩，即使百分比门槛尚未满足。', !draft.enabled || !draft.absoluteEnabled)}
-        {numeric('absoluteTargetTokens', '绝对软目标（Token）', '压缩后的软目标占用；须比绝对软触发至少低 20%。与百分比目标取更保守值。', !draft.enabled || !draft.absoluteEnabled)}
+        {!automatic && numeric('absoluteTargetTokens', '绝对占用上限（Token）', '须比绝对软触发至少低 20%，并与百分比占用上限取更保守值。', !draft.enabled || !draft.absoluteEnabled)}
         {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
         {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
         <details className="cm-native-advanced"><summary>高级设置</summary>
-          {numeric('idleMinPercent', '闲置压缩最低占用（%）', `实际至少高于压缩目标 10 个百分点；当前为 ${Math.max(policy.idleMinPercent, policy.targetPercent + 10) || '—'}%。短对话不会触发。`)}
+          {numeric('recentTokens', '近期原文预算（Token）', '可设 1,000–128,000，推荐验证起点为 20,000。指令、受保护当前任务及检查点另计；这是近期原文预算，不是压后总量。', !draft.enabled)}
+          {numeric('idleMinPercent', '闲置压缩最低占用（%）', automatic
+            ? `当前按 ${policy.idleMinPercent || '—'}% 检查，不受保存的压后占用上限影响。实际门槛不会超过请求准入线。`
+            : `实际至少高于自定义占用上限 10 个百分点；当前为 ${Math.max(policy.idleMinPercent, policy.targetPercent + 10) || '—'}%，并受请求准入线限制。`)}
           <SettingsValueField id="context-manager-summaryInstructions" label="摘要保留重点" hint="可补充需要保留的内容，例如报错、修改文件、待办事项。最多 2000 字符，基础保护始终保留。"
             text={draft.summaryInstructions} disabled={disabled} invalid={draft.summaryInstructions.length > 2000}
             overridden={!!draft.summaryInstructions} overriddenLabel="自定义" resetLabel="清空" invalidLabel="最多 2000 字符"
@@ -176,7 +191,10 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）', '修复请求的输出上限；其输入只包含有界失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled)}
           {numeric('timeoutMs', '单次摘要超时（毫秒）', '超时后停止；不会自动循环重试。')}
           <div className="cm-native-example"><label htmlFor="context-manager-example">触发示例窗口（Token）</label><Input id="context-manager-example" type="number" min="1000" step="1000" value={exampleWindow} onChange={e => setExampleWindow(Number(e.target.value))}/>
-            <p className="cm-hint">{preview ? `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}），目标约 ${preview.target.toLocaleString()} Token（${targetLabel}）。` : '填写有效参数后查看示例。'} 示例假设输出预留 8%，执行按实际模型计算。</p>
+            <p className="cm-hint">{preview ? automatic
+              ? `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}）。自动工作集的近期原文预算为 ${preview.recentTokens.toLocaleString()} Token，压后总量取决于受保护内容与检查点。`
+              : `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}），有效压后占用上限约 ${preview.target.toLocaleString()} Token（${targetLabel}）。`
+              : '填写有效参数后查看示例。'} 示例假设输出预留 8%，执行按实际模型计算。</p>
           </div>
         </details>
         {invalid && <p role="alert" className="cm-error">{invalid}</p>}

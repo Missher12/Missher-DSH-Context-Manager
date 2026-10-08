@@ -28,26 +28,44 @@
     "durableMetadata": "Existing storageDomain schemas plus a plugin-owned pending metadata journal; no session/learning migration",
     "summaryAbortCommit": "Plugin-owned transaction checks AbortSignal immediately before synchronous Session replacement",
     "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain.",
-    "platformRecovery": "Shared journal: POSIX directory fsync; Windows mandatory regular-file flush before and after replacement. File errors remain fatal. Windows ACLs and power-loss metadata durability are not equivalent to POSIX modes/directory fsync."
+    "journalDurability": "Mandatory regular-file fsync on every platform; POSIX directory fsync, Windows published-file O_RDWR fsync after rename. Failure refuses writes; no power-loss or network-filesystem guarantee. Windows ACL inherited from profile.",
+    "workingSet": "Automatic recent-history preference plus bounded checkpoint, with whole tool groups, protected instructions and complete pressure validation; custom total caps optional.",
+    "cycleAccounting": "context_manager_cycles v1 stores durable request hashes and original-source watermarks. Existing summary/idle schemas remain unchanged.",
+    "historyRead": "Optional tools/sessionQuery/sessions: bounded read-only original text lookup in the executing agent session; no vectors or network."
   },
   "verification": {
-    "distribution": "0.8.0-local.9: shared recovery startup fix and typed provider-error recovery. See PUBLICATION.md for exact checks and limits.",
+    "distribution": "0.9.0-local.1 prerelease; see PUBLICATION.md and verification/RESULTS-WORKING-SET-20261008.json.",
+    "enhancedSdk": {
+      "total": 237,
+      "passed": 235,
+      "failed": 0,
+      "skipped": 2
+    },
+    "naturalOldSdk": {
+      "total": 48,
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0
+    },
+    "independentTargetedTests": 40,
+    "currentDesktopMac": {
+      "enabledLoaderEntries": 175,
+      "allActive": true,
+      "clientFilesMatched": 11,
+      "nativeWindowLoadedVisible": true,
+      "nativeClicksRetested": false
+    },
     "platformsTested": [
-      "macOS Intel (x64)"
+      "macOS Intel x64: SDK tests, Loader, installation and read-only RPC"
     ],
     "platformsNotVerified": [
-      "macOS Apple Silicon",
-      "Windows",
-      "Linux"
+      "Windows full Desktop working-set behavior",
+      "Ubuntu full Desktop working-set behavior",
+      "macOS Apple Silicon"
     ],
-    "officialHarnessOnly": "Full plugin acceptance on unmodified official rc.2 was not performed. Missing optional capabilities follow runtimeCapabilities.",
+    "historicalJournalTests": "local.9 native Node 22/24 filesystem checks passed on Windows, Ubuntu and macOS; distinct from current complete Desktop acceptance.",
+    "officialHarnessOnly": "Full plugin acceptance on an unmodified official rc.2 was not performed. Optional capabilities follow runtimeCapabilities.",
     "realProviderCompactionTested": false,
-    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit.",
-    "journalPlatformsTested": [
-      "Windows native runner",
-      "Ubuntu native runner",
-      "macOS native runner"
-    ],
-    "sdkRegression": "Enhanced SDK: 191 total, 189 passed, two old-only cases skipped; naturally old SDK: 50 passed, zero skipped."
+    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not a full-compatibility assertion."
   }
 }

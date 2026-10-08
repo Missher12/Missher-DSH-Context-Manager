@@ -23,23 +23,30 @@ export function percentages(values: readonly number[]): number[] {
   return units.map(value => value / 10)
 }
 
-/** Fill the recorded window without distributing an unclassified usage delta
- * over the text categories. When estimates exceed the host reading, use the
- * larger estimate for remaining capacity and retain both readings for the UI.
- * The current admission check separates usable space from compaction reserve;
- * historical cuts never inherit today's policy. Occupancy may consume reserve.
+/** Only current, route-bound meter metadata can supply an admission check. */
+export function admissionBudget(data: Pick<Inspection, 'admission' | 'historical'>, policy?: Policy) {
+  const reading = data.historical ? undefined : data.admission
+  return policy && reading?.window != null && reading.outputReserve !== null
+    ? budget(policy, reading.window, reading.outputReserve) : null
+}
+
+/** Fill the recorded window without redistributing an unclassified delta over
+ * text categories. The larger of the content estimate and current meter (or
+ * reference projection when unknown) supplies the conservative chart occupancy.
+ * Only the current admission readout can separate usable space from reserve.
  */
-export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'pressureHistory' | 'model' | 'historical'>, policy?: Policy) {
+export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'pressureHistory' | 'model' | 'historical' | 'admission'>, policy?: Policy) {
   const slices: ChartSlice[] = contextGroups.map(group => ({ id: group.id, value: data.parts.filter(part => group.categories.some(category => category === part.category)).reduce((sum, part) => sum + part.tokens, 0), share: 0 }))
   const content = slices.reduce((sum, item) => sum + item.value, 0)
   const cut = data.pressureHistory.at(-1)
-  const capacity = data.pressure?.window ?? cut?.window ?? null
+  const current = data.historical ? undefined : data.admission
+  const capacity = current ? current.window : data.pressure?.window ?? cut?.window ?? null
   const window = capacity !== null && capacity > 0 ? capacity : null
-  const measured = data.pressure?.projected ?? cut?.tokens ?? null
+  const measured = current?.tokens ?? data.pressure?.projected ?? cut?.tokens ?? null
   const used = Math.max(content, measured ?? 0)
   const other = used - content
   if (other > 0) slices.push({ id: 'other', value: other, share: 0 })
-  const gate = policy?.enabled && !data.historical && window !== null && data.model?.maxTokens != null ? budget(policy, window, data.model.maxTokens) : null
+  const gate = policy?.enabled ? admissionBudget(data, policy) : null
   const limit = gate?.admission ?? null
   const free = window === null ? null : Math.max(0, (limit ?? window) - used)
   const reserve = gate === null ? null : Math.max(0, gate.window - Math.max(used, gate.admission))

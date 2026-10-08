@@ -76,7 +76,7 @@ class Adapter extends LlmAdapter {
   async resolveModel(provider, model) {
     return { provider, id: model, name: model, context: { contextWindow: 10000 }, defaultMaxTokens: 512 }
   }
-  imageRequestPricing() { return { priceImages: images => images.map(() => ({ visualTokens: 64, text: 'image handle' })) } }
+  imageRequestPricing() { return { priceImages: images => images.map(() => ({ visualTokens: this.options.imageTokens ?? 64, text: 'image handle' })) } }
   providerRetryPolicy() { return resolveRetryPolicy({ mode: 'normal', maxRetries: 0 }, 'summary-recovery-test') }
   async *stream(options) {
     assert.equal(options.provider, 'mock', 'all provider execution stays inside the fake adapter')
@@ -175,7 +175,7 @@ function billed(item, usage) {
 for (const mode of ['throw', 'finish']) {
   test(`summary recovery: ${mode} preserves typed failure for real image offload and separate usage`,
     { timeout: 15000 }, async t => {
-      const env = await fixture(t, { mode, kind: 'offload' })
+      const env = await fixture(t, { mode, kind: 'offload', imageTokens: 700 })
       const { ctx, adapter, agent, observed, old, task } = env
       agent.followup(task)
       await agent.whenIdle()
@@ -218,6 +218,9 @@ for (const mode of ['throw', 'finish']) {
       billed(stats.recent[1], SECOND_USAGE)
       assert.equal(stats.input, 1012)
       assert.equal(stats.output, 34)
+      const cycle = ctx.contextManager.compactionCycles.peek(SESSION)
+      assert.equal(cycle.summaryCalls, 1, 'image recovery is not a second history plan')
+      assert.equal(cycle.calls, 2, 'both actual requests consume the durable total allowance')
     })
 
   test(`summary recovery: cancel before late ${mode} failure does not offload, retry or commit`,

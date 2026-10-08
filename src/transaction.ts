@@ -12,7 +12,7 @@ import { createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, Message, TokenUsage, ToolSchema } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session'
-import type { TokenMeter } from '@deepseek-ai/dsh-token-meter'
+import type { TokenMeter, TokenMeasurement } from '@deepseek-ai/dsh-token-meter'
 
 export interface SummaryInput { readonly messages: readonly Message[]; readonly tools?: readonly ToolSchema[] }
 interface SummaryResult {
@@ -22,6 +22,8 @@ interface SummaryResult {
 type Command = NonNullable<CompactionResult['sourceCommandId']>
 interface Dependencies {
   meter: TokenMeter
+  validateCandidate?(agent: Agent, start: SessionSeq, end: SessionSeq, checkpoint: Message, before: TokenMeasurement): void
+  refreshAfterRecovery?(agent: Agent, start: SessionSeq, end: SessionSeq, signal: AbortSignal): Promise<void>
   summarize(input: SummaryInput, agent: Agent, signal: AbortSignal): Promise<SummaryResult>
   recover(error: unknown, agent: Agent, seqs: readonly SessionSeq[], signal: AbortSignal): boolean
 }
@@ -75,7 +77,7 @@ function prepare(deps: Dependencies, session: Session, start: SessionSeq, end: S
 
 function stable(deps: Dependencies, session: Session, prepared: ReturnType<typeof prepare>, idle: boolean) {
   const span = selection(session, prepared.start, prepared.end), current = deps.meter.measure(session)
-  if (!isDeepStrictEqual(span.seqs, prepared.seqs) || !isDeepStrictEqual(
+  if (current.totalTokens !== prepared.measurement.totalTokens || !isDeepStrictEqual(span.seqs, prepared.seqs) || !isDeepStrictEqual(
     idle ? current.nodes.slice(span.first, span.last + 1) : current.nodes,
     idle ? prepared.priced : prepared.measurement.nodes,
   )) throw new SurfaceChangedError('生成摘要期间上下文发生变化，旧摘要未应用')
@@ -105,6 +107,8 @@ export async function compactContextRegion(
         signal.throwIfAborted()
         stable(deps, session, prepared, options.idle)
         if (!deps.recover(error, agent, prepared.seqs, signal)) throw error
+        await deps.refreshAfterRecovery?.(agent, start, end, signal)
+        signal.throwIfAborted()
         prepared = prepare(deps, session, start, end)
       }
     }
@@ -113,6 +117,7 @@ export async function compactContextRegion(
       content: [{ type: 'text', text: `${PREAMBLE}\n\n<compacted-summary>` }, ...summary.summary, { type: 'text', text: '</compacted-summary>' }] })
     if (deps.meter.estimateMessage(checkpoint) >= prepared.routeTokens) throw new Error('摘要没有缩小所选上下文，原文保留')
     stable(deps, session, prepared, options.idle)
+    deps.validateCandidate?.(agent, start, end, checkpoint, prepared.measurement)
     signal.throwIfAborted()
     // Commit linearizes here. Session.append is synchronous; listeners cannot
     // interleave a later async continuation between the three protocol events.

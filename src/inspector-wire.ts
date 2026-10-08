@@ -24,6 +24,8 @@ const goalReadoutSchema = () => z.object({
 export function inspectionSchema() { return z.object({
   sessionId: sessionId(), cursor: seq(), cutSeq: seq(), sampledAt: count(), historical: z.boolean(),
   pressure: z.object({ projected: count(), input: count(), window: count().nullable() }).nullable(),
+  admission: z.object({ tokens: count(), logRevision: count(), baseline: z.enum(['none', 'estimated', 'usage']),
+    window: count().positive().nullable(), outputReserve: count().nullable() }).strict().optional(),
   model: z.object({ provider: z.string(), model: z.string(), effort: z.string().nullable(), maxTokens: count().nullable() }).nullable(),
   parts: z.array(z.object({ category: category(), tokens: count(), count: count() })).max(8),
   official: z.object({ system: count(), tools: count(), messages: count() }).nullable(),

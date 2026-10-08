@@ -74,7 +74,7 @@ class Adapter extends LlmAdapter {
         if (this.options.pause) await this.options.pause()
         for (let n = 0; n < (this.options.usageCopies ?? 1); n++) yield { type: 'usage', usage: { ...USAGE } }
         yield { type: 'block-start', index: 0, blockType: 'text' }
-        yield { type: 'block-end', index: 0, block: { type: 'text', text: checkpoint } }
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: this.options.checkpoint ?? checkpoint } }
         yield { type: 'finish', reason: { kind: 'stop' } }
       } finally { this.summaryClosed++ }
       return
@@ -373,3 +373,42 @@ test('portable host: old Domain/JSON close before late known usage recovers one 
       }
     } finally { release.resolve() }
   })
+
+// Deterministic continuation replay. It checks transport and retained facts;
+// a mocked summary is not proof of an actual model's semantic quality.
+test('working set: 200K long-task checkpoint leaves room for eight further tasks', { timeout: 20000 }, async t => {
+  const env = await harness(t)
+  const facts = { goal: 'Finish MSE acceptance', constraints: ['Correction: write only Context; coordinator alone installs'],
+    completed: ['Offline checks passed'], pending: ['Ubuntu native acceptance remains open'],
+    evidence: ['/tmp/acceptance.json: failure E42', 'branch context-fix; commit abc123'],
+    next: 'Reproduce E42 and preserve the original sessions', uncertainties: ['Real Qwen model has not been accepted'] }
+  const seed = structuredClone(await seedAt(env, 159000))
+  const tool = seed.find(event => event.type === 'tool/result')
+  tool.data.message.content[0].text = tool.data.message.content[0].text + '\n' + JSON.stringify(facts)
+  const runtime = await env.boot({ checkpoint: JSON.stringify(facts) }, seed)
+  const { ctx, agent, adapter } = runtime
+  const original = agent.session.snapshotEvents()
+  agent.followup(message('Continue; the latest correction is no installation without the coordinator.'))
+  await agent.whenIdle()
+  assert.equal(commits(agent).length, 1)
+  assert.equal(adapter.requests.length, 1)
+  const firstPressure = ctx.tokenMeter.measure(agent.session).totalTokens
+  assert.ok(firstPressure < 40000, `working set, not a fixed 100K target: ${firstPressure}`)
+  const input = JSON.stringify(adapter.summaries[0].messages)
+  const resumed = JSON.stringify(adapter.requests[0].messages)
+  for (const value of Object.values(facts).flat()) {
+    assert.ok(input.includes(value), `original fact reached summary: ${value}`)
+    assert.ok(resumed.includes(value), `accepted fact reached continuation: ${value}`)
+  }
+  for (let i = 0; i < 8; i++) {
+    const task = message(`Follow-up ${i}: preserve all earlier constraints. ` + 'new-work '.repeat(4000))
+    agent.followup(task); await agent.whenIdle()
+    assert.deepEqual(adapter.requests.at(-1).messages.find(item => item.id === task.id)?.content, task.content)
+    assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed')
+  }
+  assert.equal(adapter.summaries.length, 1, 'new moderate work must not recompact the same checkpoint each turn')
+  assert.equal(adapter.requests.length, 9)
+  assert.equal(ctx.contextManager.compactionCycles.peek(SESSION).calls, 1)
+  assertHistory(agent, original)
+  for (const request of adapter.requests) assertPairs(request.messages)
+})

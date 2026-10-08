@@ -1,0 +1,121 @@
+{
+  "version": "0.9.0-local.1",
+  "at": "2026-10-08T10:42:53.606691+00:00",
+  "sourceFilesVerified": 141,
+  "packageMembersVerified": 19,
+  "runtimeFilesVerified": 12,
+  "enhancedSdk": {
+    "total": 237,
+    "passed": 235,
+    "failed": 0,
+    "skipped": 2
+  },
+  "naturalOldSdk": {
+    "total": 48,
+    "passed": 48,
+    "failed": 0,
+    "skipped": 0
+  },
+  "independentTests": {
+    "passed": 40,
+    "failed": 0
+  },
+  "typeChecks": {
+    "host": true,
+    "client": true,
+    "oldHost": true,
+    "oldClient": true
+  },
+  "isolatedCurrentDesktop": {
+    "all174EnabledActive": true,
+    "clientFilesMatched": 11,
+    "modelCalls": 0,
+    "networkAttempts": 0,
+    "shutdownAcknowledged": true
+  },
+  "dailyMacIntel": {
+    "all175EnabledActive": true,
+    "loaderEntries": 201,
+    "clientFilesMatched": 11,
+    "nativeWindowLoadedVisible": true,
+    "nativeClicksRetested": false,
+    "originalSessionsPreserved": 55,
+    "learningRecordsPreserved": 26,
+    "learningEventsPreserved": 160,
+    "protectedFilesIdenticalBeforeLaunch": 584,
+    "otherPackageFilesUnchanged": 3811,
+    "runtimeScheduleChanges": "Existing MSE queued budget-blocked plans advanced timers/generations; one existing retry count reset 1 to 0, consistent with current rearm code. Exact triggering event was not captured; learning contents and spends unchanged."
+  },
+  "packageEquivalence": {
+    "version": "0.9.0-local.1",
+    "at": "2026-10-08T10:41:32.107255+00:00",
+    "releasePackageSha256": "0f693c0b82b40d9b3cffcfab5d3abdd8079342b005f3372d53cb895edd406fcc",
+    "installedBehaviorPackageSha256": "07dcec382c5a0956d40281b6d38b234d4a633c3a172b52967709a3466cdc2faf",
+    "fileCount": 19,
+    "runtimeFiles": [
+      {
+        "path": "lib/chart-data.js",
+        "sha256": "758c64d2722904eb30a27e0a410ac70d3d9f64f676a393a871ff08a6f9991ff4"
+      },
+      {
+        "path": "lib/client.js",
+        "sha256": "a59ece8dcdbb51d8de11392839a289862b0d4ac5134ac8629a4e9863c56c6ccf"
+      },
+      {
+        "path": "lib/compaction-cycles.js",
+        "sha256": "b9e929a463ffbcb5d9d446080a3217c4dfa81acc6bc0079712c84d153843684b"
+      },
+      {
+        "path": "lib/diagnostics.js",
+        "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
+      },
+      {
+        "path": "lib/engine.js",
+        "sha256": "ed742bd7847f194bbd78413fcba5adfe6f31f4b3ca37bd23a28d09a866e83db2"
+      },
+      {
+        "path": "lib/history-tools.js",
+        "sha256": "65d63ea58f56e954ae7c76b25ab7f2dfca629eb7a8fda228f835f6c5a0d4187e"
+      },
+      {
+        "path": "lib/index.js",
+        "sha256": "4d8a6409b7e2b8bd00b50ff16f8030f26261c630d6e4e481bbbc4e966a0dc173"
+      },
+      {
+        "path": "lib/inspector-fold.js",
+        "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
+      },
+      {
+        "path": "lib/inspector.js",
+        "sha256": "282e0b19dd5353b8e323e7fe3494855225670bbc3dae267c185f72c3ab415896"
+      },
+      {
+        "path": "lib/policy.js",
+        "sha256": "1530c1c9d655e7712b54c6bc01402ea35396b86c3a8ba02b083a365f27a763bf"
+      },
+      {
+        "path": "lib/typert.js",
+        "sha256": "a8089af307aa78d49d6315ba0b917ee1f360215db646d8f2715e311c068ad26a"
+      },
+      {
+        "path": "lib/working-set.js",
+        "sha256": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
+      }
+    ],
+    "documentationChanges": [
+      "COMPATIBILITY.json",
+      "README.en.md",
+      "README.md"
+    ],
+    "other16FilesIdentical": true,
+    "installedRuntimeMatchesRelease": true,
+    "canonicalOldLibPreserved": true
+  },
+  "notVerified": [
+    "Real-provider semantic fidelity and long-task behavior",
+    "Complete Windows/Ubuntu Desktop working-set behavior",
+    "Apple Silicon",
+    "Marketplace acceptance"
+  ],
+  "failureEvidence": "Copied live recovery lock rejected in isolation; only the copied lock was moved after proving the isolated pending journal empty. Daily first verification rejected existing MSE runtime scheduling changes; original failure retained and all durable business contents independently compared. Packaging audit initially lacked js-yaml in export; linked isolated build dependencies and reran. No historical user data was restored."
+}

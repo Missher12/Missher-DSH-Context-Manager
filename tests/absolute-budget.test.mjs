@@ -98,7 +98,7 @@ async function seedAt(target) {
 }
 
 test('absolute: effective budget takes the conservative bound and reports sources without falsifying the window', () => {
-  const limits = budget({ ...defaults, ...ABSOLUTE }, 1000000, 256000)
+  const limits = budget({ ...defaults, ...ABSOLUTE, historyMode: 'custom' }, 1000000, 256000)
   assert.equal(limits.window, 1000000)
   assert.equal(limits.hard, 724000)
   assert.equal(limits.admission, 200000)
@@ -106,12 +106,34 @@ test('absolute: effective budget takes the conservative bound and reports source
   assert.equal(limits.target, 100000)
   assert.equal(limits.targetSource, 'absolute')
   assert.equal(limits.absoluteTrigger, 200000)
-  // Percentage path stays intact for old configurations; on this window the
+  assert.equal(limits.historyMode, 'custom')
+  assert.equal(limits.recentTokens, 20000)
+  // Percentage admission stays intact; on this window the
   // hard envelope clamps the percentage trigger, so the label reports hard.
   const legacy = budget(defaults, 1000000, 256000)
   assert.equal(legacy.admission, 714000)
   assert.equal(legacy.admissionSource, 'hard')
   assert.equal(legacy.absoluteTrigger, null)
+  assert.equal(legacy.target, legacy.admission, 'automatic mode reports an admission ceiling, not a post-compaction percentage')
+  assert.equal(legacy.targetSource, 'working-set')
+})
+
+test('working set: automatic budgets ignore saved occupancy caps while retaining the absolute trigger', () => {
+  const policy = { ...defaults, ...ABSOLUTE, targetPercent: 75, absoluteTargetTokens: 190000, recentTokens: 24000 }
+  const limits = budget(policy, 1000000, 256000)
+  assert.equal(limits.historyMode, 'automatic')
+  assert.equal(limits.recentTokens, 24000)
+  assert.equal(limits.admission, 200000)
+  assert.equal(limits.absoluteTrigger, 200000)
+  assert.equal(limits.target, 200000)
+  assert.equal(limits.targetSource, 'working-set')
+  assert.equal(limits.absoluteTarget, null, 'inactive saved target is not reported as an effective cap')
+  assert.equal(policy.targetPercent, 75)
+  assert.equal(policy.absoluteTargetTokens, 190000)
+  assert.equal(budget({ ...defaults, targetPercent: 10, absoluteTargetTokens: 1000 }, 200000, 32768).target, 158000)
+  const constrained = budget({ ...defaults, historyMode: 'custom' }, 200000, 65536)
+  assert.equal(constrained.target, 102771)
+  assert.equal(constrained.targetSource, 'admission', 'output headroom must not be labelled as the requested percentage')
 })
 
 test('absolute: below the trigger runs the task directly, at or above it compacts before the first business call', { timeout: 8000 }, async () => {
@@ -147,29 +169,41 @@ test('absolute: a small window keeps its percentage budget and reports the windo
   assert.equal(limits.admissionSource, 'percent', 'an unreachable absolute trigger does not bind')
 })
 
-test('absolute: invalid parameters fail with explainable errors and old configs keep the legacy behavior', () => {
+test('absolute: invalid parameters fail and old configs receive working-set defaults without losing saved caps', () => {
   for (const patch of [{ absoluteTriggerTokens: 9000 }, { absoluteTriggerTokens: 1.5 }, { absoluteTargetTokens: 1.5 }, { absoluteTriggerTokens: Number.NaN }, { absoluteTargetTokens: -1 }]) {
     assert.throws(() => validatePolicy({ ...defaults, ...ABSOLUTE, ...patch }), undefined, JSON.stringify(patch))
   }
-  assert.throws(() => validatePolicy({ ...defaults, ...ABSOLUTE, absoluteTargetTokens: 170000 }), /至少低 20%/)
-  const { absoluteEnabled, absoluteTriggerTokens, absoluteTargetTokens, formatRepairEnabled, formatRepairMaxTokens, ...legacy } = defaults
+  assert.throws(() => validatePolicy({ ...defaults, ...ABSOLUTE, historyMode: 'custom', absoluteTargetTokens: 170000 }), /至少低 20%/)
+  assert.throws(() => validatePolicy({ ...defaults, historyMode: 'custom', targetPercent: 75 }), /至少低 10/)
+  for (const patch of [{ historyMode: 'unknown' }, { recentTokens: 999 }, { recentTokens: 128001 }, { recentTokens: 20000.5 }, { recentTokens: Number.NaN }]) {
+    assert.throws(() => validatePolicy({ ...defaults, ...patch }), undefined, JSON.stringify(patch))
+  }
+  const { historyMode, recentTokens, absoluteEnabled, absoluteTriggerTokens, absoluteTargetTokens, formatRepairEnabled, formatRepairMaxTokens, ...legacy } = defaults
   const restored = Manager.Config({ policy: legacy }).policy.get()
   assert.deepEqual(restored, defaults)
   assert.equal(restored.absoluteEnabled, false)
   assert.equal(budget(restored, 100000, 8000).admission, 79000)
+  const saved = Manager.Config({ policy: { ...legacy, absoluteEnabled: true, absoluteTriggerTokens: 180000, absoluteTargetTokens: 90000, targetPercent: 45 } }).policy.get()
+  assert.equal(saved.historyMode, 'automatic')
+  assert.equal(saved.recentTokens, 20000)
+  assert.equal(saved.targetPercent, 45)
+  assert.equal(saved.absoluteTriggerTokens, 180000)
+  assert.equal(saved.absoluteTargetTokens, 90000)
+  assert.equal(budget(saved, 1000000, 256000).target, 180000)
 })
 
-test('absolute: a protected newest task above the soft target stops bounded and preserves the task', { timeout: 8000 }, async () => {
-  // Old history ~100k plus a protected newest user message ~250k: the first
-  // compaction shrinks the old span, the remainder still exceeds 200k, and
-  // further passes stay bounded with zero business calls.
+test('absolute: an oversized protected floor stops before spending on a useless summary', { timeout: 8000 }, async () => {
+  // Retained old counterexample: ~100k history plus a protected ~250k task.
+  // The previous implementation paid for 1–2 ineffective summaries. The new
+  // planner must reject before the first provider call, preserving all text.
   const { ctx, adapter, agent } = await fixture({}, { ...ABSOLUTE, maxPasses: 2 }, await seedAt(100000))
   try {
     const task = message('Protected newest task that must not be summarized away.' + 'p'.repeat(250000 * 4))
     agent.followup(task); await agent.whenIdle()
     assert.equal(adapter.requests.length, 0)
-    assert.ok(adapter.summaries.length >= 1 && adapter.summaries.length <= 2, `bounded passes: ${adapter.summaries.length}`)
-    assert.ok(commits(agent) >= 1 && commits(agent) <= adapter.summaries.length)
+    assert.equal(adapter.summaries.length, 0, 'no payable plan can fit the protected floor')
+    assert.equal(commits(agent), 0)
+    assert.equal(ctx.contextManager.summaryLedger.stats(agent.id), undefined, 'no ledger entry without a call')
     assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
   } finally { await ctx.fiber.dispose() }
 })
@@ -207,4 +241,7 @@ test('absolute: idle floor never exceeds the effective admission with output res
   assert.equal(idleFloorTokens(defaults, 100000, 8000), 65000)
   // An absolute trigger below the percentage floor binds the idle floor.
   assert.equal(idleFloorTokens({ ...defaults, ...ABSOLUTE }, 1000000, 256000), 200000)
+  assert.equal(idleFloorTokens({ ...defaults, targetPercent: 75 }, 100000, 8000), 65000, 'automatic mode never derives the idle floor from an inactive target')
+  assert.equal(idleFloorTokens({ ...defaults, historyMode: 'custom', idleMinPercent: 30 }, 100000, 8000), 65000)
+  assert.equal(idleFloorTokens({ ...defaults, idleMinPercent: 30 }, 100000, 8000), 30000)
 })

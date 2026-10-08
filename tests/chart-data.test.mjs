@@ -52,7 +52,7 @@ test('session totals count disjoint cache buckets once and preserve unknown usag
 })
 
 test('compaction reserve follows the actual admission check and excludes retained memory', () => {
-  const data={parts:[{category:'summary',tokens:30000},{category:'tool',tokens:200000}],pressure:{window:1000000,projected:320000},pressureHistory:[],model:{maxTokens:64000},historical:false}
+  const data={parts:[{category:'summary',tokens:30000},{category:'tool',tokens:200000}],pressure:{window:1000000,projected:310000},admission:{tokens:320000,window:1000000,outputReserve:64000},pressureHistory:[],model:{maxTokens:64000},historical:false}
   const current=composition(data,defaults)
   assert.equal(current.limit,790000)
   assert.equal(current.free,470000)
@@ -62,14 +62,28 @@ test('compaction reserve follows the actual admission check and excludes retaine
   assert.equal(current.slices.reduce((sum,slice)=>sum+slice.value,0),1000000)
   const earlier=composition(data,{...defaults,triggerPercent:70})
   assert.equal(earlier.limit,690000); assert.equal(earlier.reserve,310000)
-  const outputLimited=composition({...data,model:{maxTokens:400000}},defaults)
+  const outputLimited=composition({...data,admission:{...data.admission,outputReserve:400000}},defaults)
   assert.equal(outputLimited.limit,570000); assert.equal(outputLimited.reserve,430000)
-  const atCheck=composition({...data,pressure:{window:1000000,projected:790000}},defaults)
+  const atCheck=composition({...data,admission:{...data.admission,tokens:790000}},defaults)
   assert.equal(atCheck.free,0); assert.equal(atCheck.reserve,210000)
-  const aboveCheck=composition({...data,pressure:{window:1000000,projected:880000}},defaults)
+  const aboveCheck=composition({...data,admission:{...data.admission,tokens:880000}},defaults)
   assert.equal(aboveCheck.free,0); assert.equal(aboveCheck.reserve,120000); assert.equal(aboveCheck.total,1000000)
-  const overflow=composition({...data,pressure:{window:1000000,projected:1100000}},defaults)
+  const overflow=composition({...data,admission:{...data.admission,tokens:1100000}},defaults)
   assert.equal(overflow.free,0); assert.equal(overflow.reserve,0); assert.equal(overflow.used,1100000)
+})
+
+test('admission metadata is required for a check; projection capacity is not a route fallback', () => {
+  const data={parts:[],pressure:{window:200000,projected:100000},pressureHistory:[],model:{maxTokens:8192},historical:false,
+    admission:{tokens:170000,window:200000,outputReserve:8192}}
+  const actual=composition(data,defaults)
+  assert.equal(actual.measured,170000); assert.equal(actual.limit,158000)
+  assert.equal(actual.free,0); assert.equal(actual.reserve,30000)
+  const missingReserve=composition({...data,admission:{...data.admission,outputReserve:null}},defaults)
+  assert.equal(missingReserve.limit,null); assert.equal(missingReserve.reserve,null)
+  const newRoute=composition({...data,admission:{...data.admission,window:null}},defaults)
+  assert.equal(newRoute.window,null); assert.equal(newRoute.limit,null); assert.equal(newRoute.free,null)
+  const historical=composition({...data,historical:true,pressure:null,pressureHistory:[{window:200000,tokens:90000}]},defaults)
+  assert.equal(historical.measured,90000); assert.equal(historical.limit,null)
 })
 
 test('disabled, unknown and historical policies never invent a compaction reserve', () => {

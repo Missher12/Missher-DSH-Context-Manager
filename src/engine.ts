@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import { BasicCompactionEngine, type BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import { ManualCompactionError, toolPairingBalancedBefore, toolPairingBalancedAfter } from '@deepseek-ai/dsh-compaction'
@@ -16,6 +16,7 @@ import type { SummaryTrigger } from './summary-ledger.ts'
 import { estimateMessage } from '@deepseek-ai/dsh-token-meter/estimate'
 import { CHECKPOINT_FORMAT, CheckpointFormatError, expectedRepair, formatCheckpoint, parseCheckpoint, repairDeviations } from './checkpoint.ts'
 import { compactContextRegion } from './transaction.ts'
+import { planWorkingSet, validateWorkingCandidate, type WorkingPlan } from './working-set.ts'
 
 export const REBUILD = 'CONTEXT_MANAGER_REBUILD_REQUIRED'
 export const BLOCKED = 'CONTEXT_MANAGER_BLOCKED'
@@ -53,6 +54,10 @@ export default class ContextEngine extends BasicCompactionEngine {
   /** Public stable identity survives Cordis service context binding. */
   readonly contextManagerOwner = randomUUID()
   private readonly admissions = new WeakMap<Agent, Admission>()
+  private readonly plans = new WeakMap<Agent, WorkingPlan>()
+  private readonly recovering = new WeakSet<Agent>()
+  private readonly transactionCalls = new WeakMap<Agent, number>()
+  private readonly transactionRepairs = new WeakSet<Agent>()
   private readonly lifetime = new AbortController()
   private readonly activeSummaries = new Set<Promise<unknown>>()
   private readonly summaryAborts = new WeakMap<Agent, AbortController>()
@@ -118,6 +123,7 @@ export default class ContextEngine extends BasicCompactionEngine {
         const window = model.context?.contextWindow
         if (window === undefined) throw new Error('当前模型未提供上下文窗口，无法安全计算压缩阈值')
         const limits = budget(policy, window, options.maxTokens ?? model.defaultMaxTokens ?? 0)
+        if (limits.hard <= 0) throw new Error(`最大输出预留与安全空间已占满 ${window} Token 窗口；请降低最大输出设置。任务原文保留，未调用摘要模型。`)
         const measurement = ctx.tokenMeter.measure(agent.session)
         const pressure = measurement.totalTokens
         const step = agent.session.snapshotEvents().findLast(e => e.type === 'step/start')
@@ -160,7 +166,7 @@ export default class ContextEngine extends BasicCompactionEngine {
         }
         measure = after
       }
-      const selection = engine.select(agent, measure, state)
+      const selection = engine.select(agent, measure, state, overflow)
       if (!selection) throw new LlmError('没有可安全压缩的历史；最新任务、系统指令或附件本身占用过大。任务原文已保留。', BLOCKED)
       state.passes += 1
       const generation = agent.session.surface.replaceGeneration
@@ -190,7 +196,39 @@ export default class ContextEngine extends BasicCompactionEngine {
   }
 
   override compactRegion(start: SessionSeq, end: SessionSeq, agent: Agent, signal?: AbortSignal) {
-    return this.withTransaction(agent, signal, active => compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false }, active))
+    return this.withTransaction(agent, signal, async active => {
+      await this.ensureRegionPlan(agent, start, end, active)
+      return compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false }, active)
+    })
+  }
+
+  /** Public explicit-region calls must pass the same before/after pressure check. */
+  private async ensureRegionPlan(agent: Agent, start: SessionSeq, end: SessionSeq, signal: AbortSignal, refresh = false) {
+    const existing = this.plans.get(agent)
+    if (!refresh && existing?.start === start && existing.end === end) return
+    const config = agent.session.requestHeader()?.config
+    if (!config) throw new Error('尚无实际模型路由，原文保留')
+    const policy = this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
+    const info = await withAbort(this.ctx.llm.resolveModelInfo(config.provider, config.model, signal), signal)
+    signal.throwIfAborted()
+    if (!info.context) throw new Error('摘要模型缺少窗口信息')
+    const limits = budget(policy, info.context.contextWindow, config.maxTokens ?? info.defaultMaxTokens ?? 0)
+    const measurement = this.ctx.tokenMeter.measure(agent.session)
+    const first = measurement.nodes.findIndex(n => n.seq === start)
+    const last = measurement.nodes.findIndex(n => n.seq === end)
+    if (first < 0 || last < first) throw new Error('压缩选区已经改变，原文保留')
+    const nodes = measurement.nodes.slice(first, last + 1)
+    const plan = planWorkingSet(nodes.map(n => ({ seq: n.seq, tokens: n.tokens,
+      protected: agent.session.eventAt(n.seq)?.type === 'system/message',
+      balancedBefore: toolPairingBalancedBefore(agent.session, n.seq), balancedAfter: toolPairingBalancedAfter(agent.session, n.seq),
+    })), { total: measurement.totalTokens, admission: limits.admission, hard: limits.hard,
+      recentTokens: 0, summaryTokens: this.summaryCap(policy, limits.window),
+      ...(policy.historyMode === 'custom' ? { target: limits.target } : {}) })
+    if (!plan || plan.start !== start || plan.end !== end) throw new Error('所选历史无法安全释放足够空间，原文保留')
+    this.plans.set(agent, plan)
+    const previous = this.admissions.get(agent)
+    this.admissions.set(agent, { turn: previous?.turn ?? 0, step: previous?.step ?? 0,
+      passes: previous?.passes ?? 0, policy, budget: limits, pressure: measurement.totalTokens })
   }
 
   override compactNow(agent: Agent, signal: AbortSignal, sourceCommandId?: Parameters<BasicCompactionEngine['compactNow']>[2]) {
@@ -224,6 +262,16 @@ export default class ContextEngine extends BasicCompactionEngine {
 
   private transactionDependencies(): Parameters<typeof compactContextRegion>[0] {
     return { meter: this.ctx.tokenMeter,
+      refreshAfterRecovery: async (agent, start, end, signal) => {
+        await this.ensureRegionPlan(agent, start, end, signal, true)
+        this.recovering.add(agent)
+      },
+      validateCandidate: (agent, start, end, checkpoint, before) => {
+        const plan = this.plans.get(agent)
+        if (!plan || plan.start !== start || plan.end !== end) throw new Error('压缩计划已失效，原文保留')
+        if (before.totalTokens !== plan.before) throw new Error('压缩计划的压力已变化，原文保留')
+        validateWorkingCandidate(plan, this.ctx.tokenMeter.estimateMessage(checkpoint))
+      },
       summarize: (input, agent, signal) => this.summarize(input, agent, signal),
       recover: (error, agent, sourceEventSeqs, signal) => this.ctx.waterfall('compaction/summary-error', {
         session: agent.session, sourceEventSeqs, signal,
@@ -242,6 +290,8 @@ export default class ContextEngine extends BasicCompactionEngine {
     if (this.summaryAborts.has(agent)) return Promise.reject(new Error('该会话已有上下文压缩正在收尾'))
     const abort = new AbortController()
     this.summaryAborts.set(agent, abort)
+    this.transactionCalls.set(agent, 0)
+    this.transactionRepairs.delete(agent)
     const active = AbortSignal.any([abort.signal, this.lifetime.signal,
       AbortSignal.timeout(this.ctx.contextManager.snapshot().timeoutMs), ...(signal ? [signal] : [])])
     const operation = (async () => { active.throwIfAborted(); return await work(active) })()
@@ -249,6 +299,10 @@ export default class ContextEngine extends BasicCompactionEngine {
     void operation.finally(() => {
       this.activeSummaries.delete(operation)
       if (this.summaryAborts.get(agent) === abort) this.summaryAborts.delete(agent)
+      this.plans.delete(agent)
+      this.recovering.delete(agent)
+      this.transactionCalls.delete(agent)
+      this.transactionRepairs.delete(agent)
     }).catch(() => { /* Caller owns the rejection. */ })
     return operation
   }
@@ -260,16 +314,19 @@ export default class ContextEngine extends BasicCompactionEngine {
       pruneSession(session: Agent['session'], options: { protectedSeqs: ReadonlySet<SessionSeq> }): { pruned: readonly unknown[] }
     } | undefined
     if (pruner?.supportsProtectedSeqs !== true) return false
-    const latestUserIndex = measurement.nodes.findLastIndex(node => {
+    const recentBudget = Math.min(this.ctx.contextManager.snapshot().recentTokens, Math.max(1000, measurement.totalTokens * 0.2))
+    let recent = 0
+    const recentSeqs = new Set<SessionSeq>()
+    for (let index = measurement.nodes.length - 1; index >= 0 && recent < recentBudget; index--) {
+      const node = measurement.nodes[index]!
+      if (recent + node.tokens > recentBudget) break
+      recentSeqs.add(node.seq); recent += node.tokens
+    }
+    const protectedSeqs = new Set(measurement.nodes.filter(node => {
       const event = agent.session.eventAt(node.seq)
-      return event?.type === 'user/message' && event.data.source.kind === 'user'
-    })
-    if (latestUserIndex < 0) return false
-    const protectedSeqs = new Set(measurement.nodes.filter((node, index) => {
-      const event = agent.session.eventAt(node.seq)
-      // Keep the current task, errors and rich/image results intact. Older
-      // text results remain recoverable through the pruner's source references.
-      return index >= latestUserIndex || event?.type !== 'tool/result' || event.data.message.isError
+      // Completed older tool output may leave the model projection even in a
+      // single long user task. Errors, rich content and the working tail stay.
+      return recentSeqs.has(node.seq) || event?.type !== 'tool/result' || event.data.message.isError
         || event.data.message.content.some(block => block.type !== 'text')
     }).map(node => node.seq))
     return pruner.pruneSession(agent.session, { protectedSeqs }).pruned.length > 0
@@ -299,11 +356,13 @@ export default class ContextEngine extends BasicCompactionEngine {
       const minimumTokens = idleFloorTokens(policy, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
       if (measure.totalTokens < minimumTokens) return null
     }
-    return this.select(agent, measure, { turn: 0, step: 0, passes: 0, policy, budget: limits, pressure: measure.totalTokens }, true) ?? null
+    const state = { turn: 0, step: 0, passes: 0, policy, budget: limits, pressure: measure.totalTokens }
+    this.admissions.set(agent, state)
+    return this.select(agent, measure, state) ?? null
   }
 
   /** Pick a balanced contiguous span while keeping the latest real task verbatim. */
-  private select(agent: Agent, m: TokenMeasurement, state: Admission, protectLatestInteraction = false): { start: SessionSeq; end: SessionSeq } | undefined {
+  private select(agent: Agent, m: TokenMeasurement, state: Admission, overflow = false): { start: SessionSeq; end: SessionSeq } | undefined {
     const session = agent.session
     const nodes = m.nodes
     const latestUserIndex = nodes.findLastIndex(n => {
@@ -315,32 +374,59 @@ export default class ContextEngine extends BasicCompactionEngine {
     const stepStart = session.snapshotEvents().findLast(e => e.type === 'step/start')?.seq ?? Infinity
     const protectedUsers = new Set(nodes.filter((n, index) => {
       const event = session.eventAt(n.seq)
-      return (protectLatestInteraction && latestUserIndex >= 0 && index >= latestUserIndex) || n.seq === latestUser || (n.seq > stepStart && event?.type === 'user/message' && event.data.source.kind !== 'compact-checkpoint')
+      return n.seq === latestUser || (n.seq > stepStart && event?.type === 'user/message' && event.data.source.kind !== 'compact-checkpoint')
     }).map(n => n.seq))
     const summaryBudget = this.summaryCap(state.policy, state.budget.window)
-    // Provider-confirmed overflow can happen below the estimate/target. Do not
-    // choose a tiny, unshrinkable acknowledgement just because target is higher.
-    const wanted = Math.max(summaryBudget * 2, m.totalTokens - state.budget.target + summaryBudget)
-    let best: { start: SessionSeq; end: SessionSeq; tokens: number } | undefined
-    const keepLast = (nodes.at(-1)?.tokens ?? 0) <= state.budget.target
-    const limit = nodes.length - (keepLast ? 1 : 0)
-    for (let start = 0; start < limit; start++) {
-      const first = nodes[start]
-      if (protectedUsers.has(first.seq) || session.eventAt(first.seq)?.type === 'system/message'
-        || !toolPairingBalancedBefore(session, first.seq)) continue
-      let tokens = 0
-      // Normally retain the latest result. A huge result may join its entire balanced tool group.
-      for (let end = start; end < limit; end++) {
-        const last = nodes[end]
-        if (protectedUsers.has(last.seq) || session.eventAt(last.seq)?.type === 'system/message') break
-        tokens += last.tokens
-        if (!toolPairingBalancedAfter(session, last.seq)) continue
-        const candidate = { start: first.seq, end: last.seq, tokens }
-        if (!best || (best.tokens < wanted && tokens > best.tokens) || (tokens >= wanted && tokens < best.tokens)) best = candidate
-        if (tokens >= wanted) break
+    const plan = planWorkingSet(nodes.map(node => ({ seq: node.seq, tokens: node.tokens,
+      protected: protectedUsers.has(node.seq) || session.eventAt(node.seq)?.type === 'system/message',
+      balancedBefore: toolPairingBalancedBefore(session, node.seq), balancedAfter: toolPairingBalancedAfter(session, node.seq),
+    })), { total: m.totalTokens, admission: state.budget.admission, hard: state.budget.hard,
+      recentTokens: Math.min(state.policy.recentTokens, Math.floor(state.budget.hard * 0.2)), summaryTokens: summaryBudget, overflow,
+      ...(state.policy.historyMode === 'custom' ? { target: state.budget.target } : {}) })
+    if (!plan) { this.plans.delete(agent); return }
+    this.plans.set(agent, plan)
+    return { start: plan.start as SessionSeq, end: plan.end as SessionSeq }
+  }
+
+  /** Count real source growth, not freshly numbered replacement checkpoints. */
+  private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger) {
+    const calls = this.transactionCalls.get(agent) ?? 0
+    if (calls >= 4) throw new Error('本次压缩已达 4 次模型调用上限，原文保留')
+    if (purpose === 'repair' && this.transactionRepairs.has(agent)) throw new Error('同一压缩事务最多修复一次，原文保留')
+    this.transactionCalls.set(agent, calls + 1)
+    if (purpose === 'repair') this.transactionRepairs.add(agent)
+    if (trigger === 'manual') return // an explicit user-requested retry is its own authorization
+    const plan = this.plans.get(agent)
+    if (!plan) throw new Error('缺少可核验的压缩计划，任务原文保留')
+    const store = this.ctx.contextManager.compactionCycles
+    const previous = store.peek(String(agent.id))
+    const nodes = agent.session.surface.nodes
+    // The cycle belongs to the session, not to whichever span won this plan.
+    // A later plan may legitimately return to an earlier uncompressed region.
+    const queue = [...nodes]
+    const seen = new Set<number>()
+    let sourceWatermark = 0, freshTokens = 0
+    while (queue.length) {
+      const seq = queue.pop()!
+      if (seen.has(seq)) continue
+      seen.add(seq)
+      if (seen.size > 50000) throw new Error('压缩来源链超过安全读取范围，原文保留')
+      const event = agent.session.eventAt(seq)
+      if (!event) throw new Error('压缩原文来源不可读取')
+      // Original append events can also reference tool/call metadata. They
+      // remain original content; only replacement lineage moves backwards.
+      if (event.surfaceOp !== 'append' && 'sourceEventSeqs' in event && event.sourceEventSeqs?.length) {
+        queue.push(...event.sourceEventSeqs); continue
       }
+      const message = agent.session.deriveEventMessage(event)
+      if (!message) continue
+      sourceWatermark = Math.max(sourceWatermark, seq)
+      if (seq > (previous?.sourceWatermark ?? -1)) freshTokens += this.ctx.tokenMeter.estimateMessage(message)
     }
-    return best
+    await store.claim({ sessionId: String(agent.id), sourceWatermark, freshTokens,
+      minNewTokens: Math.max(1024, Math.floor((this.admissions.get(agent)?.budget.hard ?? 100000) * 0.05)),
+      requestHash: createHash('sha256').update(JSON.stringify(options.messages)).digest('hex'), purpose })
+    options.signal?.throwIfAborted()
   }
 
   /** Same routed model/effort; the plugin transaction checks shrink, replay and cancellation. */
@@ -502,7 +588,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     // bind its operation durably, and only then allow a billable provider call.
     await this.idlePreflights.get(agent)?.()
     activeSignal.throwIfAborted()
-    const summaryCap = this.summaryCap(policy, info.context.contextWindow)
+    const summaryCap = Math.min(this.summaryCap(policy, info.context.contextWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
     const maxTokens = Math.min(summaryCap, config.maxTokens ?? Infinity)
     const start = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/start')
     if (start?.type !== 'compaction/start') throw new Error('缺少压缩操作记录')
@@ -524,6 +610,13 @@ export default class ContextEngine extends BasicCompactionEngine {
         ...(input.tools === undefined ? {} : { tools: [...input.tools] }),
         messages: [...input.messages, { role: 'user', content: [{ type: 'text', text: instruction }] }],
       }
+      const systemTokens = input.messages.filter(message => message.role === 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
+      const selectedTokens = input.messages.filter(message => message.role !== 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
+      const estimatedSummaryInput = systemTokens + Math.max(selectedTokens, this.plans.get(agent)?.tokens ?? 0)
+        + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
+        + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
+      if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens).hard) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
+      await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger)
       const primaryAttempt = await ledger.start(sessionId, compactionId, trigger)
       const releasePrimary = ledger.retainUsage(primaryAttempt)
       let primaryUsage: TokenUsage | undefined
@@ -577,6 +670,7 @@ export default class ContextEngine extends BasicCompactionEngine {
           maxTokens: repairMaxTokens, purpose: 'compaction', sessionId: agent.session.id,
           signal: activeSignal, messages: [repairMessage],
         }
+        await this.claimSummaryCall(agent, repairOptions, 'repair', trigger)
         const repairAttempt = await ledger.start(sessionId, compactionId, trigger)
         const releaseRepair = ledger.retainUsage(repairAttempt)
         let repairUsage: TokenUsage | undefined

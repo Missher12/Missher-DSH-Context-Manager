@@ -6,15 +6,29 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Version: **0.8.0-local.9**. This is an independently installable Cordis Bundle with nine matching prebuilt runtime files. See [release and installation details](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md). It provides configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Version: **0.9.0-local.1** (prerelease). This Cordis Bundle includes twelve matching prebuilt runtime files. It retains configurable absolute admission and custom-mode occupancy caps, lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
-The plugin owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. This change does not alter Goal limits or MSE quotas.
+The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. This change does not alter Goal limits or MSE quotas.
+
+## local.9 common recovery fix
+
+One package serves all platforms. Windows keeps mandatory regular-file flushes and flushes the published file through a writable handle after atomic replacement; POSIX retains directory fsync. Flush/rename failures remain fatal and uncertain post-rename state refuses further writes until reopen. Windows permissions inherit the profile ACL; POSIX mode bits are not an ACL or sudden-power-loss guarantee. Native filesystem checks do not imply full Desktop or user-session acceptance.
+
+Summary failures retain their native error type so the Host's existing image-offload hook can recognize an explicit image limit. Unknown errors do not gain automatic retries, and every physical summary call retains separate accounting.
+
+## Working-set update
+
+Automatic mode budgets recent verbatim history (20K by default) and a bounded checkpoint separately from fixed prompts, tool definitions and the current task. It does not target a fixed 50% or 100K total. Recent retention may shrink by complete tool groups when admission requires it. Saved percentage/absolute caps remain available in custom mode. Both preflight and the fully framed replacement must satisfy effective pressure and useful reduction checks.
+
+Durable per-session source cycles allow at most two main summary plans and four total calls across steps/restarts; sufficient new original content is required to renew a cycle. Identical automatic requests cannot replay. Explicit manual retries still have a four-call transaction ceiling and at most one exact format repair. Permits are separate from actual per-call usage accounting.
+
+Optional `context_history_read` / `context_history_search` tools retrieve original text from the executing session only, with exact positions and bounded pagination. No vector or external service is used. Each search covers at most 200 events / 32,768 characters and each JSON result is at most 8,000 characters; non-text data and uncovered ranges are explicit.
+
+The native panel uses current TokenMeter admission when available; historical/unloaded/unknown reservation states stay unknown. Trends retain their estimated semantics. Structural validity is not a semantic-fidelity guarantee; real-model acceptance is recorded separately.
 
 ## Host and platform requirements
 
-One package contains the shared implementation for all platforms. Native filesystem regression checks run on Windows, Ubuntu and macOS; the old Windows directory-fsync EPERM was reproduced and fixed. Full enhanced-SDK and targeted old-SDK regressions run on Intel macOS. [Publication details](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md) separate these checks from complete desktop acceptance on a user device and real-provider summary quality.
-
-Final cancellation, selection and usage recovery remain plugin-owned. Typed provider failures now reach the existing image-offload recovery hook; ordinary failures and cancellation do not automatically trigger retries.
+This release passed enhanced-SDK regression (235 passes, two old-only cases), natural old-SDK regression (48/48), and the current custom rc.2 Desktop Loader, installation, restart and read-only RPC checks on Intel macOS. The local.9 native filesystem checks on Windows, Ubuntu and macOS remain separately dated evidence. Complete Windows/Ubuntu Desktop workflows, Apple Silicon and real-model summary fidelity for the new working-set behavior still require acceptance. See [publication details](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md).
 
 | Host condition | Behavior |
 | --- | --- |
@@ -29,18 +43,16 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 ## Install and update
 
-For the Windows `EPERM ... fsync` failure and dependent `contextManager` / `compaction` waits, update the existing plugin, fully quit and restart DSH, then resume the original session. Do not delete sessions or recovery metadata. No platform-specific companion plugin is required.
-
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: back up the active profile and data, open **Plugins → Add plugin**, and select the [local.9 package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz) or paste its download URL. Update the existing plugin and reload or restart as requested. No companion compatibility package or Host replacement is required to supply the three added interfaces above. Installation runs no build script.
+Desktop: wait for active tasks to finish, back up the profile and data, open **Plugins → Add plugin**, and update the existing plugin using the [0.9 package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz) or its download URL. No companion plugin, SDK or local build is required.
 
-Back up `.context-manager-recovery`, `context_manager_idle`, `context_manager_summaries` and session data together. The journal may contain observed usage pending after the old Host closed storage; do not delete it to troubleshoot.
+Back up sessions, `context_manager_idle`, `context_manager_summaries`, the new `context_manager_cycles` domain, and `.context-manager-recovery` together. Retain cycle metadata when rolling back so a later upgrade does not forget duplicate-request protection. Do not restore an older snapshot over newer work.
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz
 ```
 
 Keep the previous package and configuration, wait for active tasks to finish, and **fully restart the target application or profile** after updating. Confirm the version and all three active entries: `context-manager`, `context-manager-engine` and `context-manager-inspector`. Open **Context**, after **Trace**, in a session. An old process may cache package exports; a page refresh or enable toggle does not replace a restart. Do not enable both old and renamed packages.
@@ -62,17 +74,19 @@ Edit parameters only in **Settings → Context Manager** and save. Updating the 
 | Setting | Default |
 | --- | --- |
 | Automatic compaction master switch | Enabled |
-| Trigger / target occupancy | 80% / 55% |
+| Trigger / retention mode | 80% / automatic working set |
+| Recent text preference / summary output cap | 20K / 8,192 tokens |
+| Saved custom occupancy cap (inactive by default) | 55% |
 | Early check / safety space | 1% / 2% |
-| Summary output limit | 8192 tokens, also bounded by the actual model and request |
 | Maximum compactions per request / summary timeout | 2 / 90 seconds |
 | Idle compaction / idle delay | Enabled / 15 minutes |
-| Minimum idle occupancy | Percentage floor is max(65%, target + 10%), capped by effective admission |
-| Absolute working-history budget | Disabled; initial values 200,000 → 100,000 tokens |
+| Minimum idle occupancy | Automatic: 65%; custom: max(65%, target + 10%); both capped by effective admission |
+| Absolute soft trigger | Disabled; saved starting value 200,000 tokens; also applies in automatic mode when enabled |
+| Absolute post-compaction occupancy cap | Saved at 100,000 tokens; only active in custom mode with the absolute budget enabled |
 | Format repair / output cap | Enabled / 2048 tokens, at most once per transaction |
 | Additional summary focus | Empty, up to 2000 characters |
 
-Percentage admission is `max(0, min(window × trigger ratio, window − output reserve − safety space) − early-check space)`. When enabled, the absolute trigger further caps admission without another early deduction. The effective target is the minimum of percentage target, 80% of percentage admission and the enabled absolute target. The model window remains its real capacity. Measurement happens after the new task joins the request, including system instructions and tool definitions. Compaction can therefore precede the main request. TokenMeter may estimate usage; the target is not an exact tokenizer or losslessness guarantee.
+Percentage admission is `max(0, min(window × trigger ratio, window − output reserve − safety space) − early-check space)`. When enabled, the absolute trigger further caps admission without another early deduction. In custom mode only, the effective occupancy cap is the minimum of percentage target, 80% of percentage admission and the enabled absolute target. The model window remains its real capacity. Measurement happens after the new task joins the request, including system instructions and tool definitions. Compaction can therefore precede the main request. TokenMeter may estimate usage; the target is not an exact tokenizer or losslessness guarantee.
 
 Summaries use the session's actual model and reasoning effort. They can incur provider charges and alter cache reuse. A checkpoint captures the goal, constraints, completed work, pending work, evidence, next action and uncertainties. Structural validation cannot guarantee semantic fidelity. Failure, cancellation, incomplete output, no reduction or exhausted passes stop the attempt instead of retrying indefinitely. Already committed tool pruning is not rolled back; original events remain queryable.
 
@@ -86,14 +100,14 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 - Disable the whole Bundle in plugin management and restart as directed by the host. Use the same manager to uninstall after active tasks finish. For CLI/Web, use `dsh plugin --profile my-context remove @missher/dsh-context-manager`.
 - Removing or disabling the Bundle's overlay and restarting lets the host recreate its original presets and compactor. Restore Basic compactor references in any custom presets you edited before uninstalling. Do not remove only one of the three internal entries.
 - There is no uninstall cleanup hook. Session logs retain original events, committed summaries and source references; this plugin does not actively delete them on uninstall. Completed compactions are not automatically reversed. Original content remains accessible through host queries or this inspector.
-- Host `storageDomain` stores `context_manager_idle` for idle qualifications/status and `context_manager_summaries` for summary-call status/reported usage. Failed summary raw output is not persisted; successfully committed output and references are in session logs. Unknown usage is not zero.
+- Host `storageDomain` stores `context_manager_idle` for idle qualifications/status and `context_manager_summaries` for summary-call status/reported usage, and `context_manager_cycles` for request hashes, original-source watermarks and durable call permits. Failed summary raw output is not persisted; successfully committed output and references are in session logs. Unknown usage is not zero.
 - Back up the target profile, plugin storage domains and session directory when upgrading or rolling back, not just the `.tgz`. No session migration is added by these metadata domains. The plugin does not maintain MSE long-term learning data or add a separate analytics endpoint. Summary input is sent through the host to the selected provider; host telemetry follows host settings.
 
 ## Validation and limitations
 
-Historical evidence from 2026-10-03 includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A subsequent Intel macOS daily installation confirmed three active entries and read-only RPC.
+This release passed enhanced-SDK build and Host/Client type checks, 235 tests (two old-only cases run separately), natural old-SDK 48/48, and 40 independent targeted tests. Isolated integration and Intel macOS daily installation passed: all 175 enabled Loader entries were active and 11 served client files matched. No real model was called. Exact package/source bindings and validation layers are in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md).
 
-These are separate, dated validation layers, not fresh acceptance on every platform. Real-provider summary quality, long-task semantic retention, and native Windows/Linux execution remain unverified. Compaction retries do not completely rerun the host's dynamic `preStep` rule/plan assembly; files and task state must be checked through existing tools as needed. See the repository's [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification).
+Synthetic long-task replay checks the protocol, source lookups, spacing, pairing and accounting, not real-provider summary fidelity, throughput or economic benefit. Complete Windows/Ubuntu Desktop, Apple Silicon and other upstream builds require separate acceptance. Compaction retries do not rerun all host dynamic `preStep` rule/plan assembly; check files and task state through existing tools as needed. Historical [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification) retain their original scope.
 
 ## Independent development
 

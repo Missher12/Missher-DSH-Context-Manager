@@ -1,19 +1,24 @@
 {
-  "version": "0.8.0-local.9",
+  "version": "0.9.0-local.1",
   "sourceRepository": "Missher12/Missher-DSH-Context-Manager",
-  "baseCommit": "827de76d73b6ac0da3a778991ed666e45a3929c7",
-  "acceptedPackageSha256": "8a8b878b36b37fb9f356237e511df5b1513dc970ca817314e2b3573eea8d923b",
-  "behaviorValidatedPackageSha256": "0059473e1b165218bf678e717a3fddcfb6140cf5be7d54f260ca82b3cb1cfd01",
-  "frozenSourceBindingSha256": "caabf464ec9cfaa25f39029f6696ca8ad4d30d40cfada66b018f6dfec1a52d3d",
-  "publicationSourceBindingSha256": "66f51bd2092ae1ce438b12add90bf9376da2b309a3dccf57f7d23300c1ab3144",
+  "baseCommit": "77eb6d3424bce3cdc21239454f35644e714b8bfa",
+  "acceptedPackageSha256": "0f693c0b82b40d9b3cffcfab5d3abdd8079342b005f3372d53cb895edd406fcc",
+  "behaviorValidatedAndInstalledPackageSha256": "07dcec382c5a0956d40281b6d38b234d4a633c3a172b52967709a3466cdc2faf",
+  "frozenSourceBindingSha256": "b29a131b7bd2cbfdab91443bde4fbd80f21c38ba1f2bda847bbdb6decaea012d",
+  "publicationSourceBindingSha256": "bdb8adfa28451d1d67d3527306c6ad67537439646a74e36f574aaf15748b8868",
+  "publicationSourceBindingScope": "Frozen 141 paths excluding this self-referential GIT_DELIVERY.json; publication docs/evidence not in the frozen set are tracked by Git.",
   "runtimeFiles": [
     {
       "path": "lib/chart-data.js",
-      "sha256": "265cf3ec203a0914827c958c482b628bd53e617a65b2336a63b82b88556f9bea"
+      "sha256": "758c64d2722904eb30a27e0a410ac70d3d9f64f676a393a871ff08a6f9991ff4"
     },
     {
       "path": "lib/client.js",
-      "sha256": "8d857fd50a9ba8c8c4a6d8e0ba72335b7264dde9d367d2d65d0b02deffddbe99"
+      "sha256": "a59ece8dcdbb51d8de11392839a289862b0d4ac5134ac8629a4e9863c56c6ccf"
+    },
+    {
+      "path": "lib/compaction-cycles.js",
+      "sha256": "b9e929a463ffbcb5d9d446080a3217c4dfa81acc6bc0079712c84d153843684b"
     },
     {
       "path": "lib/diagnostics.js",
@@ -21,11 +26,15 @@
     },
     {
       "path": "lib/engine.js",
-      "sha256": "86dbd86779f2d0ec87488f4d3a05cf95bde02e2b5cba489e22dd02d1ed3eabae"
+      "sha256": "ed742bd7847f194bbd78413fcba5adfe6f31f4b3ca37bd23a28d09a866e83db2"
+    },
+    {
+      "path": "lib/history-tools.js",
+      "sha256": "65d63ea58f56e954ae7c76b25ab7f2dfca629eb7a8fda228f835f6c5a0d4187e"
     },
     {
       "path": "lib/index.js",
-      "sha256": "32ca9a7e09af6f34faa9e2edc36a9c8d85e2a3f5be2328d21eb8a57d2e689a6d"
+      "sha256": "4d8a6409b7e2b8bd00b50ff16f8030f26261c630d6e4e481bbbc4e966a0dc173"
     },
     {
       "path": "lib/inspector-fold.js",
@@ -33,22 +42,31 @@
     },
     {
       "path": "lib/inspector.js",
-      "sha256": "9e7f1aab054da2c1f6ae1e3c983f886c9e7c62ca7846138c6fd5b75263b0baca"
+      "sha256": "282e0b19dd5353b8e323e7fe3494855225670bbc3dae267c185f72c3ab415896"
     },
     {
       "path": "lib/policy.js",
-      "sha256": "af8dc6430da15e78d69e188e449bbc6fab25a445c59789434b82d7d22ffcb9b2"
+      "sha256": "1530c1c9d655e7712b54c6bc01402ea35396b86c3a8ba02b083a365f27a763bf"
     },
     {
       "path": "lib/typert.js",
-      "sha256": "63a50135482eb41636b85cd9f772d49e23eb54b473042358bbe91686c70161e1"
+      "sha256": "a8089af307aa78d49d6315ba0b917ee1f360215db646d8f2715e311c068ad26a"
+    },
+    {
+      "path": "lib/working-set.js",
+      "sha256": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
     }
   ],
-  "runtimeMatchesFrozenPackage": true,
+  "runtimeMatchesFrozenAndInstalledPackage": true,
   "packageDocumentationChanges": [
-    "README.md",
+    "COMPATIBILITY.json",
     "README.en.md",
-    "COMPATIBILITY.json"
+    "README.md"
   ],
-  "scope": "One cross-platform plugin package. Host and user profiles are not changed by publication."
+  "additionalExportChanges": [
+    "scripts/verify-package-boundary.mjs explicit three new runtime members",
+    "AGENTS.md and PROJECT_CONTEXT.md status",
+    "PUBLICATION.md and verification receipt"
+  ],
+  "scope": "One cross-platform plugin; three packaged documentation files revised for release. All 16 other package files match the frozen and installed behavior package."
 }

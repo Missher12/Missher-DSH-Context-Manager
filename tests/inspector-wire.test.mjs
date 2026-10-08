@@ -61,3 +61,19 @@ test('actual idle codec preserves each compaction phase and accepts old response
     assert.equal(codec('idleStatus').safeParse({ ...status, compactionPhase }).success, false)
   }
 })
+
+test('actual inspect codec preserves optional admission measurements and rejects invalid meter metadata', () => {
+  const admission = { tokens: 162000, logRevision: 13, baseline: 'usage', window: 200000, outputReserve: 8192 }
+  for (const reading of [admission, { ...admission, baseline: 'estimated', window: null, outputReserve: null },
+    { ...admission, baseline: 'none', tokens: 0, outputReserve: 0 }]) {
+    const value = { ...inspection(), admission: reading }
+    assert.deepEqual(roundTrip('inspect', value), value)
+  }
+  assert.equal(Object.hasOwn(roundTrip('inspect', inspection()), 'admission'), false)
+  const { baseline, ...incomplete } = admission
+  for (const invalid of [null, incomplete, { ...admission, extra: true }, { ...admission, baseline: 'projection' },
+    { ...admission, tokens: -1 }, { ...admission, tokens: 1.5 }, { ...admission, logRevision: -1 },
+    { ...admission, window: 0 }, { ...admission, outputReserve: -1 }, { ...admission, tokens: Infinity }]) {
+    assert.equal(codec('inspect').safeParse({ ...inspection(), admission: invalid }).success, false)
+  }
+})

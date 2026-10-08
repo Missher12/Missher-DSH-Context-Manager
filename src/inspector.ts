@@ -5,6 +5,7 @@ import type { ProjectionCheckpoint, SessionProjectionRegistry } from '@deepseek-
 import type {} from '@deepseek-ai/dsh-session-query'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-token-meter/client'
+import type {} from '@deepseek-ai/dsh-token-meter'
 import type {} from '@deepseek-ai/dsh-goal'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { contextGroups } from './chart-data.ts'
@@ -12,7 +13,7 @@ import { pressureHistory } from './pressure-history.ts'
 export { pressureHistory } from './pressure-history.ts'
 import { indexContext, MAX_EVENTS } from './inspector-fold.ts'
 import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
-import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth } from './inspector-types.ts'
+import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout } from './inspector-types.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type {} from './index.ts'
 import { idleQuerySchema } from './inspector-wire.ts'
@@ -76,6 +77,32 @@ export class ContextInspector extends TypertRemoteService {
     const query = idleQuerySchema().parse(input)
     return this.ctx.contextManager.idleStatus(query.sessionId)
   }
+  private admission(sessionId: string, cut: number): AdmissionReadout | undefined {
+    // get() reads existing services/sessions only. Never load an Agent, resolve
+    // a provider model, or substitute the approximate status projection here.
+    const meter = this.ctx.get('tokenMeter')
+    if (!meter) return
+    const session = this.ctx.sessions.get(SessionId(sessionId))
+    if (!session) return
+    try {
+      const measurement = meter.measure(session)
+      if (measurement.logRevision !== cut + 1 || !Number.isSafeInteger(measurement.totalTokens)
+        || measurement.totalTokens < 0) return
+      const config = session.requestHeader()?.config
+      const context = session.requestContext()
+      const sameRoute = config !== undefined && context !== undefined
+        && context.provider === config.provider && context.model === config.model
+      const window = sameRoute ? context.contextWindow : undefined
+      const outputReserve = config?.maxTokens
+      return { tokens: measurement.totalTokens, logRevision: measurement.logRevision, baseline: measurement.baseline.kind,
+        window: typeof window === 'number' && Number.isSafeInteger(window) && window > 0 ? window : null,
+        outputReserve: typeof outputReserve === 'number' && Number.isSafeInteger(outputReserve) && outputReserve >= 0 ? outputReserve : null }
+    } catch {
+      // Missing route pricing or a disappearing live session makes admission
+      // unknown; the read-only historical/projection view remains available.
+      return undefined
+    }
+  }
   private async read<T>(sessionId: string, atSeq: number | null, signal: AbortSignal, mode: 'all' | 'none', use: (observation: SessionObservation, cut: number, index: ReturnType<typeof indexContext>) => T): Promise<T> {
     const cancel = AbortSignal.any([signal, this.lifetime.signal, AbortSignal.timeout(12000)])
     const observation = await this.ctx.sessionQuery.observeSession(SessionId(sessionId), { signal: cancel, projectionMode: mode })
@@ -98,6 +125,7 @@ export class ContextInspector extends TypertRemoteService {
       const official = values?.contextBreakdown
       const usage = values?.tokenUsage
       const goalState = values?.goal
+      const admission = query.atSeq === null ? this.admission(query.sessionId, cut) : undefined
       const summary = query.atSeq === null ? this.ctx.contextManager.summaryLedger?.stats(query.sessionId) : undefined
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
@@ -113,6 +141,7 @@ export class ContextInspector extends TypertRemoteService {
       const config = index.header?.config
       return { sessionId: query.sessionId, cursor: observation.cursor, cutSeq: cut, sampledAt: Date.now(), historical: query.atSeq !== null,
         pressure: query.atSeq === null && typeof pressure?.projectedTokens === 'number' && typeof pressure.pressureTokens === 'number' ? { projected: pressure.projectedTokens, input: pressure.pressureTokens, window: pressure.contextWindow ?? null } : null,
+        ...(admission ? { admission } : {}),
         official: query.atSeq === null && official ? { system: official.systemTokens, tools: official.toolsTokens, messages: official.messageTokens } : null,
         usage: query.atSeq === null && usage ? { input: usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens, output: usage.outputTokens, cacheRead: usage.cacheReadTokens, uncached: usage.uncachedInputTokens, cacheWrite: usage.cacheWriteTokens } : null,
         ...(summary ? { summaryUsage: { input: summary.input, output: summary.output, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts, since: summary.since } } : {}),

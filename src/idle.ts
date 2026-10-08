@@ -280,7 +280,7 @@ export class IdleCompactor {
         this.assertReady(agent, entry, epoch, generation, route, current)
         if (entry.idleSince + current.idleMinutes * 60000 > Date.now()) throw new IdleSkipped('delay_changed', '闲置时长已调整，等待下次检查')
         before = this.ctx.tokenMeter.measure(agent.session).totalTokens
-        const minimumPercent = Math.max(current.idleMinPercent, current.targetPercent + 10)
+        const minimumPercent = current.historyMode === 'automatic' ? current.idleMinPercent : Math.max(current.idleMinPercent, current.targetPercent + 10)
         // The idle floor keeps its percentage meaning but never exceeds the
         // effective request admission (output reserve, safety, absolute soft
         // trigger included), so the settings page and both maintenance paths

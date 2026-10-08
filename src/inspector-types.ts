@@ -33,12 +33,20 @@ export interface PressurePoint {
 }
 export interface ContextDelta { fromSeq: number; toSeq: number; beforeTokens: number; afterTokens: number; deltaTokens: number }
 export interface ContextGrowth { sinceCompaction: ContextDelta | null; lastToolResult: ContextDelta | null }
+/** Same public meter used by admission, sampled only from an already-live session. */
+export interface AdmissionReadout {
+  tokens: number; logRevision: number; baseline: 'none' | 'estimated' | 'usage'
+  /** Recorded metadata for the measured route; missing values never imply zero. */
+  window: number | null; outputReserve: number | null
+}
 export type InspectedCompaction = CompactionEntry & { trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
 /** Read-only host goal projection; the context page never mutates it. */
 export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
 export interface Inspection {
   sessionId: string; cursor: number; cutSeq: number; sampledAt: number; historical: boolean
   pressure: { projected: number; input: number; window: number | null } | null
+  /** Absent for history, unloaded sessions, or an unavailable/concurrently advanced meter. */
+  admission?: AdmissionReadout
   model: { provider: string; model: string; effort: string | null; maxTokens: number | null } | null
   parts: { category: Category; tokens: number; count: number }[]
   official: { system: number; tools: number; messages: number } | null

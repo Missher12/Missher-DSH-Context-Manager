@@ -11,6 +11,8 @@ import { SummaryLedger } from './summary-ledger.ts'
 import { join, isAbsolute } from 'node:path'
 import type {} from '@deepseek-ai/dsh-app-boot'
 import { RecoveryJournal } from './recovery-journal.ts'
+import { CompactionCycles } from './compaction-cycles.ts'
+import { registerHistoryTools } from './history-tools.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextManager: ContextManager } }
 export interface Config { policy: Volatile<Policy> }
@@ -20,6 +22,7 @@ export default class ContextManager extends Service {
   static inject = ['storageDomain']
   idleStore!: IdleStore
   summaryLedger!: SummaryLedger
+  compactionCycles!: CompactionCycles
   supportsSafeShutdown = false
   private idleActive = false
   private readonly idleReaders = new Map<string, () => IdleStatus>()
@@ -28,6 +31,8 @@ export default class ContextManager extends Service {
   static Config = z.object({
     policy: z.object({
       enabled: z.boolean().default(defaults.enabled),
+      historyMode: z.union([z.const('automatic'), z.const('custom')]).default(defaults.historyMode),
+      recentTokens: z.number().min(1000).max(128000).step(1).default(defaults.recentTokens),
       triggerPercent: z.number().min(50).max(95).default(defaults.triggerPercent),
       targetPercent: z.number().min(10).max(75).default(defaults.targetPercent),
       earlyPercent: z.number().min(0).max(5).default(defaults.earlyPercent),
@@ -50,6 +55,7 @@ export default class ContextManager extends Service {
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'contextManager')
     this.snapshot()
+    registerHistoryTools(ctx)
     ctx.inject(['sessionProjections'], child => {
       child.sessionProjections.register(diagnosticsProjection)
     })
@@ -67,8 +73,10 @@ export default class ContextManager extends Service {
     try {
       this.idleStore = await IdleStore.open(this.ctx.storageDomain, journal)
       this.summaryLedger = await SummaryLedger.open(this.ctx.storageDomain, journal)
+      this.compactionCycles = await CompactionCycles.open(this.ctx.storageDomain)
     } catch (error) {
-      try { await this.idleStore?.close() } finally { journal?.close() }
+      try { await this.summaryLedger?.close() }
+      finally { try { await this.idleStore?.close() } finally { journal?.close() } }
       throw error
     }
     let closing: Promise<void> | undefined
@@ -77,8 +85,8 @@ export default class ContextManager extends Service {
       // engines before closing shared stores; registration order is not a lock.
       const outcomes = await Promise.allSettled([...this.drains].map(drain => drain()))
       try {
-        try { await this.summaryLedger.close() }
-        finally { await this.idleStore.close() }
+        try { await this.compactionCycles.close() }
+        finally { try { await this.summaryLedger.close() } finally { await this.idleStore.close() } }
       } finally { journal?.close() }
       const errors = outcomes.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       if (errors.length) throw new AggregateError(errors.map(result => result.reason), '上下文压缩收尾未完成')
@@ -93,6 +101,7 @@ export default class ContextManager extends Service {
         // honor the same idempotent consumer drain before closing its units.
         releases.push(facility.registerDrain('context_manager_summaries', close))
         releases.push(facility.registerDrain('context_manager_idle', close))
+        releases.push(facility.registerDrain('context_manager_cycles', close))
         this.supportsSafeShutdown = true
       } catch (error) { this.ctx.logger.warn('宿主存储排空不可用，使用插件恢复日志：%s', error) }
     }

@@ -11,15 +11,30 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前版本为 **0.8.0-local.9**。这是可单独安装的 Cordis Bundle；[本版下载与验证范围](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)说明旧宿主适配、安装和数据备份。本仓库自带对应的九个预构建运行文件。
+包名为 `@missher/dsh-context-manager`，当前版本为 **0.9.0-local.1**（预发布）。这是可单独安装的 Cordis Bundle，仓库与安装包均包含对应的十二个运行文件；[本版下载与验证范围](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)列出安装、备份与验收结果。
 
-本版新增：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
+继续保留：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
+
+
+### 0.9 工作集压缩
+
+默认采用自动工作集：近期原文预算 20K、摘要输出上限 8,192 Token，系统指令、工具定义和最新任务单独计量。近期预算是偏好，空间不足时按完整工具组缩减；并非把压后总量固定在 50% 或 100K。用户仍可选择自定义百分比／绝对占用上限，保存的旧值不会丢失。
+
+压缩前检查整个保留部分能否入线；摘要完成后再次校验带包装的完整占用和净收益，不满足即保留原文。已有安全裁剪接口时先整理已完成的旧文本工具结果；错误、富媒体和近期内容保留。同一批原文跨步骤、跨重启最多领取两个主摘要计划、四次模型调用；需要足够新增原文才开启下一周期，相同请求不自动重发。人工重试仍受单事务四次调用和一次格式修复限制。许可记录不等于费用：实际调用仍逐次进入原用量账本。
+
+新增同会话原文工具 `context_history_search`、`context_history_read`，分页读取已被压缩／裁剪的原始文本及精确位置，不写 MSE、不访问其他会话、不使用向量服务。只覆盖文本，非全文索引；每次最多扫描 200 个事件／32,768 字符，输出 JSON 不超过 8,000 字符，可分页的未覆盖尾部给出继续位置；超过单事件块数或日志上限时明确拒绝。
+
+上下文面板保留 DSH 原生布局。当前准入读实际 TokenMeter；历史、未加载或缺少输出预留时显示未知，趋势保留估算口径。真实模型摘要保真仍需单列验收，结构合法和内容变短不构成保真证明。
+
+### 保留的 local.9 通用恢复修复
+
+同一个插件包用于各平台。修复 Windows 恢复日志初始化的目录 `fsync` 错误，并保留普通文件刷新失败时的拒绝行为；POSIX 仍刷新目录。Windows 的发布文件会在原子替换后以可写句柄再次刷新，日志锁、幂等补记、取消与任务原文保护不变。Windows 权限继承 profile 的 ACL，不能用 `0700/0600` 声称等同 POSIX 权限或承诺突然断电的目录耐久性。完整桌面/用户会话验收与原生文件系统测试分开记录。
+
+摘要错误现保留原生故障类型，允许宿主既有图片卸载钩子识别明确的图片超限；不会把任意错误都变成自动重试。每次实际摘要调用继续分别记账。
 
 ## 宿主与平台
 
-本版使用同一个插件包支持跨平台恢复。已在 Windows、Ubuntu、macOS 原生文件系统上执行恢复日志专项，旧版 Windows 的 `EPERM fsync` 已复现并修复；macOS Intel 上完成旧／增强 SDK 的完整及专项回归。具体检查和未覆盖的层级见[发布说明](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。用户设备的完整桌面操作、其他官方发行版和真实模型摘要质量仍需分别验证。
-
-插件继续自行处理提交前取消、选区和用量恢复，不需要新增宿主补丁。新增修复保留供应商的错误类型，让现有图片超限恢复钩子可以正常处理；普通失败和取消不会因此自动重试。
+本版在 macOS Intel 上通过增强 SDK 237 项（235 通过，2 项旧 SDK 专用）和自然旧 SDK 48/48 回归；并在当前 Missher 定制 rc.2 桌面完成整组加载、实际安装、重启和只读 RPC 检查。local.9 的三端原生恢复日志回归是历史证据，新工作集的 Windows/Ubuntu 完整桌面与真实模型验收仍单列。详见[发布说明](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
@@ -34,18 +49,16 @@ kind: "package-bundle"
 
 ## 安装与更新
 
-如果此前在 Windows 看到 `EPERM ... fsync`，并伴随 `contextManager`、`compaction` 等待错误，请更新现有插件后完整退出并重开 DSH，再恢复原会话。无须删除原会话或恢复日志，也无须另装一个 Windows 专用插件。
-
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：先备份当前 profile 及数据，再进入 **插件 → 添加插件**，选择 [local.9 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz) 或填写该下载地址，按应用提示重新加载或重启。已有同名插件时更新该插件，不需要再装兼容包或更换宿主来获取上述三个新增接口。安装包没有安装期构建脚本。
+桌面端：等待任务结束并备份 profile 与数据，进入 **插件 → 添加插件**，选择 [0.9 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz) 或填写该下载地址，更新现有同名插件。无需安装 SDK、本机编译或另装兼容插件；没有安装期构建脚本。
 
-备份必须一起保留 `.context-manager-recovery`、`context_manager_idle`、`context_manager_summaries` 及会话数据。恢复日志可能保存旧宿主关闭存储后的已知用量，不能为了排错直接删除。
+备份须同时保留会话、`context_manager_idle`、`context_manager_summaries`、新增的 `context_manager_cycles` 和 profile 内 `.context-manager-recovery`。回滚后保留周期元数据，避免再次升级时丢失防重复记录；不要用旧备份覆盖后续工作。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.9.0-local.1/missher-dsh-context-manager-0.9.0-local.1.tgz
 ```
 
 安装前保留旧包与配置，等待任务结束；更新后**完整退出并重启目标应用或 profile**。检查插件版本及三个入口 `context-manager`、`context-manager-engine`、`context-manager-inspector` 全部运行，再打开会话顶部“轨迹”后的“上下文”。旧进程可能缓存包导出表，仅刷新页面或切换开关不能替代重启。不要同时启用旧包名与新包名。
@@ -67,17 +80,19 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 | 参数 | 默认值 |
 | --- | --- |
 | 自动压缩总开关 | 开启 |
-| 触发占用 / 目标占用 | 80% / 55% |
+| 触发占用 / 保留策略 | 80% / 自动工作集 |
+| 近期原文偏好 / 摘要输出上限 | 20K / 8,192 Token |
+| 自定义占用上限（默认不生效） | 保存 55%，仅自定义模式启用 |
 | 提前检查 / 安全空间 | 1% / 2% |
-| 摘要输出上限 | 8192 Token，另受实际模型及请求上限约束 |
 | 每请求最多压缩 / 单次摘要超时 | 2 次 / 90 秒 |
 | 闲置整理 / 闲置时长 | 开启 / 15 分钟 |
-| 闲置最低占用 | 百分比基线为 max(65%, 目标 + 10%)，最终不超过有效检查线 |
-| 绝对工作历史软预算 | 默认关闭；启用起点为 200,000 → 100,000 Token |
+| 闲置最低占用 | 自动模式为 65%；自定义为 max(65%, 目标 + 10%)，最终不超过有效检查线 |
+| 绝对软触发 | 默认关闭；保存的起点 200,000 Token；启用后自动模式也生效 |
+| 绝对压后占用上限 | 保存 100,000 Token，仅自定义模式且绝对预算开启时生效 |
 | 格式修复 / 修复输出上限 | 开启 / 2048 Token，同一事务最多一次 |
 | 额外摘要重点 | 空，最多 2000 字符 |
 
-百分比检查线为 `max(0, min(窗口 × 触发比例, 窗口 − 输出预留 − 安全空间) − 提前检查空间)`；启用绝对预算后再与绝对软触发取较小值，不重复扣除提前量。目标取百分比目标、百分比检查线的 80% 与启用的绝对软目标中的较小值。200k → 100k 是验证起点，不是模型容量或最优性承诺。它在新任务已经进入请求后测量，包括系统指令、工具定义等；必要时先整理再执行主请求。TokenMeter 可能使用估算值，目标占用不是精确分词或无损承诺。
+百分比检查线为 `max(0, min(窗口 × 触发比例, 窗口 − 输出预留 − 安全空间) − 提前检查空间)`；启用绝对预算后再与绝对软触发取较小值，不重复扣除提前量。自动模式基于当前固定内容、受保护任务、近期原文和摘要规划总占用，不套用固定压后比例。自定义模式另受百分比目标、百分比检查线的 80% 与启用的绝对软目标中的较小值约束。旧 200k → 100k 仅为早期验证起点。它在新任务已经进入请求后测量，包括系统指令、工具定义等；必要时先整理再执行主请求。TokenMeter 可能使用估算值，目标占用不是精确分词或无损承诺。
 
 摘要使用会话的实际模型和推理级别，可能产生 API 费用并改变缓存命中。摘要包含目标、约束、完成、待办、证据、下一步与未知事项；结构校验不保证语义无损。失败、取消、未完成、没有缩减或超过次数时停止本次尝试，不无限重试。已提交的工具整理不会因此撤销，原始记录仍可查询。
 
@@ -92,14 +107,14 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 - 禁用/移除 Bundle 的配置叠加后，重启让宿主重新创建原预设与压缩器。若自己在自定义预设中引用了本插件，卸载前先恢复相应 Basic 压缩器引用。不要仅删除三个内部入口中的某一个。
 - 插件没有卸载清理脚本。会话、成功摘要及来源引用继续由宿主会话日志保存；不会因卸载本包而主动删除。已完成的压缩不会自动逆转，原文可通过宿主查询或本插件追溯。
 - profile 内 `.context-manager-recovery` 只保存尚未确认写入的用量及闲置元数据，不保存对话正文。重启核验旧行后按相同 attempt ID 补记；不重发模型、不重复收费。冲突、损坏或独占锁不明会拒绝继续。旧宿主退出后才到达、插件从未收到的用量仍标未知。
-- 元数据保存在宿主 `storageDomain` 的 `context_manager_idle`（闲置资格/状态）及 `context_manager_summaries`（摘要调用状态/实报用量）中。失败摘要原始输出不持久化；成功提交的输出与来源保存在会话日志中。未知用量不是零。
+- 元数据保存在宿主 `storageDomain` 的 `context_manager_idle`（闲置资格/状态）及 `context_manager_summaries`（摘要调用状态/实报用量），以及 `context_manager_cycles`（请求哈希、原始来源水位和调用许可）中。失败摘要原始输出不持久化；成功提交的输出与来源保存在会话日志中。未知用量不是零。
 - 升级或回滚应完整备份目标 profile、插件数据域和会话目录；不要只保存 `.tgz`。元数据域没有新增会话迁移。此插件不维护 MSE 长期学习库，也不自带独立分析上报端点；摘要内容经宿主发送给所选模型提供方。宿主自身遥测遵循宿主设置。
 
 ## 验证与限制
 
-历史验证基线（2026-10-03）：真实 AgentLoop/JSONL/存储配合模拟模型，115 项通过；命名修订后 20 项针对性测试通过。定制 rc.2 隔离 Loader/RPC 和受控 Web 深浅主题、1280/800/335px、原文分页、无发送区及卡片等高通过。随后日常 macOS Intel 安装确认三个入口激活及只读 RPC 正常。
+本轮完成增强 SDK 构建与 Host/Client 类型检查、235 项通过（2 项旧环境专用另跑）、自然旧 SDK 48/48、协调者独立 40/40，以及当前桌面隔离整组加载和 macOS 实际安装。日常 175 个启用项全部 active、11 份前端字节匹配；没有调用真实模型。版本、绑定哈希与分层结果见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
 
-这些是分层的历史证据，不代表本次发行在所有平台重新验收。未证明真实模型摘要质量、长期任务语义保留或 Windows/Linux 原生运行。压缩后重试也不会完整重跑宿主 `preStep` 的动态规则/计划装配，需要通过现有工具按需核验文件与任务状态。报告见仓库 [verification](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification)。
+合成长任务回放验证了压缩间隔、来源回查、配对及计费协议；不能证明真实模型摘要的信息保真、吞吐或收益。Windows/Ubuntu 完整桌面、Apple Silicon 和其他官方宿主需要各自验收。压缩后重试不会完整重跑宿主 `preStep` 动态装配，需要用现有工具核实文件和任务状态。历史证据保存在 [verification](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification)。
 
 ## 独立开发
 

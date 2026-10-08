@@ -295,7 +295,9 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     await act(async () => buttons().find(b => b.textContent === '保存设置').click())
     assert.equal(writes.length, 1); assert.equal(writes[0].revision, 4)
     assert.equal(writes[0].ops[0].value.triggerPercent, 70)
-    assert.equal(writes[0].ops[0].value.targetPercent, 40)
+    assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'trigger presets preserve the saved custom cap')
+    assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
+    assert.equal(writes[0].ops[0].value.recentTokens, 20000)
     assert.match(document.body.textContent, /已保存/)
     await act(async () => document.querySelector('[role="switch"]').click())
     assert.equal(document.querySelector('#context-manager-idleMinutes').disabled, true)
@@ -436,6 +438,7 @@ test('current context shows one full 1M window and every K bucket without a basi
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
     pressure: {window:1000000,projected:320000,input:310000}, official: null, usage: null, model: {provider:'mock',model:'large',maxTokens:64000,effort:null},
+    admission: {tokens:320000,logRevision:3,baseline:'usage',window:1000000,outputReserve:64000},
     parts: [{category:'summary',tokens:30000,count:1},{category:'tool',tokens:200000,count:1},{category:'user',tokens:50000,count:1},{category:'system',tokens:20000,count:1}],
     rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 4, archivedCount: 0, requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
   const formValue = { revision: 1, value: { policy: defaults } }
@@ -465,6 +468,49 @@ test('current context shows one full 1M window and every K bucket without a basi
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
+test('request status uses live admission pressure, leaves unknown cuts unknown and preserves projection trends', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const base = { sessionId: 'admission', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
+    pressure: { window: 200000, projected: 100000, input: 99000 }, official: null, usage: null,
+    model: { provider: 'offline', model: '200k', maxTokens: 8192, effort: null }, parts: [], rows: [],
+    total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, compactions: [],
+    pressureHistory: [{ seq: 2, time: 1000, kind: 'current', tokens: 100000, window: 200000 }] }
+  const reading = { tokens: 170000, logRevision: 3, baseline: 'usage', window: 200000, outputReserve: 8192 }
+  const formValue = { revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => formValue }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const root = createRoot(document.getElementById('root'))
+  const render = async snapshot => {
+    const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async () => snapshot }
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'admission', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+  }
+  const status = () => document.querySelector('.cmv-quick > article')
+  try {
+    await render({ ...base, admission: reading })
+    assert.match(status().textContent, /预计先压缩，再执行/)
+    assert.equal(status().querySelector('[data-admission-tokens]').dataset.admissionTokens, '170000')
+    assert.match(status().textContent, /检查线 158\.0K/)
+    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /100,000/)
+    assert.match(document.querySelector('.cmv-meta').textContent, /自动工作集/)
+    assert.doesNotMatch(document.querySelector('.cmv-meta').textContent, /目标 55%/)
+    await render({ ...base, pressure: { ...base.pressure, projected: 190000 }, admission: { ...reading, tokens: 50000 } })
+    assert.match(status().textContent, /预计可继续执行/)
+    for (const snapshot of [base, { ...base, admission: { ...reading, outputReserve: null } },
+      { ...base, admission: { ...reading, window: null } }]) {
+      await render(snapshot)
+      assert.match(status().textContent, /等待完整参数/)
+      assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
+      assert.match(status().textContent, /检查线 —/)
+    }
+    await render({ ...base, admission: reading, historical: true })
+    assert.match(status().textContent, /历史截面/)
+    assert.match(status().textContent, /准入计量 未知/)
+    assert.equal(status().querySelector('[data-admission-tokens]'), null)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
 test('settings renders the absolute soft budget and repair controls with explainable preview and validation', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -474,9 +520,10 @@ test('settings renders the absolute soft budget and repair controls with explain
   try {
     await act(async () => root.render(React.createElement(client.ContextPage, { form })))
     const trigger = document.querySelector('#context-manager-absoluteTriggerTokens')
-    const target = document.querySelector('#context-manager-absoluteTargetTokens')
     const repair = document.querySelector('#context-manager-formatRepairMaxTokens')
-    assert.ok(trigger && target && repair, 'new controls must render')
+    assert.ok(trigger && repair, 'trigger and repair controls render in automatic mode')
+    assert.equal(document.querySelector('#context-manager-targetPercent'), null)
+    assert.equal(document.querySelector('#context-manager-absoluteTargetTokens'), null, 'inactive saved caps are hidden')
     assert.equal(trigger.disabled, true, 'absolute fields start blocked until the strategy is enabled')
     const toggle = [...document.querySelectorAll('.cm-row')].find(row => row.textContent.includes('绝对工作历史软预算'))?.querySelector('button[role="switch"]')
     assert.ok(toggle, 'absolute budget toggle renders')
@@ -485,11 +532,66 @@ test('settings renders the absolute soft budget and repair controls with explain
     // The example window must exceed the absolute trigger for it to bind.
     await act(async () => Simulate.change(document.querySelector('#context-manager-example'), { target: { value: '1000000' } }))
     await act(async () => Simulate.change(trigger, { target: { value: '200000' } }))
+    assert.match(document.querySelector('.cm-native-example .cm-hint').textContent, /自动工作集.*20,000/)
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '自定义占用上限').click())
+    const target = document.querySelector('#context-manager-absoluteTargetTokens')
+    assert.ok(target)
+    assert.equal(target.disabled, false)
     await act(async () => Simulate.change(target, { target: { value: '100000' } }))
     const preview = document.querySelector('.cm-native-example .cm-hint').textContent
     assert.match(preview, /绝对软预算/)
     assert.match(preview, /200,000/)
     await act(async () => Simulate.change(target, { target: { value: '170000' } }))
     assert.match(document.querySelector('.cm-error')?.textContent ?? '', /至少低 20%/)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('settings migrates a legacy draft, preserves custom caps across modes and validates the recent-history budget', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const { historyMode, recentTokens, ...legacy } = defaults
+  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 12,
+    value: { policy: { ...legacy, targetPercent: 45, absoluteEnabled: true, absoluteTargetTokens: 120000 } } }
+  const listeners = new Set(); const writes = []
+  const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
+    async mutate(ops, revision) {
+      writes.push({ ops, revision }); snapshot = { ...snapshot, revision: 13, value: { policy: ops[0].value } }
+      listeners.forEach(cb => cb()); return true
+    } }
+  const root = createRoot(document.getElementById('root'))
+  const button = label => [...document.querySelectorAll('button')].find(node => node.textContent === label)
+  const click = async label => act(async () => button(label).click())
+  const edit = async (key, value) => act(async () => Simulate.change(document.getElementById(`context-manager-${key}`), { target: { value } }))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
+    assert.equal(button('自动工作集').getAttribute('aria-pressed'), 'true')
+    assert.equal(document.getElementById('context-manager-recentTokens').value, '20000')
+    assert.equal(document.getElementById('context-manager-targetPercent'), null)
+    await click('提前整理 · 70%')
+    await click('自定义占用上限')
+    assert.equal(document.getElementById('context-manager-targetPercent').value, '45')
+    assert.equal(document.getElementById('context-manager-absoluteTargetTokens').value, '120000')
+    await edit('targetPercent', '50'); await edit('absoluteTargetTokens', '130000')
+    for (const invalid of ['999', '128001', '20000.5', '']) {
+      await edit('recentTokens', invalid)
+      assert.equal(button('保存设置').disabled, true, `invalid recent-history budget: ${invalid}`)
+      assert.ok(document.querySelector('[role="alert"]'))
+      assert.equal(writes.length, 0)
+    }
+    await edit('recentTokens', '24000')
+    await click('自动工作集')
+    assert.equal(document.getElementById('context-manager-targetPercent'), null)
+    assert.equal(document.getElementById('context-manager-absoluteTargetTokens'), null)
+    await click('保存设置')
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].revision, 12)
+    assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
+    assert.equal(writes[0].ops[0].value.recentTokens, 24000)
+    assert.equal(writes[0].ops[0].value.targetPercent, 50)
+    assert.equal(writes[0].ops[0].value.absoluteTargetTokens, 130000)
+    assert.equal(writes[0].ops[0].value.absoluteEnabled, true, 'automatic mode preserves the independent absolute trigger')
+    await click('自定义占用上限')
+    assert.equal(document.getElementById('context-manager-targetPercent').value, '50')
+    assert.equal(document.getElementById('context-manager-absoluteTargetTokens').value, '130000')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })

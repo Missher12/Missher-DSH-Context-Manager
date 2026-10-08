@@ -32,7 +32,7 @@ import { diagnosticsProjection } from '../lib/diagnostics.js'
 class Adapter extends LlmAdapter {
   order = []; requests = []; summaries = []; work = 0
   constructor(options = {}) { super(); this.options = options }
-  async resolveModel(provider, model) { return { provider, id: model, name: model, context: { contextWindow: model === 'small' ? 6000 : 10000 }, reasoning: { efforts: [{ id: 'high', name: 'High' }] } } }
+  async resolveModel(provider, model) { return { provider, id: model, name: model, context: { contextWindow: model === 'small' ? 6000 : this.options.contextWindow ?? 10000 }, reasoning: { efforts: [{ id: 'high', name: 'High' }] } } }
   imageRequestPricing() { return { priceImages: images => images.map(() => ({ visualTokens: 7000, text: 'image handle' })) } }
   providerRetryPolicy() { return resolveRetryPolicy(this.options.mainFail ? { mode: 'normal', maxRetries: 0 } : { mode: 'always', backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 } }, 'test') }
   async *stream(options) {
@@ -54,9 +54,9 @@ class Adapter extends LlmAdapter {
     if (this.options.overflow && this.requests.length === 1) {
       yield { type: 'finish', reason: { kind: 'error', failure: { code: 'CONTEXT_WINDOW_EXCEEDED', message: 'provider window exhausted' } } }; return
     }
-    if (this.options.tools && this.requests.length === 1) {
+    if ((this.options.tools && this.requests.length === 1) || this.requests.length <= (this.options.toolOutputs?.length ?? 0)) {
       yield { type: 'block-start', index: 0, blockType: 'tool-call' }
-      yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('work-1'), name: 'work', arguments: '{}' } }
+      yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId(`work-${this.requests.length}`), name: 'work', arguments: '{}' } }
       yield { type: 'finish', reason: { kind: 'tool-calls' } }; return
     }
     yield { type: 'block-start', index: 0, blockType: 'text' }
@@ -103,7 +103,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   }
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
-  ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; adapter.order.push('tool'); return [{ type: 'text', text: options.toolOutput ?? 'tool complete' }] } }))
+  ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; adapter.order.push('tool'); return [{ type: 'text', text: options.toolOutputs?.[adapter.work - 1] ?? options.toolOutput ?? 'tool complete' }] } }))
   const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' }, ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
   return { ctx, adapter, agent }
 }
@@ -296,7 +296,7 @@ test('79.9% is inside the early admission boundary; output reservation can lower
   assert.equal(budget(defaults, 100000, 8000).admission, 79000)
   assert.ok(79900 >= budget(defaults, 100000, 8000).admission)
   assert.equal(budget(defaults, 100000, 25000).admission, 72000)
-  assert.throws(() => validatePolicy({ ...defaults, targetPercent: 75 }))
+  assert.throws(() => validatePolicy({ ...defaults, historyMode: 'custom', targetPercent: 75 }))
 })
 
 test('real loop: summary settles before the first main call and tool; current task is unchanged and enters once', { timeout: 8000 }, async () => {
@@ -390,6 +390,62 @@ test('real loop: tool growth is checked again before the next model request', { 
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     assert.ok(adapter.summaries.length <= 2)
     completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real loop: source growth permits an older large region after compacting the later tool region', { timeout: 12000 }, async () => {
+  // At 200K, admission is 158K. The initial 80K history + protected 40K
+  // task fits. Exactly two tool calls add 100K, then 45K: the first pressure
+  // selects the later 100K group, the second selects the older 80K region.
+  const seed = history(320000)
+  const oldUser = seed.find(event => event.type === 'user/message')
+  assert.ok(oldUser)
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 200000,
+    toolOutputs: ['FIRST-TOOL-OUTPUT\n' + 'a'.repeat(400000), 'SECOND-TOOL-OUTPUT\n' + 'b'.repeat(180000)] },
+  { historyMode: 'automatic', recentTokens: 20000, idleEnabled: false }, seed)
+  const permits = []
+  ctx.on('llm/stream', async function* (options, next) {
+    if (options.purpose === 'compaction') permits.push(ctx.contextManager.compactionCycles.peek(String(agent.id)))
+    yield* next()
+  }, true)
+  try {
+    const task = message('CURRENT-TASK-MUST-STAY-VERBATIM\n' + 't'.repeat(160000))
+    agent.followup(task)
+    await agent.whenIdle()
+    completed(agent)
+    assert.equal(adapter.work, 2, 'the finite fixture executes exactly two tools')
+    assert.equal(adapter.requests.length, 3, 'the third business response finishes without another tool')
+    assert.equal(adapter.summaries.length, 2, 'each of the two distinct pressured regions needs one summary')
+    assert.deepEqual(adapter.order, ['main', 'tool', 'summary-start', 'summary-finish',
+      'main', 'tool', 'summary-start', 'summary-finish', 'main'])
+
+    const events = agent.session.snapshotEvents()
+    const taskEvent = events.find(event => event.type === 'user/message' && event.data.id === task.id)
+    const results = events.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append')
+    const summaries = events.filter(event => event.type === 'compaction/summary')
+    assert.ok(taskEvent)
+    assert.equal(results.length, 2)
+    assert.equal(summaries.length, 2, 'both paid results commit; no stale-source refusal')
+    assert.ok(summaries[0].data.shadowedSeqs.includes(results[0].seq))
+    assert.ok(summaries[0].data.shadowedSeqs.every(seq => seq > taskEvent.seq), 'first plan is after the protected task')
+    assert.ok(summaries[1].data.shadowedSeqs.includes(oldUser.seq))
+    assert.ok(summaries[1].data.shadowedSeqs.every(seq => seq < taskEvent.seq), 'second plan returns to the older region')
+    assert.ok(!summaries[1].data.shadowedSeqs.includes(results[1].seq), 'new tool output is not falsely counted as the selected old region')
+    const retained = agent.session.deriveMessages().filter(item => item.id === task.id)
+    assert.equal(retained.length, 1)
+    assert.deepEqual(retained[0].content, task.content)
+
+    assert.equal(permits.length, 2)
+    assert.equal(permits[0].cycle, 1)
+    assert.equal(permits[0].sourceWatermark, results[0].seq)
+    assert.equal(permits[1].cycle, 2, 'the newly added 45K satisfies the new-content requirement')
+    assert.equal(permits[1].sourceWatermark, results[1].seq, 'cycle watermarks follow the whole session, not selection order')
+    assert.equal(permits[1].calls, 1)
+    const usage = ctx.contextManager.summaryLedger.stats(String(agent.id))
+    assert.equal(usage.attempts, 2)
+    assert.equal(usage.input, 1500, 'two 500 input + 250 cache-read attempts are counted exactly once')
+    assert.equal(usage.output, 40)
+    assert.ok(ctx.tokenMeter.measure(agent.session).totalTokens < budget(ctx.contextManager.snapshot(), 200000, 0).admission)
   } finally { await ctx.fiber.dispose() }
 })
 

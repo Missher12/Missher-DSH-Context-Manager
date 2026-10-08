@@ -1,10 +1,20 @@
-# 2026-10-08 local.9 通用修复公开交付
+# 2026-10-08 0.9 当前安装与发布
 
-本导出为同一个跨平台 Context 插件：修复 Windows 目录刷新失败，并保留摘要供应商的错误类型以支持原有图片恢复。31 个源码文件已审查；源码、运行件、平台与宿主验证及安装边界见 [PUBLICATION.md](./PUBLICATION.md)。本仓库包含九个对应运行文件，可使用已发布 tgz；下方 local.8 及更早记录属于历史，canonical 的旧 lib 保留约束不适用于此公开导出。Git 发布不代表用户机器已经安装。
+本公开导出包含已验收的 0.9.0-local.1 源码与十二个匹配运行件。工作集压缩、周期防重复和同会话原文工具由原 Context 负责人单写；协调者独立验收并完成 macOS 日常安装。正式说明、精确包绑定和限制见 [PUBLICATION.md](./PUBLICATION.md)。下方候选、未安装及 canonical 旧 lib 约束是历史记录；canonical 脏源码及旧生成件保持，公开导出的 lib 对应本版本。不要用历史包覆盖新数据。
 
-# 2026-10-08 local.8 公开交付
+## 2026-10-08：0.9.0-local.1 自动工作集候选
 
-本公开导出包含已冻结的 `0.8.0-local.8` 源码和九个对应运行文件，发布及验证范围见 [PUBLICATION.md](./PUBLICATION.md)。取消提交检查与恢复日志由本插件承担，不再要求新增 Host 标记/排空接口。仅插件发布，不表示用户机器已安装。canonical 目录保留旧 lib 的规则不适用于本公开导出；下方候选、旧 lib 与未发布描述是历史阶段。
+用户本轮要求先解决记忆压缩，NAS向量接入暂缓。沿用已有 local.9 和未提交工作；不复制并行实现。默认从固定55%总占用切换到自动工作集（近期原文20K偏好、摘要上限8192、固定内容/当前任务独立计量），自定义占用上限及旧设置保留。整个候选必须通过压前可行性和压后实际包装占用检查；原文、工具配对、取消和原用量账本边界延续。
+
+新增context_manager_cycles v1保存同批原文跨步骤/重启许可（2主计划/4总调用，配置或checkpoint新序号不能重置），历史原文工具限定当前会话分页只读。UI继续原生组件、现有布局；准入显示改读实时TokenMeter，与投影趋势区分。保护MSE/Goal及全部日常数据；源码根lib未重建。
+
+本轮隔离构建、反例、测试绑定、包SHA及未验证项见 `/Users/missher/Documents/Deepseek-harness-Cordis/coordination/2026-10-08/context-working-set-upgrade/READY.md`。冻结候选不等于已安装；由既定协调者重新检查空闲、完整备份后安装并验收。真实Qwen与其他平台单列，不能用合成回放声称真实模型信息保真。
+
+# 2026-10-08 Context 0.8.0-local.9 统一维护候选
+
+用户真实 Windows 报错为 `EPERM fsync → syncDirectory → acquire → RecoveryJournal.open`，导致 contextManager 初始化失败，engine/inspector 与恢复会话依赖等待。只在共同恢复日志内部适配底层文件 API：POSIX 保留目录 fsync；Windows 保留普通文件 fsync，并在 rename 后以可写句柄刷新已发布文件，任何失败仍拒绝，rename 后不确定则 poison 至重开。Windows ACL 从 profile 继承，不声称 chmod 等同 POSIX 私有权限；不承诺突然断电或网络盘目录耐久。
+
+全源码审查另外发现摘要流错误包装丢失 LlmError，使官方旧图片卸载恢复钩子无法识别 IMAGE_OFFLOAD_REQUIRED。最小修复保留原 cause/finish failure，并只在公开恢复边界提供原类型；未知故障不自行重试，摘要每次调用分别记账、取消仍禁止提交。确切源码/包 SHA、全套及三平台结果以本轮 READY.md 为准，尚未用户安装。
 
 # 2026-10-08 Context 0.8.0-local.8：插件内兼容旧宿主
 
