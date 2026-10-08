@@ -11,20 +11,20 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.8.0-local.7**（已完成隔离验收的源码候选，尚未替换日常安装）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
+包名为 `@missher/dsh-context-manager`，当前版本为 **0.8.0-local.8**。这是可单独安装的 Cordis Bundle；[本版下载与验证范围](./PUBLICATION.md)说明旧宿主适配、安装和数据备份。本仓库自带对应的九个预构建运行文件。
 
 本版新增：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
 
 ## 宿主与平台
 
-此前 0.7 版的完整基线是 **Missher DeepSeek Harness Desktop 的定制 0.2.0-rc.2，macOS Intel（x64）**。0.8 候选还要求下表的提交取消检查和存储关停排空能力；精确组合与验收见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)，不能仅凭相同版本号安装。Windows、Linux、Apple Silicon、本包在纯官方 rc.2 上的完整运行、官方 0.2.1-alpha.1 均未完成插件级验收。桌面应用提供某个平台下载，不代表本插件在该平台已验证。
+local.8 在插件内处理摘要提交前取消检查，并在 profile 下记录待补记元数据，不再要求宿主新增取消标记、存储排空或维护选区接口。已在 **macOS Intel（x64）** 使用 10 月 3 日旧 SDK 和增强 SDK 验证，旧 Host 的完整 CLI 安装及两次冷启动通过；具体证据见[发布说明](./PUBLICATION.md)。这不等于用户 Ubuntu 实机升级已验收。Windows、Linux、Apple Silicon 和其他官方发行版的完整插件流程仍未验收，不能仅凭版本号推断兼容。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
 | Host 的 Session、Projection、TokenMeter、StorageDomain、BasicCompactionEngine，以及 Web 会话视图、设置、Remote 和共享 UI 服务可用 | 提供请求前压缩与只读上下文页 |
-| `BasicCompactionEngine.supportsSummaryAbortCommit === true`，且两个 Context 存储域均可注册 `storageDomain.registerDrain` | 允许执行摘要；任一能力缺失则在收费调用前停止并保留任务，设置和只读页仍可用 |
-| `BasicCompactionEngine.selectMaintenanceRange` 可用 | 在宿主维护锁内选择闲置摘要范围，保留最新完整交互 |
-| 缺少维护选区接口 | 明确跳过闲置摘要，不发起该次付费模型请求；手动压缩沿用宿主行为 |
+| 通过 DSH profile 启动，插件恢复目录可独占读写 | 插件检查最终取消状态后同步提交摘要；已收到用量先进入恢复日志，再写原数据域 |
+| 宿主没有新增取消标记、存储排空或维护选区钩子 | 使用插件自己的事务、恢复日志及选区逻辑；不修改宿主、不另装兼容包 |
+| 没有 profile 路径的自定义嵌入环境 | 仍需宿主存储排空能力；否则在付费调用前拒绝 |
 | `toolResultPruner.supportsProtectedSeqs === true` | 先整理旧文本工具结果；保护当前任务、错误及非纯文本结果 |
 | 缺少保护裁剪能力 | 跳过工具结果整理，保留正常摘要路径 |
 
@@ -34,14 +34,14 @@ kind: "package-bundle"
 
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：进入 **插件 → 添加插件**，选择下载的 `.tgz` 或填写其 Release 下载地址。本仓库已同步 0.8.0-local.7 的九个预构建运行文件；使用本版时必须配套 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md) 所列宿主修复。Git 源码发布不代表新版桌面安装包或插件 Release 已发布。没有安装期构建脚本。
+桌面端：先备份当前 profile 及数据，再进入 **插件 → 添加插件**，选择 [local.8 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz) 或填写该下载地址，按应用提示重新加载或重启。已有同名插件时更新该插件，不需要再装兼容包或更换宿主来获取上述三个新增接口。安装包没有安装期构建脚本。
 
-下方命令是此前 0.7 稳定版示例，不是本轮 0.8 候选；本轮候选的包哈希、宿主要求及验收范围见 [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。
+备份必须一起保留 `.context-manager-recovery`、`context_manager_idle`、`context_manager_summaries` 及会话数据。恢复日志可能保存旧宿主关闭存储后的已知用量，不能为了排错直接删除。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.7.0-local.2/missher-dsh-context-manager-0.7.0-local.2.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz
 ```
 
 安装前保留旧包与配置，等待任务结束；更新后**完整退出并重启目标应用或 profile**。检查插件版本及三个入口 `context-manager`、`context-manager-engine`、`context-manager-inspector` 全部运行，再打开会话顶部“轨迹”后的“上下文”。旧进程可能缓存包导出表，仅刷新页面或切换开关不能替代重启。不要同时启用旧包名与新包名。
@@ -87,6 +87,7 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 - 停用整个 Bundle：在应用的插件管理中停用本包，按宿主提示重启。卸载也使用同一入口，等待任务结束后操作；CLI/Web 可使用 `dsh plugin --profile my-context remove @missher/dsh-context-manager`。
 - 禁用/移除 Bundle 的配置叠加后，重启让宿主重新创建原预设与压缩器。若自己在自定义预设中引用了本插件，卸载前先恢复相应 Basic 压缩器引用。不要仅删除三个内部入口中的某一个。
 - 插件没有卸载清理脚本。会话、成功摘要及来源引用继续由宿主会话日志保存；不会因卸载本包而主动删除。已完成的压缩不会自动逆转，原文可通过宿主查询或本插件追溯。
+- profile 内 `.context-manager-recovery` 只保存尚未确认写入的用量及闲置元数据，不保存对话正文。重启核验旧行后按相同 attempt ID 补记；不重发模型、不重复收费。冲突、损坏或独占锁不明会拒绝继续。旧宿主退出后才到达、插件从未收到的用量仍标未知。
 - 元数据保存在宿主 `storageDomain` 的 `context_manager_idle`（闲置资格/状态）及 `context_manager_summaries`（摘要调用状态/实报用量）中。失败摘要原始输出不持久化；成功提交的输出与来源保存在会话日志中。未知用量不是零。
 - 升级或回滚应完整备份目标 profile、插件数据域和会话目录；不要只保存 `.tgz`。元数据域没有新增会话迁移。此插件不维护 MSE 长期学习库，也不自带独立分析上报端点；摘要内容经宿主发送给所选模型提供方。宿主自身遥测遵循宿主设置。
 

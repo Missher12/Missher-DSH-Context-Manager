@@ -1,0 +1,70 @@
+{
+  "version": "0.8.0-local.8",
+  "packageSha256": "b73fc64d735096f1071a79d10a2da73a57ade42b2ad491fca05f1643c0fc06ab",
+  "platform": "darwin-x64",
+  "provider": "synthetic; no real model calls",
+  "ownerEvidence": {
+    "enhancedSdk": {
+      "tests": 181,
+      "passed": 179,
+      "failed": 0,
+      "skipped": 2
+    },
+    "naturalOldSdk": {
+      "tests": 21,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0
+    },
+    "lifecycle": {
+      "scenarios": 23,
+      "checks": 242,
+      "failed": 0
+    },
+    "admission": {
+      "scenarios": 3,
+      "checks": 21,
+      "failed": 0
+    },
+    "oldHostCliPreparation": {
+      "checks": 3,
+      "failed": 0
+    },
+    "coldOldHostStarts": [
+      {
+        "checks": 27,
+        "failed": 0
+      },
+      {
+        "checks": 27,
+        "failed": 0
+      }
+    ]
+  },
+  "coordinatorEvidence": {
+    "frozenSourceFilesMatched": 109,
+    "tarballMembersMatched": 16,
+    "oldHostReportHashesMatched": 3,
+    "packageBoundaryPassed": true,
+    "focusedEnhancedSdk": {
+      "tests": 42,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 2
+    },
+    "focusedNaturalOldSdk": {
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "nativePlatformsNotVerified": [
+    "Ubuntu/Linux",
+    "Windows",
+    "macOS Apple Silicon"
+  ],
+  "userInstallationPerformed": false,
+  "hostChanged": false,
+  "dataPreservationScope": "Publication only; no access or writes to user profile or MSE data."
+}

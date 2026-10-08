@@ -5,8 +5,10 @@ from DeepSeek Harness, Copyright (c) 2026 DeepSeek, distributed under the MIT
 License in `LICENSE`. The original paths, version, commit and SHA-256 values
 are recorded in `COMPATIBILITY.json`.
 
-The plugin imports Harness's compaction engine and public runtime services. It
-does not redistribute their built implementations inside its JavaScript bundle.
+The plugin imports Harness's public runtime services. Its Context-owned
+transaction in `src/transaction.ts` adapts the MIT-licensed compaction-basic
+region protocol and checkpoint framing (Copyright (c) 2026 DeepSeek). It does
+not bundle a second Host or modify the Host implementation.
 
 The client also imports Harness's shared UI primitives without bundling a second
 copy. Its settings layout follows the MIT-licensed Harness settings styles and

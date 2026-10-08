@@ -1,6 +1,10 @@
-# 2026-10-08 Git 源码交付
+# 2026-10-08 local.8 公开交付
 
-用户已明确授权本轮 Git 发布。当前仓库包含 `0.8.0-local.7` 验收源码和九个对应运行件，宿主要求及验证范围见 [PUBLICATION.md](./PUBLICATION.md)。本次不表示日常安装、GitHub Release 或市场更新已完成。维护电脑 canonical 目录的旧 lib 保留规则只约束该日常链接目录，不描述本公开导出；下方未发布及旧 lib 状态为历史记录。
+本公开导出包含已冻结的 `0.8.0-local.8` 源码和九个对应运行文件，发布及验证范围见 [PUBLICATION.md](./PUBLICATION.md)。取消提交检查与恢复日志由本插件承担，不再要求新增 Host 标记/排空接口。仅插件发布，不表示用户机器已安装。canonical 目录保留旧 lib 的规则不适用于本公开导出；下方候选、旧 lib 与未发布描述是历史阶段。
+
+# 2026-10-08 旧宿主插件内修复（local.8）
+
+用户明确选择直接在插件内修复 200K 模型的宿主能力拒绝。沿用本实现，Context 自持公开 Session 协议的提交事务和 profile 下 `.context-manager-recovery` 元数据恢复日志；不再要求 Basic 的提交标记、选区钩子或新增存储排空接口。旧宿主的工具修剪仍按真实能力跳过，不降级提交安全。源码/包由本任务冻结交接，Host、日常安装、Git 发布仍由既定协调者收口；不可从保留旧字节的 canonical lib 安装。本轮证据见协调目录 `coordination/2026-10-08/context-200k-capability/plugin-local/READY.md`，历史阶段限制以下按时间保留。
 
 # 2026-10-08 单一写入者交接
 

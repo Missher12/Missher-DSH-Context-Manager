@@ -8,6 +8,9 @@ import type { CompactPhase, IdleStatus } from './idle-types.ts'
 import { IdleStore, type IdleRecord } from './idle-store.ts'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { SummaryLedger } from './summary-ledger.ts'
+import { join, isAbsolute } from 'node:path'
+import type {} from '@deepseek-ai/dsh-app-boot'
+import { RecoveryJournal } from './recovery-journal.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextManager: ContextManager } }
 export interface Config { policy: Volatile<Policy> }
@@ -56,15 +59,29 @@ export default class ContextManager extends Service {
   }
 
   protected async [Service.init](): Promise<void> {
-    this.idleStore = await IdleStore.open(this.ctx.storageDomain)
-    this.summaryLedger = await SummaryLedger.open(this.ctx.storageDomain)
+    // The launcher owns this profile location. Never guess a user's storage
+    // backend path or write directly to the Host's domain JSON documents.
+    const profile = this.ctx.get('profileContext')
+    const journal = profile && isAbsolute(profile.dir)
+      ? RecoveryJournal.open(join(profile.dir, '.context-manager-recovery')) : undefined
+    try {
+      this.idleStore = await IdleStore.open(this.ctx.storageDomain, journal)
+      this.summaryLedger = await SummaryLedger.open(this.ctx.storageDomain, journal)
+    } catch (error) {
+      try { await this.idleStore?.close() } finally { journal?.close() }
+      throw error
+    }
     let closing: Promise<void> | undefined
     const close = () => closing ??= (async () => {
       // Sibling fibers may dispose concurrently. Explicitly abort/drain all
       // engines before closing shared stores; registration order is not a lock.
-      await Promise.all([...this.drains].map(drain => drain()))
-      try { await this.summaryLedger.close() }
-      finally { await this.idleStore.close() }
+      const outcomes = await Promise.allSettled([...this.drains].map(drain => drain()))
+      try {
+        try { await this.summaryLedger.close() }
+        finally { await this.idleStore.close() }
+      } finally { journal?.close() }
+      const errors = outcomes.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (errors.length) throw new AggregateError(errors.map(result => result.reason), '上下文压缩收尾未完成')
     })()
     const releases: (() => Promise<void>)[] = []
     const facility = this.ctx.storageDomain as unknown as {
@@ -77,8 +94,11 @@ export default class ContextManager extends Service {
         releases.push(facility.registerDrain('context_manager_summaries', close))
         releases.push(facility.registerDrain('context_manager_idle', close))
         this.supportsSafeShutdown = true
-      } catch (error) { this.ctx.logger.warn('上下文压缩需要支持关停排空的存储后端：%s', error) }
+      } catch (error) { this.ctx.logger.warn('宿主存储排空不可用，使用插件恢复日志：%s', error) }
     }
+    // A journal protects already observed usage even if an old Host closes its
+    // backend first. Unobserved usage stays unknown and never causes a replayed call.
+    this.supportsSafeShutdown ||= journal !== undefined
     this.ctx.effect(() => async () => {
       try { await close() }
       finally { for (const release of releases) await release() }
@@ -109,7 +129,7 @@ export default class ContextManager extends Service {
       disabled: '闲置自动压缩已关闭', interrupted: '上次整理被中断，费用状态未知；本轮不自动重试',
       history_changed: '会话内容已变化，旧闲置计划已取消', completed: '闲置压缩已完成', recovered_commit: '已恢复上次成功压缩记录',
       below_threshold: '未达到闲置整理门槛，本轮无需压缩', background: '后台任务尚未结束，本轮未整理',
-      model_changed: '模型选择已变化，等待下次任务完成后重新计时', host_capability_missing: '宿主缺少安全压缩所需能力，请更新配套宿主；任务原文保留', pruned: '旧工具结果已整理，无需生成摘要', no_range: '没有可安全缩减的历史内容', other_compaction: '其他压缩已处理，本轮不重复整理',
+      model_changed: '模型选择已变化，等待下次任务完成后重新计时', host_capability_missing: '当前环境无法保证压缩用量落盘，请检查插件数据目录；任务原文保留', pruned: '旧工具结果已整理，无需生成摘要', no_range: '没有可安全缩减的历史内容', other_compaction: '其他压缩已处理，本轮不重复整理',
       new_input: '新消息已到达，旧计划已取消', running: '新任务正在执行', stopped: '会话已停止，本轮不再整理',
       failed: '上次闲置整理失败，本轮不再重试', state_changed: '会话状态已变化，旧计划已取消',
       commit_incomplete: '内容已替换，压缩收尾未完成；本轮不自动重试',

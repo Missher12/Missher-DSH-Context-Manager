@@ -1,6 +1,14 @@
-# 2026-10-08 Git 源码交付
+# 2026-10-08 local.8 公开交付
 
-用户已明确授权本轮 Git 发布。当前仓库包含 `0.8.0-local.7` 验收源码和九个对应运行件，宿主要求及验证范围见 [PUBLICATION.md](./PUBLICATION.md)。本次不表示日常安装、GitHub Release 或市场更新已完成。维护电脑 canonical 目录的旧 lib 保留规则只约束该日常链接目录，不描述本公开导出；下方未发布及旧 lib 状态为历史记录。
+本公开导出包含已冻结的 `0.8.0-local.8` 源码和九个对应运行文件，发布及验证范围见 [PUBLICATION.md](./PUBLICATION.md)。取消提交检查与恢复日志由本插件承担，不再要求新增 Host 标记/排空接口。仅插件发布，不表示用户机器已安装。canonical 目录保留旧 lib 的规则不适用于本公开导出；下方候选、旧 lib 与未发布描述是历史阶段。
+
+# 2026-10-08 Context 0.8.0-local.8：插件内兼容旧宿主
+
+本轮只修 Context。原“宿主尚未支持提交前取消检查”由插件自己的提交事务替代：最后摘要/记账 await 后检查取消及原文选区，随后同步提交公开 Session 事件，保留工具配对与来源。profile 内独立恢复日志只保存两域的闲置/用量元数据；实际 Host 写成功才清理，旧 Host 存储先关闭时保留已知用量，重开按前驱哈希幂等恢复，不重新调用模型、不迁移会话或学习库。没有 profile 路径且没有可靠排空接口的嵌入环境仍在调用前拒绝。
+
+隔离旧 SDK 验证采用未修改的旧 Basic/Domain/JSON；200K 测试使用真实 `contextWindow=200000`，不是 1M 窗口的软阈值。确切计数、候选 SHA、失败反例和未验证项以 `coordination/2026-10-08/context-200k-capability/plugin-local/READY.md` 为准。源码根 lib 保留原字节；新生成件仅在隔离 stage/冻结源码和包内。用户另一台 Ubuntu 尚未安装验收；本轮不改 Host、日常 profile、MSE、Goal 上限或原生界面风格。
+
+后续备份/迁移要同时保留 `context_manager_idle`、`context_manager_summaries` 及 `.context-manager-recovery`。日志锁属于单进程；不要对活跃 profile 启动第二个 Host。进程被强制终止之后才可能返回的供应商用量无法获知，保持未知，不以重发调用补账。
 
 # 2026-10-08 local.7：只读状态 wire 修复（待隔离构建验收）
 

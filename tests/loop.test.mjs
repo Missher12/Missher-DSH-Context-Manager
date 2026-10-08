@@ -608,7 +608,7 @@ test('layered failure preserves original history when pruning committed before a
   } finally { await ctx.fiber.dispose() }
 })
 
-test('old host maintenance is explicitly skipped before an idle summary can charge or replace content', { timeout: 8000 }, async t => {
+test('plugin-owned idle transaction does not require the old host maintenance selection hook', { timeout: 8000 }, async t => {
   const original = Object.getOwnPropertyDescriptor(BasicCompactionEngine.prototype, 'selectMaintenanceRange')
   Object.defineProperty(BasicCompactionEngine.prototype, 'selectMaintenanceRange', { configurable: true, writable: true, value: undefined })
   const { ctx, agent, adapter } = await fixture({}, { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1, idleMinutes: 1 }, history(28000))
@@ -617,10 +617,9 @@ test('old host maintenance is explicitly skipped before an idle summary can char
     await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
     const generation = agent.session.surface.replaceGeneration
     t.mock.timers.tick(60001)
-    await drainUntil(() => idleState(ctx, agent).status === 'skipped')
-    assert.equal(idleState(ctx, agent).reasonCode, 'host_capability_missing')
-    assert.equal(adapter.summaries.length, 0)
-    assert.equal(agent.session.surface.replaceGeneration, generation)
+    await drainUntil(() => idleState(ctx, agent).status === 'completed')
+    assert.equal(adapter.summaries.length, 1)
+    assert.ok(agent.session.surface.replaceGeneration > generation)
   } finally {
     t.mock.timers.reset(); await ctx.fiber.dispose()
     if (original) Object.defineProperty(BasicCompactionEngine.prototype, 'selectMaintenanceRange', original)

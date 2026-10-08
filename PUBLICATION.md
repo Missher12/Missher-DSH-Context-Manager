@@ -1,28 +1,44 @@
-# 0.8.0-local.7 源码交付 / Source delivery
+# 0.8.0-local.8：旧宿主的插件内适配
 
-此提交提供已完成隔离验收的插件源码和九个预构建运行文件，用于跨电脑同步。GitHub Release、插件市场和日常安装各有独立状态；本次 Git 推送不表示它们已更新。
+本版修复旧宿主在 200K 模型上拒绝压缩的问题：摘要提交前的取消检查、选区验证和待补记用量恢复由上下文插件自己承担。无需为了这些接口替换 Ubuntu 宿主，也不需要额外兼容插件。
 
-## 使用前提
+## 下载与更新
 
-必须使用包含本轮安全修复的 [Missher DeepSeek Harness Desktop 源码](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)：摘要提交前复核取消，以及 JSON 存储关闭前等待消费者记账收尾。对应宿主提交为 [`4de855b521`](https://github.com/Missher12/Missher-DeepseekHarness-Desktop/commit/4de855b52156eead14c475a8a007e58b415051f7)。缺少 `supportsSummaryAbortCommit === true` 或两个存储域的 `registerDrain` 支持时，插件会在收费摘要调用前停止；不应通过调版本号绕开能力检查。
+下载 [local.8 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz) 和 [SHA256SUMS](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/SHA256SUMS)。这是公开预发布版本；[发布页](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.8.0-local.8)说明验证范围。
 
-本仓库的 `lib/` 是 0.8.0-local.7，对应下方冻结包；维护电脑原开发目录保留旧 lib 的约束不适用于本公开导出。可以在匹配宿主上使用本源码自带运行文件或自行打包；只从实际存在的 Release 下载资产，不把此前 0.7 的资产当作 0.8。
+1. 备份当前 profile 和会话数据，同时保留 `.context-manager-recovery`、`context_manager_idle`、`context_manager_summaries`。
+2. 在 DSH 的 **插件 → 添加插件** 中选择下载的 `.tgz` 或粘贴下载地址，更新已有的 `@missher/dsh-context-manager`。
+3. 按应用提示重新加载或正常退出后重启，确认插件版本为 `0.8.0-local.8`。不能只拉取 Git 就认为已安装。
 
-## 本版行为
+恢复日志只记录允许的用量与闲置元数据，没有对话正文或模型任务队列。已收到的用量先持久保存，再写宿主数据域；重启按同一 attempt 恢复，不重发模型或重复累加。遇到日志损坏、状态冲突或独占锁不明会拒绝继续。进程退出前从未收到的供应商用量只能保持未知，不能凭空补全。
 
-- 请求前压缩和闲置整理共用有效预算，可选绝对软触发/目标默认关闭，初始值为 200,000 / 100,000 Token；不改模型总窗口。
-- 规范化允许的摘要包装；仅对数组字段误写为字符串执行一次有预算的格式修复，校验失败保留原历史。
-- 取消时阻止未提交摘要替换历史；迟到模型用量逐项幂等补记，卸载和关停等待收尾。
-- 上下文页显示预算来源、摘要修复阶段和 Goal 停因；Goal 轮数和 MSE 预算保持独立。
+## 验证范围
 
-## 核验与限制
+| 验证 | 结果 |
+| --- | --- |
+| 增强 SDK 完整套件 | 181 项：179 通过、0 失败、2 项旧能力专属用例跳过 |
+| 自然旧 SDK | 21/21 通过，两项旧能力用例实际执行，无修改宿主来模拟旧版 |
+| 取消、输入变化、卸载及迟到用量生命周期 | 23 场景、242/242 检查 |
+| 新输入、附件与受保护内容超限 | 3 场景、21/21 检查 |
+| 旧 CLI 安装及两次冷 Host 启动 | 准备 3/3；两次各 27/27，三个插件入口 active，恢复目录权限与锁释放通过 |
+| 发布包 | 16 个包成员与冻结源码一致；九个运行文件只有 engine/index 相比 local.7 改变 |
 
-冻结源码 105 文件和安装包 16 文件已核对；本提交只另行更新发布说明，九个运行文件逐字节相同。local.7 的实际构建 codec / Inspector 回归 11/11 通过。组合桌面在独立 profile 加载 202 条 Loader，174 个启用项全部 active，九份客户端文件匹配，模型及外网请求为 0，正常关停完成；安装事务六种故障注入场景通过。
+这些旧／新 SDK 检查在 Intel macOS 上使用合成供应商执行，没有真实模型请求。真实 `contextWindow=200000` 场景覆盖 8192/60000 输出预留；有最终 await 取消、域和 JSON 存储先关闭后用量到达，以及两次重开不重复记费的回归。上述检查存在重叠，不合并成一个测试总数。
 
-宿主修复有压缩 157 项和存储 98 项回归；最终静态修订后相关 75 项重跑属于前述集合，不重复统计。完整验证使用 Intel macOS 的定制 rc.2。其他平台、纯官方新版、大项目持续运行的摘要语义保真及本机原生点击没有因此获得验收。
+尚未完成用户 Ubuntu 实机升级、Windows/Linux 原生插件完整流程、Electron 点击或真实模型的长期摘要质量验收。发布不会替用户机器安装，不修改 MSE、Goal 限额、学习库或宿主；没有 profile 路径的自定义嵌入仍需安全存储排空能力。
 
-冻结 Context tgz 的 SHA256：`d749f3c21f7e90fb969376ee009a01ef1603690edfeef780496e94f3ad206ffd`。本 Git 提交中的 README 和兼容说明补充了发布信息，因此从 Git 重新打包得到的 tgz 哈希可以不同；运行文件应与 [GIT_DELIVERY.json](./GIT_DELIVERY.json) 清单一致。原冻结包不原地改写。
+[机器可读结果](./verification/RESULTS-LOCAL8-20261008.json)区分负责人回归和发布者的独立核对。[运行文件清单](./GIT_DELIVERY.json)记录九个运行文件与冻结包的对应关系。
+
+## 固定包与源码
+
+安装包 SHA256：`b73fc64d735096f1071a79d10a2da73a57ade42b2ad491fca05f1643c0fc06ab`。
+
+本发布保留已验收 tgz 的原始字节。包内 README 是冻结时的开发快照；当前安装与发布状态以本页和仓库中英文 README 为准。本 Git 导出包含新版运行文件；维护电脑 canonical 目录保留旧 lib 的历史规则不适用于此导出。公开说明和清单已校正，从 Git 重新打包的归档哈希可以不同，运行文件仍须与清单一致。旧 Release 资产保持。
 
 ## English
 
-This source publication includes the accepted 0.8.0-local.7 runtime. It requires the corresponding host cancellation-before-commit and JSON storage consumer-drain fixes; missing capabilities block paid compaction. Source publication, downloadable Release assets, marketplace status and daily installation are separate. The runtime matches the frozen candidate byte for byte; only publication documentation differs. Validation covers isolated Intel macOS custom rc.2, not every platform or long-project semantic fidelity.
+Version 0.8.0-local.8 moves the final cancellation check, synchronous Session transaction and pending usage recovery into the plugin. It can use the older Host without the added Basic cancellation marker, selection hook or storage drain API. It does not remove cancellation protection or require another compatibility plugin.
+
+Download the prebuilt tarball above, verify SHA256SUMS, back up the profile including both Context domains and `.context-manager-recovery`, then update the existing plugin through **Plugins → Add plugin** and reload or restart as requested. Source publication is separate from installation. This is a public pre-release; no user machine is upgraded by publishing it.
+
+Validation used naturally old and enhanced SDKs on Intel macOS with synthetic providers, including a 200000-token window, output reservations, cancellation at the final awaited boundary, late observed usage after storage closure, and idempotent recovery through two restarts. The old CLI installation and two cold Host starts passed. Native Ubuntu/Windows workflows and real-model semantic quality remain unverified. The exact accepted tarball is retained; current publication instructions supersede its frozen development README. Runtime bytes match the published inventory.

@@ -6,19 +6,20 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.8.0-local.7**, an isolated-validated source candidate that has not replaced the daily installation. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Version: **0.8.0-local.8**. This is an independently installable Cordis Bundle with nine matching prebuilt runtime files. See [release and installation details](./PUBLICATION.md). It provides configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
-The candidate requires `BasicCompactionEngine.supportsSummaryAbortCommit === true` and `storageDomain.registerDrain(domainName, drain)` support for both Context domains and their storage backends. Missing support blocks billable compaction while retaining the task and keeping settings/inspection available. This repository includes the nine accepted 0.8 runtime files. Use the matching host fixes listed in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md); a source publication does not mean updated desktop installers or plugin Release assets have been published. This candidate has not changed the daily profile, Goal limits or MSE quotas.
+The plugin owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. This change does not alter Goal limits or MSE quotas.
 
 ## Host and platform requirements
 
-The earlier 0.7 full tested baseline was **the custom Missher DeepSeek Harness Desktop 0.2.0-rc.2 on Intel macOS (x64)**, including maintenance-range selection and protected tool-result pruning. Plugin-level acceptance is not established for Windows, Linux, Apple Silicon, an unmodified official rc.2 host, or official 0.2.1-alpha.1. Availability of a desktop download does not establish plugin compatibility on that platform.
+Validation used the October 3 SDK with its original missing capabilities and the enhanced SDK on **Intel macOS (x64)**. Installation through the old Host CLI and two cold Host starts passed; [publication details](./PUBLICATION.md) separate these results from platform acceptance. The user's Ubuntu machine has not been upgraded or tested in this release work. Complete plugin workflows on Windows, Linux, Apple Silicon and other official distributions remain unverified.
 
 | Host condition | Behavior |
 | --- | --- |
 | Session, Projection, TokenMeter, StorageDomain, BasicCompactionEngine, Web conversation views, settings, Remote and shared UI services are available | Request-time compaction and the read-only inspector can load |
-| `BasicCompactionEngine.selectMaintenanceRange` is available | Selects the idle summary range inside the existing maintenance lock, retaining the latest complete interaction |
-| Maintenance-range hook is missing | Skips idle summarization before a paid model request and explains why; manual compaction retains host behavior |
+| DSH profile with an exclusively writable recovery directory | Plugin-owned final cancellation check and transaction, with write-ahead usage/idle metadata |
+| Added Host cancellation, storage drain or selection hooks are missing | Uses the plugin transaction, journal and selection within the existing Agent maintenance lock |
+| Custom embedding without a profile path | Requires Host storage drain support; otherwise stops before billing |
 | `toolResultPruner.supportsProtectedSeqs === true` | Prunes older text tool results first, protecting the current task, errors and non-text results |
 | Protected-pruning capability is missing | Skips tool pruning and retains the ordinary summary path |
 
@@ -28,14 +29,14 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. For this 0.8 candidate, use the matching host described in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md). The committed runtime files match the accepted frozen package.
+Desktop: back up the active profile and data, open **Plugins → Add plugin**, and select the [local.8 package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz) or paste its download URL. Update the existing plugin and reload or restart as requested. No companion compatibility package or Host replacement is required to supply the three added interfaces above. Installation runs no build script.
 
-The following command is the previous stable 0.7 release example, not the 0.8 candidate. The candidate package hash and validation scope are recorded in [PUBLICATION.md](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md).
+Back up `.context-manager-recovery`, `context_manager_idle`, `context_manager_summaries` and session data together. The journal may contain observed usage pending after the old Host closed storage; do not delete it to troubleshoot.
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.7.0-local.2/missher-dsh-context-manager-0.7.0-local.2.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz
 ```
 
 Keep the previous package and configuration, wait for active tasks to finish, and **fully restart the target application or profile** after updating. Confirm the version and all three active entries: `context-manager`, `context-manager-engine` and `context-manager-inspector`. Open **Context**, after **Trace**, in a session. An old process may cache package exports; a page refresh or enable toggle does not replace a restart. Do not enable both old and renamed packages.

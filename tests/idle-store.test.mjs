@@ -20,6 +20,12 @@ const compiled = await build({
   } }],
 })
 const { IdleStore, idleDomainSpec } = await import(`data:text/javascript;base64,${Buffer.from(`${compiled.outputFiles[0].text}\n//# sourceURL=idle-store-test.js`).toString('base64')}`)
+const journalCompiled = await build({
+  entryPoints: [fileURLToPath(new URL('../src/recovery-journal.ts', import.meta.url))],
+  bundle: true, write: false, platform: 'node', format: 'esm', target: 'es2022',
+  tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
+})
+const { RecoveryJournal } = await import(`data:text/javascript;base64,${Buffer.from(journalCompiled.outputFiles[0].text).toString('base64')}`)
 
 const eligibility = (sequence = 5, time = 1000, fingerprint = `event-${sequence}`) => ({
   sessionId: 'session-a', turnEndSeq: sequence, completedAt: time, fingerprint,
@@ -33,18 +39,23 @@ async function harness(t, options = {}) {
   ctx.storage.backend.register('json', backend)
   const facility = new DomainFacility(ctx, { backend: 'json' })
   ctx.storage.mount('domain', facility)
-  const store = await IdleStore.open(options.wrap ? options.wrap(facility) : facility)
+  const journalRoot = join(root, 'recovery')
+  const journal = options.journal ? RecoveryJournal.open(journalRoot) : undefined
+  const store = await IdleStore.open(options.wrap ? options.wrap(facility) : facility, journal)
   t.after(async () => {
     try {
       await store.close()
       await facility.closeAll()
       await backend.close()
       await ctx.fiber.dispose()
-    } finally { await rm(root, { recursive: true, force: true }) }
+    } finally {
+      try { journal?.close() } finally { await rm(root, { recursive: true, force: true }) }
+    }
   })
   const path = join(root, `${idleDomainSpec.name}.json`)
   const saved = async () => JSON.parse(await readFile(path, 'utf8')).tables.sessions
-  return { root, path, ctx, facility, backend, store, saved }
+  const pending = async () => JSON.parse(await readFile(join(journalRoot, 'pending.json'), 'utf8'))
+  return { root, path, ctx, facility, backend, store, saved, journal, journalRoot, pending }
 }
 
 test('JSON domain persists latest eligibility and consumed attempts across two opens', async t => {
@@ -219,6 +230,7 @@ test('drain and close wait for accepted writes while refusing new work', async t
           const table = domain.table(name)
           return {
             get: key => table.get(key),
+            entries: () => table.entries(),
             async put(key, value) { entered(); await barrier; await table.put(key, value) },
           }
         },
@@ -254,4 +266,93 @@ test('records expose immutable copies and reject content or invalid accounting f
   await assert.rejects(store.settle(first, 'attempt-1', { status: 'completed', afterTokens: Infinity }))
   await assert.rejects(store.settle(first, 'attempt-1', { status: 'completed', content: 'private text' }))
   assert.equal(store.get(first.sessionId).status, 'started')
+})
+
+for (const scenario of [
+  { name: 'skipped preflight', status: 'skipped', reasonCode: 'below_threshold', claimed: false, afterTokens: undefined },
+  { name: 'failed summary', status: 'failed', reasonCode: 'failed', claimed: true, afterTokens: undefined },
+  { name: 'no compactable range', status: 'skipped', reasonCode: 'no_range', claimed: true, afterTokens: 4500 },
+]) {
+  test(`real journal persists ${scenario.name} with explicit optional undefined and does not rearm after reopen`, async t => {
+    const { store, facility, saved, journal, journalRoot, pending } = await harness(t, { journal: true })
+    const first = eligibility()
+    await store.reserve(first)
+    const attemptId = scenario.claimed ? 'attempt-1' : undefined
+    if (scenario.claimed) await store.claim(first, attemptId, 4500)
+    const result = await store.settle(first, attemptId, {
+      status: scenario.status, reasonCode: scenario.reasonCode, beforeTokens: 4500,
+      compactionId: undefined, afterTokens: scenario.afterTokens,
+    })
+    assert.equal(result.status, scenario.status)
+    assert.equal(result.reasonCode, scenario.reasonCode)
+    assert.equal(result.beforeTokens, 4500)
+    assert.equal(Object.hasOwn(result, 'compactionId'), false)
+    assert.equal(Object.hasOwn(result, 'afterTokens'), scenario.afterTokens !== undefined)
+    assert.equal(Object.values(result).includes(undefined), false)
+    assert.deepEqual((await saved())[first.sessionId], result)
+    assert.deepEqual((await pending()).entries, [], 'durable domain write acknowledges its journal generation')
+    assert.throws(() => journal.record(idleDomainSpec.name, first.sessionId, result,
+      { ...result, afterTokens: undefined }), /metadata/, 'the journal itself still rejects non-JSON values')
+    await store.close()
+    journal.close()
+    const reopenedJournal = RecoveryJournal.open(journalRoot)
+    let reopened
+    try {
+      reopened = await IdleStore.open(facility, reopenedJournal)
+      assert.deepEqual(reopened.get(first.sessionId), result)
+      assert.deepEqual(await reopened.reserve(first), result)
+      assert.equal(await reopened.claim(first, 'forbidden-retry'), null)
+      assert.deepEqual((await pending()).entries, [])
+    } finally {
+      try { await reopened?.close() } finally { reopenedJournal.close() }
+    }
+  })
+}
+
+test('real journal recovers an undefined-free failed outcome after the Host domain closed first', async t => {
+  const { root, ctx, backend, store, facility, saved, journal, journalRoot, pending } = await harness(t, { journal: true })
+  const first = eligibility()
+  await store.reserve(first)
+  await store.claim(first, 'attempt-1', 4500)
+  await facility.closeAll()
+  await assert.rejects(store.settle(first, 'attempt-1', {
+    status: 'failed', reasonCode: 'failed', beforeTokens: 4500,
+    compactionId: undefined, afterTokens: undefined,
+  }), error => error.code === 'closed')
+  const latest = store.get(first.sessionId)
+  assert.equal(latest.status, 'failed')
+  assert.equal(Object.hasOwn(latest, 'compactionId'), false)
+  assert.equal(Object.hasOwn(latest, 'afterTokens'), false)
+  assert.equal((await saved())[first.sessionId].status, 'started', 'closed Host storage has not changed')
+  const entries = (await pending()).entries
+  assert.equal(entries.length, 1)
+  assert.deepEqual(entries[0].next, latest, 'the complete normalized outcome is durable before the failed Host put')
+  await store.close()
+  journal.close()
+  await backend.close()
+  await ctx.fiber.dispose()
+  // A stopped Host facility is not reusable on newer SDKs. Recreate the
+  // complete storage owner over the same files, as a real restart does.
+  const restartedContext = new Context()
+  await restartedContext.plugin(Storage)
+  const restartedBackend = new JsonStorageBackend(root)
+  restartedContext.storage.backend.register('json', restartedBackend)
+  const restartedFacility = new DomainFacility(restartedContext, { backend: 'json' })
+  restartedContext.storage.mount('domain', restartedFacility)
+  const reopenedJournal = RecoveryJournal.open(journalRoot)
+  let reopened
+  try {
+    reopened = await IdleStore.open(restartedFacility, reopenedJournal)
+    assert.deepEqual(reopened.get(first.sessionId), latest)
+    assert.deepEqual((await saved())[first.sessionId], latest)
+    assert.equal(await reopened.claim(first, 'forbidden-retry'), null)
+    assert.deepEqual((await pending()).entries, [])
+  } finally {
+    try {
+      await reopened?.close()
+      await restartedFacility.closeAll()
+      await restartedBackend.close()
+      await restartedContext.fiber.dispose()
+    } finally { reopenedJournal.close() }
+  }
 })

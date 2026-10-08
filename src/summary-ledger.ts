@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { defineDomain, domainTable, type Domain, type DomainFacility } from '@deepseek-ai/dsh-storage-domain'
+import type { RecoveryJournal } from './recovery-journal.ts'
 
 export type SummaryTrigger = 'idle' | 'pressure' | 'overflow' | 'manual'
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
@@ -59,13 +60,16 @@ export class SummaryLedger {
    * {@link chain}; per-field merges commute, so call-time application is safe.
    */
   private readonly overlay = new Map<string, Row>()
+  /** Stable metadata remains readable after an old Host closes its domain. */
+  private readonly rows = new Map<string, Row>()
   private readonly usageOwners = new Map<string, number>()
   private readonly usageClosed = new Set<string>()
-  private constructor(private readonly domain: Domain<typeof spec>) {
+  private constructor(private readonly domain: Domain<typeof spec>, private readonly journal?: RecoveryJournal) {
     this.table = domain.table('sessions')
     // Old-process streams cannot deliver after reopening. Preserve their
     // unknown totals, but never replay a call or permanently fill the ring.
-    for (const [, row] of this.table.entries()) {
+    for (const [key, row] of this.table.entries()) {
+      this.rows.set(key, row)
       for (const item of row.recent) this.usageClosed.add(item.id)
     }
   }
@@ -82,7 +86,17 @@ export class SummaryLedger {
       else { this.usageOwners.delete(id); this.usageClosed.add(id) }
     }
   }
-  static async open(facility: DomainFacility): Promise<SummaryLedger> { return new SummaryLedger(await facility.open(spec)) }
+  static async open(facility: Pick<DomainFacility, 'open'>, journal?: RecoveryJournal): Promise<SummaryLedger> {
+    const domain = await facility.open(spec)
+    try {
+      await journal?.replay(spec.name, domain.table('sessions'), (key, value) => {
+        const row = record.parse(value)
+        if (row.sessionId !== key) throw new Error('Summary journal session key mismatch')
+        return row
+      })
+      return new SummaryLedger(domain, journal)
+    } catch (error) { await domain.close(); throw error }
+  }
   private enqueue<T>(work: () => Promise<T>): Promise<T> {
     if (this.closed) return Promise.reject(new Error('Summary ledger closed'))
     const operation = this.chain.then(work)
@@ -90,14 +104,30 @@ export class SummaryLedger {
     return operation
   }
   private read(sessionId: string): Row | undefined {
-    return this.overlay.get(sessionId) ?? this.table.get(sessionId)
+    if (this.overlay.has(sessionId)) return this.overlay.get(sessionId)
+    try {
+      const row = this.table.get(sessionId)
+      if (row) this.rows.set(sessionId, row)
+      else this.rows.delete(sessionId)
+      return row
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'closed') throw error
+      // The initial complete snapshot plus every accepted merge is retained.
+      // A closed domain is not evidence that the attempt never existed.
+    }
+    return this.rows.get(sessionId)
   }
   /** Apply one merged row to the read overlay, then enqueue its durable write. */
   private commit(sessionId: string, row: Row): Promise<void> {
     if (this.closed) return Promise.reject(new Error('Summary ledger closed'))
+    // Capture every delivered field durably before any await. Old Hosts may
+    // close their shared backend while the provider's bounded drain is active.
+    const acknowledge = this.journal?.record(spec.name, sessionId, this.read(sessionId), row)
+    this.rows.set(sessionId, row)
     this.overlay.set(sessionId, row)
     return this.enqueue(async () => {
       await this.table.put(sessionId, row)
+      acknowledge?.()
       // A failed write keeps its overlay dirty. An identical later merge or
       // close retries it; an older write cannot clear a newer pending value.
       if (this.overlay.get(sessionId) === row) this.overlay.delete(sessionId)
@@ -172,6 +202,8 @@ export class SummaryLedger {
     try {
       for (const [sessionId, row] of this.overlay) {
         await this.table.put(sessionId, row)
+        // Retire only the exact generation confirmed by this last flush.
+        this.journal?.record(spec.name, sessionId, row, row)()
         this.overlay.delete(sessionId)
       }
     } finally { await this.domain.close() }

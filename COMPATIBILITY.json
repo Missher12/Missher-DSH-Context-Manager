@@ -23,14 +23,14 @@
   ],
   "customPresets": "Replace the compaction-basic provider with @missher/dsh-context-manager/engine explicitly. Saved preset overrides take precedence.",
   "runtimeCapabilities": {
-    "idleMaintenanceSelection": "BasicCompactionEngine.selectMaintenanceRange; missing capability skips idle compaction before billing",
+    "idleMaintenanceSelection": "Plugin-owned selection inside Agent.runMaintenance; no Basic selection hook required",
     "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true; missing capability skips pruning",
-    "durableMetadata": "storageDomain for idle eligibility and summary usage",
-    "summaryAbortCommit": "BasicCompactionEngine.supportsSummaryAbortCommit === true; otherwise compaction is blocked before a billable call",
-    "storageShutdownDrain": "storageDomain.registerDrain for both context_manager_idle and context_manager_summaries, backed by each actual backend; otherwise compaction is blocked"
+    "durableMetadata": "Existing storageDomain schemas plus a plugin-owned pending metadata journal; no session/learning migration",
+    "summaryAbortCommit": "Plugin-owned transaction checks AbortSignal immediately before synchronous Session replacement",
+    "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain."
   },
   "verification": {
-    "distribution": "Context 0.8.0-local.7 was accepted with custom rc.2 plus summary commit cancellation and JSON storage drain fixes. See PUBLICATION.md for exact source and validation evidence.",
+    "distribution": "0.8.0-local.8: frozen plugin-owned transaction and recovery journal; old/enhanced SDK checks and two cold old-Host starts on Intel macOS. See PUBLICATION.md; Linux/Windows native installation remains unverified.",
     "platformsTested": [
       "macOS Intel (x64)"
     ],

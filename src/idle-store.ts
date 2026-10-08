@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain, DomainFacility, KvTable } from '@deepseek-ai/dsh-storage-domain'
+import type { RecoveryJournal } from './recovery-journal.ts'
 
 const tokenCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const identifier = z.string().min(1).max(256)
@@ -61,26 +62,36 @@ function eligibilityOf(value: IdleEligibility): IdleEligibility {
 
 /**
  * Serializes conditional writes above storage.domain's durable write queue.
- * There is no second in-memory cache, and no claim succeeds before persistence.
+ * Retains accepted metadata through Host shutdown; no claim succeeds before persistence.
  */
 export class IdleStore {
   private readonly table: KvTable<string, IdleRecord>
   private chain: Promise<void> = Promise.resolve()
   private closing = false
   private disposal?: Promise<void>
+  private readonly rows = new Map<string, IdleRecord>()
 
-  private constructor(private readonly domain: Domain<typeof idleDomainSpec>) {
+  private constructor(private readonly domain: Domain<typeof idleDomainSpec>, private readonly journal?: RecoveryJournal) {
     this.table = domain.table('sessions')
+    for (const [key, record] of this.table.entries()) this.rows.set(key, record)
   }
 
   /** Open once on the Manager; preset engines share the returned instance. */
-  static async open(facility: Pick<DomainFacility, 'open'>): Promise<IdleStore> {
-    return new IdleStore(await facility.open(idleDomainSpec))
+  static async open(facility: Pick<DomainFacility, 'open'>, journal?: RecoveryJournal): Promise<IdleStore> {
+    const domain = await facility.open(idleDomainSpec)
+    try {
+      await journal?.replay(idleDomainSpec.name, domain.table('sessions'), (key, value) => {
+        const row = recordSchema.parse(value)
+        if (row.sessionId !== key) throw new Error('Idle journal session key mismatch')
+        return row
+      })
+      return new IdleStore(domain, journal)
+    } catch (error) { await domain.close(); throw error }
   }
 
   /** Read only the latest persisted record, without exposing mutable domain state. */
   get(sessionId: string): IdleRecord | undefined {
-    const record = this.table.get(sessionId)
+    const record = this.rows.get(sessionId)
     if (!record) return undefined
     if (record.sessionId !== sessionId) throw new Error('idle record session key mismatch')
     return Object.freeze({ ...record })
@@ -88,7 +99,7 @@ export class IdleStore {
 
   /** Snapshot only this ledger's registered metadata, without loading sessions. */
   all(): readonly IdleRecord[] {
-    return Object.freeze(Array.from(this.table.entries(), ([key, record]) => {
+    return Object.freeze(Array.from(this.rows, ([key, record]) => {
       if (record.sessionId !== key) throw new Error('idle record session key mismatch')
       return Object.freeze({ ...record })
     }))
@@ -177,8 +188,22 @@ export class IdleStore {
   }
 
   private async put(value: IdleRecord): Promise<IdleRecord> {
-    const record = Object.freeze(recordSchema.parse(value))
+    // Zod preserves explicitly present optional undefined values. Validate
+    // first, then omit only those known fields so the journal receives JSON
+    // without silently accepting unknown metadata or weakening its checks.
+    const { attemptId, compactionId, beforeTokens, afterTokens, reasonCode, ...required } = recordSchema.parse(value)
+    const record: IdleRecord = Object.freeze({ ...required,
+      ...(attemptId === undefined ? {} : { attemptId }),
+      ...(compactionId === undefined ? {} : { compactionId }),
+      ...(beforeTokens === undefined ? {} : { beforeTokens }),
+      ...(afterTokens === undefined ? {} : { afterTokens }),
+      ...(reasonCode === undefined ? {} : { reasonCode }),
+    })
+    const acknowledge = this.journal?.record(idleDomainSpec.name, record.sessionId, this.rows.get(record.sessionId), record)
+    if (this.journal) this.rows.set(record.sessionId, record)
     await this.table.put(record.sessionId, record)
+    this.rows.set(record.sessionId, record)
+    acknowledge?.()
     return Object.freeze({ ...record })
   }
 }
