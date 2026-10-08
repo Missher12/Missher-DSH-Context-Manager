@@ -1,9 +1,11 @@
 {
-  "version": "0.8.0-local.8",
+  "version": "0.8.0-local.9",
   "sourceRepository": "Missher12/Missher-DSH-Context-Manager",
-  "baseCommit": "cf8d21592d2c468fceeb07e18927895a987866b7",
-  "acceptedPackageSha256": "b73fc64d735096f1071a79d10a2da73a57ade42b2ad491fca05f1643c0fc06ab",
-  "frozenSourceBindingSha256": "3f162eea790759300873b4b472db6c6abee495e9f084537770d622f2dc28c8a4",
+  "baseCommit": "827de76d73b6ac0da3a778991ed666e45a3929c7",
+  "acceptedPackageSha256": "8a8b878b36b37fb9f356237e511df5b1513dc970ca817314e2b3573eea8d923b",
+  "behaviorValidatedPackageSha256": "0059473e1b165218bf678e717a3fddcfb6140cf5be7d54f260ca82b3cb1cfd01",
+  "frozenSourceBindingSha256": "caabf464ec9cfaa25f39029f6696ca8ad4d30d40cfada66b018f6dfec1a52d3d",
+  "publicationSourceBindingSha256": "66f51bd2092ae1ce438b12add90bf9376da2b309a3dccf57f7d23300c1ab3144",
   "runtimeFiles": [
     {
       "path": "lib/chart-data.js",
@@ -11,7 +13,7 @@
     },
     {
       "path": "lib/client.js",
-      "sha256": "c26ad589f87d503b19f1b123d2647ba2b80be44f009a7efd72152e3e1aa48b27"
+      "sha256": "8d857fd50a9ba8c8c4a6d8e0ba72335b7264dde9d367d2d65d0b02deffddbe99"
     },
     {
       "path": "lib/diagnostics.js",
@@ -19,11 +21,11 @@
     },
     {
       "path": "lib/engine.js",
-      "sha256": "58f01d042ee0e46bb477cc4eb34918bca6ba5fa0147eb530989ae4357d90cfb1"
+      "sha256": "86dbd86779f2d0ec87488f4d3a05cf95bde02e2b5cba489e22dd02d1ed3eabae"
     },
     {
       "path": "lib/index.js",
-      "sha256": "dbee8cd0fc825a0a5cdc407db6b3de751b6094b626f85e4174385d615b308f57"
+      "sha256": "32ca9a7e09af6f34faa9e2edc36a9c8d85e2a3f5be2328d21eb8a57d2e689a6d"
     },
     {
       "path": "lib/inspector-fold.js",
@@ -43,15 +45,10 @@
     }
   ],
   "runtimeMatchesFrozenPackage": true,
-  "publicationOnlyChanges": [
-    "AGENTS.md",
-    "PROJECT_CONTEXT.md",
+  "packageDocumentationChanges": [
     "README.md",
     "README.en.md",
-    "COMPATIBILITY.json",
-    "GIT_DELIVERY.json",
-    "PUBLICATION.md",
-    "verification/RESULTS-LOCAL8-20261008.json"
+    "COMPATIBILITY.json"
   ],
-  "scope": "Plugin Git/Release publication only. Frozen tarball retained; no Host or user-profile installation."
+  "scope": "One cross-platform plugin package. Host and user profiles are not changed by publication."
 }

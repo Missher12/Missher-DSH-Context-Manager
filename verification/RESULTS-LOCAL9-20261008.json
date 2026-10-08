@@ -1,0 +1,174 @@
+{
+  "version": "0.8.0-local.9",
+  "packageSha256": "8a8b878b36b37fb9f356237e511df5b1513dc970ca817314e2b3573eea8d923b",
+  "packageBytes": 176413,
+  "sourceAudit": {
+    "sourceFiles": 31,
+    "additionalBuildManifestFiles": 3,
+    "fixedFindings": [
+      "Windows unsupported directory fsync at initialization",
+      "Typed provider failure lost before existing image-offload recovery hook"
+    ],
+    "uiExecutableBehaviorChanged": false
+  },
+  "ownerChecks": {
+    "enhancedSdk": {
+      "total": 191,
+      "pass": 189,
+      "fail": 0,
+      "skip": 2,
+      "skipReason": "Old SDK exclusive cases run in the old-SDK suite"
+    },
+    "oldSdk": {
+      "pass": 50,
+      "fail": 0,
+      "skip": 0
+    },
+    "lifecycle": {
+      "scenarios": 23,
+      "checks": 242
+    },
+    "admission": {
+      "scenarios": 3,
+      "checks": 21
+    },
+    "oldHostMacOSIntel": {
+      "prepare": 3,
+      "coldStartOne": 27,
+      "persistedSessionResume": 69,
+      "coldStartTwo": 27,
+      "modelCalls": 0,
+      "externalNetworkAttempts": 0,
+      "forcedKills": 0
+    }
+  },
+  "coordinatorChecks": {
+    "frozenSourceFiles": 110,
+    "packageMembers": 16,
+    "targetedSummaryRecoveryAndBuiltWire": {
+      "pass": 10,
+      "fail": 0
+    },
+    "packageBoundary": "pass",
+    "clientCode": "Only esbuild dependency source-path comments changed"
+  },
+  "nativeJournalBaseline": {
+    "run": 37739930242,
+    "Windows": "EPERM fsync reproduced",
+    "macOS": "pass",
+    "Ubuntu": "pass"
+  },
+  "nativeJournalRegression": {
+    "run": 37740339287,
+    "eachPlatform": {
+      "journalTests": 23,
+      "pass": 23,
+      "fail": 0,
+      "skip": 0,
+      "smokeChecks": 6
+    }
+  },
+  "limitations": [
+    "Native journal tests are separate from full Desktop acceptance on Windows or Linux.",
+    "Old-host resume used a synthetic persisted session on Intel macOS, not the user reported session.",
+    "No real provider summary-quality test or daily installation.",
+    "Windows ACL inheritance and sudden-power-loss metadata durability are not equivalent to POSIX mode bits and directory fsync."
+  ],
+  "priorFailuresRetained": [
+    "initial CI runner-context configuration failure",
+    "generic SDK error normalization assertion",
+    "legacy diagnostic-text assertion",
+    "one incorrect test-invocation working directory"
+  ],
+  "finalNativeJournalMatrix": {
+    "run": 37742808321,
+    "sourceCommit": "3ecab0d033a47ea98ffb5347cfecc8258e8e234b",
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/37742808321",
+    "jobs": [
+      {
+        "job": "context-recovery-macos-latest-node22",
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v22.23.2",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      },
+      {
+        "job": "context-recovery-macos-latest-node24",
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v24.20.0",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      },
+      {
+        "job": "context-recovery-ubuntu-latest-node22",
+        "platform": "linux",
+        "arch": "x64",
+        "node": "v22.23.3",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      },
+      {
+        "job": "context-recovery-ubuntu-latest-node24",
+        "platform": "linux",
+        "arch": "x64",
+        "node": "v24.21.0",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      },
+      {
+        "job": "context-recovery-windows-latest-node22",
+        "platform": "win32",
+        "arch": "x64",
+        "node": "v22.23.3",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      },
+      {
+        "job": "context-recovery-windows-latest-node24",
+        "platform": "win32",
+        "arch": "x64",
+        "node": "v24.21.0",
+        "journal": {
+          "tests": 23,
+          "pass": 23,
+          "fail": 0,
+          "skipped": 0
+        },
+        "smokeChecks": 6
+      }
+    ]
+  },
+  "formalPackageRecheck": {
+    "prepare": 3,
+    "cold": 27,
+    "failed": 0,
+    "runtimeBytesSameAsBehaviorPackage": true
+  }
+}

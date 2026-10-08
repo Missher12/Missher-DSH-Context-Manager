@@ -11,13 +11,15 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前版本为 **0.8.0-local.8**。这是可单独安装的 Cordis Bundle；[本版下载与验证范围](./PUBLICATION.md)说明旧宿主适配、安装和数据备份。本仓库自带对应的九个预构建运行文件。
+包名为 `@missher/dsh-context-manager`，当前版本为 **0.8.0-local.9**。这是可单独安装的 Cordis Bundle；[本版下载与验证范围](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)说明旧宿主适配、安装和数据备份。本仓库自带对应的九个预构建运行文件。
 
 本版新增：可证明无损的摘要包装归一化（BOM、换行、单一 JSON 代码围栏）；至多一次有预算的格式修复，仅当数组字段误写为单个字符串时触发，失败正文完整重发并逐字段比对，其余结构问题一律拒绝且原文保留；可配置的「绝对工作历史软预算」（默认关闭，与百分比、输出预留、安全空间取保守值）；取消后的迟到用量幂等补记；上下文页显示有效预算来源与 Goal 停因。
 
 ## 宿主与平台
 
-local.8 在插件内处理摘要提交前取消检查，并在 profile 下记录待补记元数据，不再要求宿主新增取消标记、存储排空或维护选区接口。已在 **macOS Intel（x64）** 使用 10 月 3 日旧 SDK 和增强 SDK 验证，旧 Host 的完整 CLI 安装及两次冷启动通过；具体证据见[发布说明](./PUBLICATION.md)。这不等于用户 Ubuntu 实机升级已验收。Windows、Linux、Apple Silicon 和其他官方发行版的完整插件流程仍未验收，不能仅凭版本号推断兼容。
+本版使用同一个插件包支持跨平台恢复。已在 Windows、Ubuntu、macOS 原生文件系统上执行恢复日志专项，旧版 Windows 的 `EPERM fsync` 已复现并修复；macOS Intel 上完成旧／增强 SDK 的完整及专项回归。具体检查和未覆盖的层级见[发布说明](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md)。用户设备的完整桌面操作、其他官方发行版和真实模型摘要质量仍需分别验证。
+
+插件继续自行处理提交前取消、选区和用量恢复，不需要新增宿主补丁。新增修复保留供应商的错误类型，让现有图片超限恢复钩子可以正常处理；普通失败和取消不会因此自动重试。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
@@ -32,16 +34,18 @@ local.8 在插件内处理摘要提交前取消检查，并在 profile 下记录
 
 ## 安装与更新
 
+如果此前在 Windows 看到 `EPERM ... fsync`，并伴随 `contextManager`、`compaction` 等待错误，请更新现有插件后完整退出并重开 DSH，再恢复原会话。无须删除原会话或恢复日志，也无须另装一个 Windows 专用插件。
+
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：先备份当前 profile 及数据，再进入 **插件 → 添加插件**，选择 [local.8 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz) 或填写该下载地址，按应用提示重新加载或重启。已有同名插件时更新该插件，不需要再装兼容包或更换宿主来获取上述三个新增接口。安装包没有安装期构建脚本。
+桌面端：先备份当前 profile 及数据，再进入 **插件 → 添加插件**，选择 [local.9 安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz) 或填写该下载地址，按应用提示重新加载或重启。已有同名插件时更新该插件，不需要再装兼容包或更换宿主来获取上述三个新增接口。安装包没有安装期构建脚本。
 
 备份必须一起保留 `.context-manager-recovery`、`context_manager_idle`、`context_manager_summaries` 及会话数据。恢复日志可能保存旧宿主关闭存储后的已知用量，不能为了排错直接删除。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz
 ```
 
 安装前保留旧包与配置，等待任务结束；更新后**完整退出并重启目标应用或 profile**。检查插件版本及三个入口 `context-manager`、`context-manager-engine`、`context-manager-inspector` 全部运行，再打开会话顶部“轨迹”后的“上下文”。旧进程可能缓存包导出表，仅刷新页面或切换开关不能替代重启。不要同时启用旧包名与新包名。

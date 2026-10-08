@@ -6,13 +6,15 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Version: **0.8.0-local.8**. This is an independently installable Cordis Bundle with nine matching prebuilt runtime files. See [release and installation details](./PUBLICATION.md). It provides configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Version: **0.8.0-local.9**. This is an independently installable Cordis Bundle with nine matching prebuilt runtime files. See [release and installation details](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md). It provides configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
 The plugin owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. This change does not alter Goal limits or MSE quotas.
 
 ## Host and platform requirements
 
-Validation used the October 3 SDK with its original missing capabilities and the enhanced SDK on **Intel macOS (x64)**. Installation through the old Host CLI and two cold Host starts passed; [publication details](./PUBLICATION.md) separate these results from platform acceptance. The user's Ubuntu machine has not been upgraded or tested in this release work. Complete plugin workflows on Windows, Linux, Apple Silicon and other official distributions remain unverified.
+One package contains the shared implementation for all platforms. Native filesystem regression checks run on Windows, Ubuntu and macOS; the old Windows directory-fsync EPERM was reproduced and fixed. Full enhanced-SDK and targeted old-SDK regressions run on Intel macOS. [Publication details](https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md) separate these checks from complete desktop acceptance on a user device and real-provider summary quality.
+
+Final cancellation, selection and usage recovery remain plugin-owned. Typed provider failures now reach the existing image-offload recovery hook; ordinary failures and cancellation do not automatically trigger retries.
 
 | Host condition | Behavior |
 | --- | --- |
@@ -27,16 +29,18 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 ## Install and update
 
+For the Windows `EPERM ... fsync` failure and dependent `contextManager` / `compaction` waits, update the existing plugin, fully quit and restart DSH, then resume the original session. Do not delete sessions or recovery metadata. No platform-specific companion plugin is required.
+
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: back up the active profile and data, open **Plugins → Add plugin**, and select the [local.8 package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz) or paste its download URL. Update the existing plugin and reload or restart as requested. No companion compatibility package or Host replacement is required to supply the three added interfaces above. Installation runs no build script.
+Desktop: back up the active profile and data, open **Plugins → Add plugin**, and select the [local.9 package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz) or paste its download URL. Update the existing plugin and reload or restart as requested. No companion compatibility package or Host replacement is required to supply the three added interfaces above. Installation runs no build script.
 
 Back up `.context-manager-recovery`, `context_manager_idle`, `context_manager_summaries` and session data together. The journal may contain observed usage pending after the old Host closed storage; do not delete it to troubleshoot.
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.8/missher-dsh-context-manager-0.8.0-local.8.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.8.0-local.9/missher-dsh-context-manager-0.8.0-local.9.tgz
 ```
 
 Keep the previous package and configuration, wait for active tasks to finish, and **fully restart the target application or profile** after updating. Confirm the version and all three active entries: `context-manager`, `context-manager-engine` and `context-manager-inspector`. Open **Context**, after **Trace**, in a session. An old process may cache package exports; a page refresh or enable toggle does not replace a restart. Do not enable both old and renamed packages.

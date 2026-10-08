@@ -27,10 +27,11 @@
     "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true; missing capability skips pruning",
     "durableMetadata": "Existing storageDomain schemas plus a plugin-owned pending metadata journal; no session/learning migration",
     "summaryAbortCommit": "Plugin-owned transaction checks AbortSignal immediately before synchronous Session replacement",
-    "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain."
+    "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain.",
+    "platformRecovery": "Shared journal: POSIX directory fsync; Windows mandatory regular-file flush before and after replacement. File errors remain fatal. Windows ACLs and power-loss metadata durability are not equivalent to POSIX modes/directory fsync."
   },
   "verification": {
-    "distribution": "0.8.0-local.8: frozen plugin-owned transaction and recovery journal; old/enhanced SDK checks and two cold old-Host starts on Intel macOS. See PUBLICATION.md; Linux/Windows native installation remains unverified.",
+    "distribution": "0.8.0-local.9: shared recovery startup fix and typed provider-error recovery. See PUBLICATION.md for exact checks and limits.",
     "platformsTested": [
       "macOS Intel (x64)"
     ],
@@ -41,6 +42,12 @@
     ],
     "officialHarnessOnly": "Full plugin acceptance on unmodified official rc.2 was not performed. Missing optional capabilities follow runtimeCapabilities.",
     "realProviderCompactionTested": false,
-    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit."
+    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit.",
+    "journalPlatformsTested": [
+      "Windows native runner",
+      "Ubuntu native runner",
+      "macOS native runner"
+    ],
+    "sdkRegression": "Enhanced SDK: 191 total, 189 passed, two old-only cases skipped; naturally old SDK: 50 passed, zero skipped."
   }
 }
