@@ -175,7 +175,7 @@ test('repair: an error finish with no text is rejected without a second paid cal
     assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
     assert.equal(ledger.input, 600); assert.equal(ledger.output, 20, 'usage observed before the failure settles the failed attempt')
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /摘要未完整结束/)
+    assert.equal(view.compactions[0].error, 'summary unavailable', 'retain the provider failure instead of replacing its cause with a generic finish label')
   } finally { await ctx.fiber.dispose() }
 })
 

@@ -18,7 +18,7 @@ const { RecoveryJournal } = await import(`data:text/javascript;base64,${Buffer.f
 const parent = fs.mkdtempSync(join(tmpdir(), 'dsh context 中文-'))
 const root = join(parent, 'profile space 中文', '.context-manager-recovery')
 fs.mkdirSync(join(parent, 'profile space 中文'))
-const result = { platform: process.platform, node: process.version, checks: [], modelCalls: 0 }
+const result = { platform: process.platform, arch: process.arch, node: process.version, checks: [], modelCalls: 0 }
 const journals = []
 const open = () => { const journal = RecoveryJournal.open(root); journals.push(journal); return journal }
 const check = (name, action) => { action(); result.checks.push(name) }

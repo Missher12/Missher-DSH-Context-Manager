@@ -31,7 +31,7 @@ const LATE_USAGE_TIMEOUT_MS = 15000
 
 /** A stream failure that still carries the usage observed before the failure. */
 class SummaryStreamError extends Error {
-  constructor(message: string, readonly usage?: TokenUsage) { super(message) }
+  constructor(message: string, readonly usage: TokenUsage | undefined, cause: unknown) { super(message, { cause }) }
 }
 
 const INSTRUCTION = `Summarize ONLY the preceding conversation span into a concise continuation checkpoint.
@@ -226,7 +226,10 @@ export default class ContextEngine extends BasicCompactionEngine {
     return { meter: this.ctx.tokenMeter,
       summarize: (input, agent, signal) => this.summarize(input, agent, signal),
       recover: (error, agent, sourceEventSeqs, signal) => this.ctx.waterfall('compaction/summary-error', {
-        session: agent.session, sourceEventSeqs, error, signal,
+        session: agent.session, sourceEventSeqs, signal,
+        // Keep usage on our wrapper, but give public recovery plugins the
+        // typed provider failure they require (e.g. retained image offload).
+        error: error instanceof SummaryStreamError && error.cause instanceof LlmError ? error.cause : error,
       }, () => false),
     }
   }
@@ -432,6 +435,10 @@ export default class ContextEngine extends BasicCompactionEngine {
         }
       }
       signal.throwIfAborted()
+      if (assembler.finish.kind === 'error' || assembler.finish.kind === 'aborted') {
+        const failure = assembler.finish.failure
+        throw new LlmError(failure.message, failure.code, failure)
+      }
       if (assembler.finish.kind !== 'stop') throw new Error(`摘要未完整结束：${assembler.finish.kind}`)
       const blocks = assembler.blocks()
       if (blocks.some(b => b.type !== 'text' && b.type !== 'reasoning')) throw new Error('摘要包含工具调用或非文本输出')
@@ -439,7 +446,7 @@ export default class ContextEngine extends BasicCompactionEngine {
       return { blocks, text, ...(observedUsage === undefined ? {} : { usage: observedUsage }) }
     } catch (error) {
       // Failures, cancellations and late aborts settle the usage seen so far.
-      throw new SummaryStreamError(this.reasonOf(error), observedUsage)
+      throw new SummaryStreamError(this.reasonOf(error), observedUsage, error)
     }
   }
 

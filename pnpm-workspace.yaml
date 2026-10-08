@@ -24,6 +24,7 @@ overrides:
   '@deepseek-ai/dsh-client-ui-settings': 'link:./harness-sdk/packages/client/ui-settings'
   '@deepseek-ai/dsh-compaction': 'link:./harness-sdk/packages/compaction/compaction'
   '@deepseek-ai/dsh-compaction-basic': 'link:./harness-sdk/packages/compaction/compaction-basic'
+  '@deepseek-ai/dsh-compaction-image-offload': 'link:./harness-sdk/packages/compaction/compaction-image-offload'
   '@deepseek-ai/dsh-llm': 'link:./harness-sdk/packages/llm/llm'
   '@deepseek-ai/dsh-llm-retry': 'link:./harness-sdk/packages/llm/llm-retry'
   '@deepseek-ai/dsh-session': 'link:./harness-sdk/packages/core/session'

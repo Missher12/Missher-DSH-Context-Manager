@@ -5,9 +5,13 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, parse } from 'node:path'
+import { join, parse, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { build } from 'esbuild'
+// The native matrix installs only this compiler outside the Host workspace.
+const require = createRequire(process.env.CONTEXT_CI_DEPS
+  ? join(resolve(process.env.CONTEXT_CI_DEPS), 'package.json') : import.meta.url)
+const { build } = require('esbuild')
 
 // Bundle this pure helper in memory, never rebuild the daily-linked root lib.
 const compiled = await build({
