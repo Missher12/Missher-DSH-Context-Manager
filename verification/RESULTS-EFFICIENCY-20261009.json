@@ -1,0 +1,85 @@
+{
+  "version": "0.10.0-local.1",
+  "revision": "r2",
+  "sourceManifestSha256": "238b1aab0da508d7ced20c8203fac3583ca5407f8d9333249c35504b346efa7e",
+  "packageSha256": "32d87ca6c961c75e516003acf32065bf7500a9da0d549190ef15e3a863ef7b95",
+  "packageMembers": 23,
+  "runtimeFiles": 16,
+  "coverage": {
+    "enhanced": {
+      "passed": 279,
+      "skipped": 2,
+      "failed": 0
+    },
+    "legacySupportedSuites": {
+      "historical": 48,
+      "newAdaptation": 28
+    },
+    "legacyAdditionalFullRun": {
+      "passed": 229,
+      "failed": 46,
+      "cancelled": 6
+    },
+    "legacyAdditionalSubset": {
+      "passed": 83,
+      "failed": 4
+    },
+    "independentLocal": {
+      "core": 13,
+      "usage": 8,
+      "archiveFaults": 3,
+      "lifecycle": 3
+    },
+    "crossPlatformCi": {
+      "workflow": ".github/workflows/context-portability.yml",
+      "releaseRequirement": "All 12 jobs must pass on the candidate revision; exact run is linked from Release notes.",
+      "tests": [
+        "recovery",
+        "archive"
+      ],
+      "operatingSystems": [
+        "Windows",
+        "Ubuntu",
+        "macOS"
+      ],
+      "nodeMajorVersions": [
+        22,
+        24
+      ]
+    },
+    "r2Targeted": {
+      "settingsAndWirePassed": 29,
+      "fullSuiteRerun": false
+    },
+    "hostR2": {
+      "loaderActive": 3,
+      "rpcSemanticsPassed": 8,
+      "grantIdentityPassed": 6,
+      "normalExits": 2,
+      "coldRestartSetting": "reduce persisted",
+      "modelCalls": 0,
+      "externalNetworkAttempts": 0
+    }
+  },
+  "independentAcceptance": {
+    "hostAndStorageAccepted": true,
+    "visualAccepted": false,
+    "realProviderSavingsVerified": false,
+    "receiptSha256": "bfa9fd993feaec996010b53e0bdae48a041497075d8a19c57cd7416d954cfa74",
+    "hostReceiptSha256": "ddd225583438cab9b809278e38e363570a343da461f2cdf3faf1cc4e2a92e36e",
+    "sameLayoutRebuildIdentical": 16,
+    "ordinaryAndForkStorageAccepted": true
+  },
+  "limitations": [
+    "Visual acceptance blocked by ERR_BLOCKED_BY_CLIENT",
+    "Real-provider fidelity/savings and remote Qwen tasks not tested",
+    "Additional legacy suites retain failures; no universal Host compatibility claim",
+    "No daily installation/restart, marketplace acceptance, or remote damaged-log restoration"
+  ],
+  "dailyInstalled": false,
+  "r1ToR2Changed": [
+    "src/inspector-locales.ts",
+    "lib/client.js"
+  ],
+  "ciCheckoutCorrection": "Windows CRLF conversion was rejected by the SHA gate before fault tests. Enforce LF; retain strict hashes and failed artifacts."
+}

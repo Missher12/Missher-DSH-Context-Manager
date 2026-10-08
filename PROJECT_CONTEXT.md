@@ -1,6 +1,6 @@
 # 2026-10-09 效率升级候选 CI
 
-当前公开候选为 0.10.0-local.1；唯一业务写入者已冻结并停写。本分支只进行候选 CI，最终 Host/UI/存储验收仍待交接，未上 main/tag/Release、未安装日常。精确绑定和失败边界见 [PUBLICATION.md](./PUBLICATION.md) 与 GIT_DELIVERY.json。下方已安装/已发布记录属于旧版本；canonical 脏源码和旧 lib 保持。
+当前产品为 0.10.0-local.1 r2，唯一业务写入者已冻结停写，精确包与隔离 Host/存储已独立接受。正式 Git/tag/预发布须由协调者在同候选 12-job CI 全绿后收口；本轮不安装或重启日常。视觉被工具阻断，旧 SDK 额外失败保留。精确绑定与安装说明见 [PUBLICATION.md](./PUBLICATION.md) 和 GIT_DELIVERY.json。下方安装/发布记录属于旧版本；canonical 脏源码与旧 lib 保持。
 
 # 2026-10-08 Context 0.9.0-local.2 日志完整性修复
 
