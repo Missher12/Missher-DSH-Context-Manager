@@ -1,0 +1,29 @@
+{
+  "version": "0.10.0-local.2",
+  "candidate": "combined-ui-r5",
+  "sourceSha256": "a49a3a304f8fb20ee059ca5b2e0509fe65b4608753baf2fb6685b57da1e5cf3b",
+  "archiveSha256": "d85c34c77743ae5400869c8ecae837716bc890891eb4e5d4738c6e30106e8a7c",
+  "clientSha256": "f43ec5d7ccf22352317534c6e90a95acad359afe847ac28d30f2a0ea8f5a9b25",
+  "enhancedSdk": { "tests": 315, "passed": 313, "skipped": 2, "failed": 0, "cancelled": 0 },
+  "packagedDesktopSdk": {
+    "desktopAsarSha256": "26b5919f7388999d12dbb7b6ab60cff20ad067d0310041ed03a8b7c0d882864a",
+    "node": "24.18.1", "testedFiles": 10, "tests": 144, "finalPassed": 142, "skipped": 2,
+    "initialOutputDirectoryFailures": 2,
+    "loopFileAfterOutputDirectoryRepair": { "tests": 54, "passed": 54 },
+    "runtimeCopiedFiles": 12733, "runtimeEntryHashesChecked": 287, "provider": "synthetic"
+  },
+  "legacySdk": { "portablePassed": 7, "earlierFullPassed": 255, "earlierFullFailed": 54, "earlierFullCancelled": 6, "fullCompatible": false },
+  "independentDeadlineChecks": { "passed": 11, "realProvider": false },
+  "actualPackagedHost": {
+    "isolated": true, "loaderEntries": 202, "enabledActive": 174, "matchedClientResources": 11,
+    "settingsModes": ["fixed", "adaptive", "fixed"], "existingTimeoutMs": 90000,
+    "rpcSyntheticSamples": 8, "semanticAssertions": 377, "syntheticSessionBytesPreserved": true,
+    "shutdownAcknowledged": true, "modelCalls": 0, "externalNetworkAttempts": 0
+  },
+  "visual": {
+    "finalComponentRendering": "Maintainer verified exact final client with native controls and synthetic data in light/dark and narrow/short views.",
+    "actualHostBrowser": "blocked by ERR_BLOCKED_BY_CLIENT", "nativeDesktopClicks": "not verified"
+  },
+  "unverified": ["real provider summary quality and cost", "remote user machines", "full legacy Host compatibility", "actual Host visual acceptance"],
+  "notes": ["Test suites overlap and counts must not be summed.", "Integration-helper failures were preserved; frozen product bytes were unchanged.", "Private screenshots, labels, credentials and profiles are excluded."]
+}

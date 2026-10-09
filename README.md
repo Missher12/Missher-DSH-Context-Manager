@@ -11,9 +11,13 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.10.0-local.1**（开发候选，尚未发布安装）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
+包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.10.0-local.2**（自动压缩修复与紧凑界面预发布）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
 
 本版新增：工具结果安全精简与只读原文档案；本会话用量归因与工具精简结果进入“本会话累计”，并保持未知与已知下界的区分；设置页新增精简模式、字符阈值与请求前缀诊断开关。摘要包装归一化、格式修复、绝对工作历史软预算、取消后迟到用量补记与 Goal 停因显示继续保留。
+
+### 紧凑上下文视图
+
+当前上下文标题旁显示实际模型；请求区显示准入计量、检查线、上次输入及缓存命中。中段分别显示占用变化、最近一次被替换片段和本会话累计，未知用量与已知下界保持区分。下方默认展示两条压缩记录、三条有效内容；展开后可读取全部记录、失败原因、正文及来源。次要计量说明和轮/步放在“数据口径与详情”，没有删除数据。
 
 ### 0.10 工具结果精简、原文档案与用量归因
 
@@ -50,7 +54,7 @@ kind: "package-bundle"
 
 ## 宿主与平台
 
-此前 0.7 版的完整基线是 **Missher DeepSeek Harness Desktop 的定制 0.2.0-rc.2，macOS Intel（x64）**。local.8 将取消安全的摘要事务收回插件，并在 profile 下记录待补记元数据；不再要求宿主提供新增的取消标记和存储排空接口。精确旧／新 SDK 与平台验收见本轮 READY.md，不能仅凭版本号推断兼容。Windows、Linux、Apple Silicon、本包在纯官方 rc.2 上的完整运行、官方 0.2.1-alpha.1 均未完成插件级验收。桌面应用提供某个平台下载，不代表本插件在该平台已验证。
+此前 0.7 版的完整基线是 **Missher DeepSeek Harness Desktop 的定制 0.2.0-rc.2，macOS Intel（x64）**。local.8 将取消安全的摘要事务收回插件，并在 profile 下记录待补记元数据；不再要求宿主提供新增的取消标记和存储排空接口。精确旧／新 SDK 与平台验收见 [PUBLICATION.md](./PUBLICATION.md)，不能仅凭版本号推断兼容。Windows、Linux、Apple Silicon、本包在纯官方 rc.2 上的完整运行、官方 0.2.1-alpha.1 均未完成插件级验收。桌面应用提供某个平台下载，不代表本插件在该平台已验证。
 
 | 运行条件 | 本插件行为 |
 | --- | --- |
@@ -63,18 +67,28 @@ kind: "package-bundle"
 
 包不按 DSH 版本号设置硬性准入范围；这不等于兼容所有版本。必要服务缺失仍会加载失败。可选能力按上表降级，无需另装兼容包。预设文件基线与能力说明见 [COMPATIBILITY.json](./COMPATIBILITY.json)。其中 `sourceSha` 是生成预设的源码基线，不是纯官方整包验收声明。
 
+## 自动压缩修复与超时设置
+
+旧配置缺少时限模式时仍用 `fixed`，原 `timeoutMs` 数值及整事务硬上限不变。主动选择 `adaptive` 后，独立总限默认 600 秒，首个有效输出 120 秒、停滞 180 秒；只有非空正文/思考增量续期，修复共享剩余总限。
+
+持久许可将每次真实调用精确绑定到用量账本及压缩事务。同源最多 2 次主摘要、4 次总调用，手动与恢复也计入；只允许已证实结束、未应用的失败有限重试。未知结果不自动再次收费，可在上下文页明确授权一次额外调用，仍受精确来源/模型/预算及两分钟有效期限制。历史手动费用无法绑定时先核验，不猜剩余额度。闲置忙碌保留资格，最多每五分钟检查一次。
+
+备份须同时保留 `context_manager_operations`、原 cycles/idle/summaries 域及恢复日志。旧版本不认识新许可域：回退前先关闭自动压缩，不能只降级程序后继续自动收费；保留最新会话与账本，由协调者安排配套回退。新增许可不写回旧 cycles 表，也不清除旧调用。
+
+本版精确包、验证与限制见 [发布说明](./PUBLICATION.md)。下方早期版本说明仅用于解释保留行为。
+
 ## 安装与更新
 
 优先下载 [GitHub Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 的预构建 `.tgz`，按该 Release 的 SHA256 校验。它包含运行入口，不要求用户安装 SDK 或在电脑上编译。只使用已实际发布的版本资产。
 
-桌面端：进入 **插件 → 添加插件**，选择 [0.10.0-local.1 预发布](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.1) 的 `.tgz` 或填写其下载地址，再正常退出重开。“根 lib 保留旧版”仅指受保护的本机开发工作区；本公开仓库的 `lib` 包含最终 r2 的 16 个运行文件。建议使用带 SHA256 校验的发行包，宿主验证范围见 [PUBLICATION.md](./PUBLICATION.md)。没有安装期构建脚本。
+桌面端：进入 **插件 → 添加插件**，选择下载的 `.tgz` 或填写其 Release 下载地址。使用 [v0.10.0-local.2 的冻结包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.2)；本公开仓库的 `lib` 与该包对应。没有安装期构建脚本。
 
-下方命令是此前 0.7 稳定版示例，不是本轮 本轮候选；本轮只使用 READY.md 指定的冻结包。
+命令行也可安装同一版本；将下载文件路径替换为本机位置。
 
 CLI/Web：将 `my-context` 替换为你正在使用的自定义 Web profile；桌面的保留 `desktop` profile 应在应用内管理。
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.7.0-local.2/missher-dsh-context-manager-0.7.0-local.2.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.2/missher-dsh-context-manager-0.10.0-local.2.tgz
 ```
 
 安装前保留旧包与配置，等待任务结束；更新后**完整退出并重启目标应用或 profile**。检查插件版本及三个入口 `context-manager`、`context-manager-engine`、`context-manager-inspector` 全部运行，再打开会话顶部“轨迹”后的“上下文”。旧进程可能缓存包导出表，仅刷新页面或切换开关不能替代重启。不要同时启用旧包名与新包名。
@@ -135,7 +149,7 @@ Bundle 替换内置 Basic 压缩器，并为 Standard、PTC、Cordis 预设提�
 
 历史验证基线（2026-10-03）：真实 AgentLoop/JSONL/存储配合模拟模型，115 项通过；命名修订后 20 项针对性测试通过。定制 rc.2 隔离 Loader/RPC 和受控 Web 深浅主题、1280/800/335px、原文分页、无发送区及卡片等高通过。随后日常 macOS Intel 安装确认三个入口激活及只读 RPC 正常。
 
-0.10.0-local.1 r2 的独立类型检查、复建及包边界通过，16 个运行件逐字节一致；文案修改相关设置/传输协议 29/29。r1 增强 SDK 全量为 279 通过、2 个旧能力场景跳过，r2 其余模块保持原字节，不称重跑全量。实际隔离 Host 已完成 Loader 3/3、客户端、RPC 语义 8/8、引用身份 6/6，以及 reduce 设置跨正常退出和新进程冷启动保留。浏览器工具被 ERR_BLOCKED_BY_CLIENT 拦截，视觉与真实模型收益未验收；旧 SDK 额外失败保留，未安装日常环境。完整分层证据和限制见 [PUBLICATION.md](./PUBLICATION.md) 与 [验证记录](./verification/RESULTS-EFFICIENCY-20261009.json)。
+本版完整增强 SDK 回归为 313 通过、2 个旧 Host 场景跳过。独立实际桌面打包运行时的关键回归最终为 142 通过、2 个旧 Host 场景跳过；实际 Host 的 Loader、最终客户端、设置保存和 8 份 RPC 语义样本通过。最终组件已做深浅色及窄短窗口测试；真实 Host 页面被浏览器工具拦截，原生视觉、真实模型摘要质量、远端机器与全量旧 Host 兼容仍未完成。各证据集合独立，不相加，详见 [发布说明](./PUBLICATION.md)。
 
 这些是分层的历史证据，不代表本次发行在所有平台重新验收。未证明真实模型摘要质量、长期任务语义保留或 Windows/Linux 原生运行。压缩后重试也不会完整重跑宿主 `preStep` 的动态规则/计划装配，需要通过现有工具按需核验文件与任务状态。报告见仓库 [verification](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification)。
 

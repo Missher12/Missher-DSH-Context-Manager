@@ -13,6 +13,9 @@ export interface IdleStatus {
   minimumTokens?: number
   /** Live phase of an in-flight compaction, from either request or idle path. */
   compactionPhase?: 'summarizing' | 'repairing'
+  owner?: 'context-manager' | 'other' | 'unknown'
+  deadline?: string
+  recovery?: { available: boolean; message: string; requestHash?: string }
   updatedAt?: number
 }
 

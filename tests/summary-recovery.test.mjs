@@ -218,8 +218,9 @@ for (const mode of ['throw', 'finish']) {
       billed(stats.recent[1], SECOND_USAGE)
       assert.equal(stats.input, 1012)
       assert.equal(stats.output, 34)
-      const cycle = ctx.contextManager.compactionCycles.peek(SESSION)
-      assert.equal(cycle.summaryCalls, 1, 'image recovery is not a second history plan')
+      const rows = ctx.contextManager.summaryOperations.records(SESSION)
+      const cycle = { summaryCalls: rows.filter(row => row.purpose !== 'repair').length, calls: rows.length }
+      assert.equal(cycle.summaryCalls, 2, 'image recovery also consumes one primary call in the unified budget')
       assert.equal(cycle.calls, 2, 'both actual requests consume the durable total allowance')
     })
 

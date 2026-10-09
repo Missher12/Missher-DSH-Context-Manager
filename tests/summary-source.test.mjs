@@ -36,7 +36,7 @@ for (const name of ['window', 'document', 'Node']) Object.defineProperty(scope, 
 scope.getComputedStyle = element => globalThis.window.getComputedStyle(element)
 vm.runInNewContext(primitivesBuild.outputFiles.find(file => file.path.endsWith('.cjs')).text, scope)
 const uiBuild = await build({
-  stdin: { contents: "export { ContextInspectorView } from './inspector-view.tsx'; export { CompactionChart } from './inspector-charts.tsx'; export { inspectorText } from './inspector-locales.ts'", resolveDir: sourceRoot },
+  stdin: { contents: "export { ContextInspectorView } from './inspector-view.tsx'; export { CompactionRecords } from './inspector-charts.tsx'; export { inspectorText } from './inspector-locales.ts'", resolveDir: sourceRoot },
   write: false, bundle: true, platform: 'browser', format: 'cjs', jsx: 'automatic', target: 'es2022',
   external: ['react', 'react/*', 'react-dom', 'react-dom/*', '@deepseek-ai/dsh-client-ui-primitives'], loader: { '.css': 'text' },
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
@@ -44,7 +44,7 @@ const uiBuild = await build({
 const uiScope = { module: { exports: {} }, AbortController, setTimeout, clearTimeout,
   require: name => name === '@deepseek-ai/dsh-client-ui-primitives' ? scope.module.exports : require(name) }
 vm.runInNewContext(uiBuild.outputFiles[0].text, uiScope)
-const { ContextInspectorView, CompactionChart, inspectorText } = uiScope.module.exports
+const { ContextInspectorView, CompactionRecords, inspectorText } = uiScope.module.exports
 
 const text = value => [{ type: 'text', text: value }]
 const user = value => createUserMessage({ content: text(value), source: { kind: 'user' } })
@@ -255,11 +255,11 @@ test('real DOM distinguishes verified compaction triggers while legacy and histo
   const entries = [...['idle', 'pressure', 'overflow', 'manual'].map(trigger => ({ ...base, id: trigger, trigger })),
     { ...base, id: 'legacy-between', manual: true }, { ...base, id: 'legacy-task' }, { ...base, id: 'prune', kind: 'prune', trigger: 'idle' }]
   const root = createRoot(document.getElementById('root')); const t = inspectorText('zh')
-  const render = historical => act(async () => root.render(React.createElement(CompactionChart, { data: { historical, compactions: entries }, t })))
+  const render = historical => act(async () => root.render(React.createElement(CompactionRecords, { data: { historical, compactions: entries }, t })))
   try {
     await render(false)
     await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '全部记录').click())
-    const labels = () => [...document.querySelectorAll('.cmv-events > li')].map(row => row.querySelector('[tabindex="0"]').textContent.split(' · ').at(-1))
+    const labels = () => [...document.querySelectorAll('.cmv-events > li')].map(row => row.querySelector('summary > span').textContent.split(' · ').at(-1))
     assert.deepEqual(labels(), ['工具整理', '任务内', '会话间', '手动', '溢出', '请求前', '闲置'])
     await render(true)
     assert.deepEqual(labels(), ['工具整理', '任务内', '会话间', '任务内', '任务内', '任务内', '任务内'])
@@ -287,7 +287,8 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
   const reply = (read, body = 'summary body', nextOffset = null) => act(async () => read.resolve({ ...read.query, text: body, nextOffset, totalChars: nextOffset ? 20000 : body.length,
     ...(read.query.id === summaryRow.id ? { sources: { rows: sourceRows.slice(read.query.sourceOffset, read.query.sourceOffset + 4), offset: read.query.sourceOffset, total: 6, nextOffset: read.query.sourceOffset === 0 ? 4 : null } } : {}) }))
   try {
-    await render('a'); await settle(); assert.equal(reads.length, 1)
+    await render('a'); await settle(); assert.equal(reads.length, 0)
+    await click('展开当前有效内容'); assert.equal(reads.length, 1)
     assert.match(document.querySelector('[aria-label="闲置整理"]').textContent, /已恢复 · 1 分钟后检查/)
     assert.equal(document.querySelectorAll('.cmv-usage').length, 1)
     assert.match(document.querySelector('.cmv-usage .cmv-summary-usage').textContent, /摘要已记录 2\.5K Token · 3 次尝试 · 1 次用量未知/)
@@ -313,6 +314,7 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
     await render('b'); assert.equal(delayedSummary.signal.aborted, true)
     assert.equal(document.querySelector('.cmv-summary-source'), null)
     await reply(delayedSummary, 'late summary a'); await settle()
+    await click('展开当前有效内容')
     assert.ok(!document.body.textContent.includes('late summary a'))
     assert.equal(reads.at(-1).query.sessionId, 'b'); assert.equal(reads.at(-1).query.offset, 0)
     assert.equal(document.querySelectorAll('[role="tab"], textarea').length, 0)

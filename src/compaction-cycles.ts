@@ -16,7 +16,7 @@ const inputSchema = z.object({
 const claimSchema = inputSchema.extend({ cycle: positive, ordinal: positive.max(4), claimedAt: count })
 
 export type CompactionClaim = z.infer<typeof inputSchema>
-type ClaimRecord = z.infer<typeof claimSchema>
+export type ClaimRecord = z.infer<typeof claimSchema>
 export type CompactionCycleCode = 'duplicate_request' | 'summary_limit' | 'call_limit' | 'no_cycle' | 'stale_source' | 'closed' | 'invalid_state'
 
 /** A refusal is not permission to retry under a different model or step. */
@@ -97,6 +97,12 @@ export class CompactionCycles {
   /** The last persisted cycle. No model request or background work is resumed. */
   peek(sessionId: string): CompactionCycleSnapshot | undefined {
     return this.sessions.get(identifier.parse(sessionId))
+  }
+
+  /** Legacy permits remain immutable; new operations account them exactly once. */
+  records(sessionId: string): readonly ClaimRecord[] {
+    return [...this.table.entries()].map(([, row]) => row).filter(row => row.sessionId === sessionId)
+      .map(row => Object.freeze({ ...row })).sort((a, b) => a.cycle - b.cycle || a.ordinal - b.ordinal)
   }
 
   /** Await this permit immediately before the actual model call; unknown outcomes remain consumed. */

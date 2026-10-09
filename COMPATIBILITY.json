@@ -30,7 +30,7 @@
     "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain.",
     "journalDurability": "Mandatory regular-file fsync on every platform; POSIX directory fsync, Windows published-file O_RDWR fsync after rename. Failure refuses writes; no power-loss or network-filesystem guarantee. Windows ACL inherited from profile.",
     "workingSet": "Automatic recent-history preference plus bounded checkpoint, with whole tool groups, protected instructions and complete pressure validation; custom total caps optional.",
-    "cycleAccounting": "context_manager_cycles v1 stores durable request hashes and original-source watermarks. Existing summary/idle schemas remain unchanged.",
+    "cycleAccounting": "Legacy context_manager_cycles v1 is read only. New context_manager_operations atomically consumes the unified 2-primary/4-total budget and optional exact one-shot authorization; back up both. Manual calls also consume permits. Unknown remains blocked across restart. Older runtimes cannot enforce the new domain; disable automatic compaction before a coordinated downgrade.",
     "historyRead": "Optional tools/sessionQuery/sessions: bounded read-only original text lookup in the executing agent session; no vectors or network.",
     "toolResultReduction": "Reduction runs through the Host's final tool-result seam and publishes only a verified short value; the reducer never rewrites another plugin's bytes. A reference counts as confirmed only when the final Host result still carries the short text; pending/reverted stay separate and character deltas are not billing.",
     "originalArchive": "Profile-local .context-manager-archive with durable outcome rows, cross-restart rebuild and physical quota reconciliation; every read path is read-only. Retention is unconditional: no purge action, no retention switch, and uninstalling never deletes it.",
@@ -38,7 +38,7 @@
     "forkInheritedOriginals": "A forked session may read back only the originals granted inside its inherited prefix, bounded by boundary validity, reference count, scanned events and a total-log cap checked before the observation is materialised."
   },
   "verification": {
-    "distribution": "0.10.0-local.1 tool-result reduction, read-only original archive and usage-attribution candidate. Full regression on the enhanced SDK and an isolated legacy-SDK subset are recorded in verification/context-efficiency-20261009/READY.md; browser, isolated Host and real-model acceptance stay separate. Not installed in the daily environment.",
+    "distribution": "0.10.0-local.2 automatic compaction repair candidate. Exact evidence: verification/context-auto-20261009/codex-receiver/READY.md. Enhanced SDK, legacy SDK, native UI and real-model acceptance are separate. Not installed. Back up the new operations domain; old runtimes cannot enforce its permits.",
     "platformsTested": [
       "macOS Intel (x64)"
     ],

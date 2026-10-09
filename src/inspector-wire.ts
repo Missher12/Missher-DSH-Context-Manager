@@ -6,11 +6,16 @@ const seq = () => z.number().int().min(-1).max(Number.MAX_SAFE_INTEGER)
 const signed = () => z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER)
 const category = () => z.enum(['summary', 'system', 'tools', 'user', 'inject', 'skill', 'assistant', 'tool'])
 const sessionId = () => z.string().min(1).max(500)
+export function recoveryGrantSchema() { return z.object({ sessionId: sessionId(), requestHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict() }
+export function recoveryResultSchema() { return z.object({ granted: z.literal(true) }).strict() }
 export function idleQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
 export function idleStatusSchema() { return z.object({
   status: z.enum(['off', 'waiting', 'scheduled', 'checking', 'compacting', 'completed', 'skipped', 'cancelled', 'failed']),
   dueAt: count().nullable(), message: z.string().max(300), beforeTokens: count().optional(), afterTokens: count().optional(),
   reasonCode: z.string().max(100).optional(), restored: z.boolean().optional(), windowTokens: count().optional(), minimumPercent: z.number().min(0).max(100).optional(), updatedAt: count().optional(),
+  owner: z.enum(['context-manager', 'other', 'unknown']).optional(),
+  minimumTokens: count().optional(), deadline: z.string().max(200).optional(),
+  recovery: z.object({ available: z.boolean(), message: z.string().max(300), requestHash: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict().optional(),
   compactionPhase: z.enum(['summarizing', 'repairing']).optional(),
 }) }
 export function inspectQuerySchema() { return z.object({ sessionId: sessionId(), atSeq: seq().nullable(), offset: count(), category: z.union([category(), z.literal('all')]), group: z.enum(['summary', 'tool', 'message', 'instruction']).optional(), search: z.string().max(200), sort: z.enum(['size', 'position']), archived: z.boolean() }).strict() }
@@ -84,6 +89,9 @@ export function contentPageSchema() { return z.object({ sessionId: sessionId(), 
 export const TYPERT_REMOTE = {
   package: '@missher/dsh-context-manager',
   descriptors: [
+    { id: '@missher/dsh-context-manager#contextRecovery/authorizeOnce', service: 'contextRecovery', namespace: 'contextRecovery', method: 'authorizeOnce', invocation: { kind: 'direct' },
+      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#RecoveryGrant', create: recoveryGrantSchema } }],
+      cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#RecoveryResult', create: recoveryResultSchema } },
     { id: '@missher/dsh-context-manager#contextInspector/idleStatus', service: 'contextInspector', namespace: 'contextInspector', method: 'idleStatus', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#IdleQuery', create: idleQuerySchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#IdleStatus', create: idleStatusSchema } },

@@ -183,3 +183,14 @@ test('inspect codec rejects malformed, unbounded and non-JSON attribution values
     assert.equal(result.safeParse({ ...inspection(), ...target }).success, false, name)
   }
 })
+
+test('shipped wire preserves deadline and recovery status; explicit mutation uses separate namespace',()=>{
+  const status={status:'failed',dueAt:null,message:'保留原文',deadline:'固定整事务上限 90s',minimumTokens:132431,
+    recovery:{available:true,message:'明确授权',requestHash:'a'.repeat(64)}}
+  assert.deepEqual(roundTrip('idleStatus',status),status)
+  const mutation=TYPERT.invocations.find(row=>row.method==='authorizeOnce')
+  assert.equal(mutation.namespace,'contextRecovery');assert.notEqual(mutation.service,'contextInspector')
+  const query=mutation.parameters[0].codec.create()
+  assert.equal(query.safeParse({sessionId:'s',requestHash:'a'.repeat(64)}).success,true)
+  assert.equal(query.safeParse({sessionId:'s',requestHash:'a'.repeat(64),sourceHash:'invented'}).success,false)
+})

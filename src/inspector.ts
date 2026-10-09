@@ -17,9 +17,9 @@ import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
 import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout } from './inspector-types.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type {} from './index.ts'
-import { idleQuerySchema } from './inspector-wire.ts'
+import { idleQuerySchema, recoveryGrantSchema } from './inspector-wire.ts'
 
-declare module '@deepseek-ai/cordis' { interface Context { contextInspector: ContextInspector } }
+declare module '@deepseek-ai/cordis' { interface Context { contextInspector: ContextInspector; contextRecovery: ContextRecovery } }
 
 /** Compare at most four exact cuts of the public host projection. It is an
  * approximate occupancy indicator, not provider billing or admission input.
@@ -70,6 +70,7 @@ export class ContextInspector extends TypertRemoteService {
   private readonly lifetime = new AbortController()
   constructor(ctx: Context) {
     super(ctx, 'contextInspector')
+    ctx.plugin(ContextRecovery)
     ctx.effect(() => () => this.lifetime.abort())
   }
   @Remote('idleStatus')
@@ -219,3 +220,16 @@ export class ContextInspector extends TypertRemoteService {
   }
 }
 export default ContextInspector
+
+/** Separate explicit mutation service. Inspector methods remain read only. */
+export class ContextRecovery extends TypertRemoteService {
+  static inject = ['contextManager']
+  constructor(ctx: Context) { super(ctx, 'contextRecovery') }
+  @Remote('authorizeOnce')
+  async authorizeOnce(input: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }> {
+    signal.throwIfAborted()
+    const query = recoveryGrantSchema().parse(input)
+    await this.ctx.contextManager.authorizeRecovery(query.sessionId, query.requestHash, signal)
+    return { granted: true }
+  }
+}

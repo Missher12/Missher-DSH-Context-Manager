@@ -8,7 +8,8 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from './index.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type { IdleEligibility } from './idle-store.ts'
-import { idleFloorTokens, type Policy } from './policy.ts'
+import { deadlineLimits, idleFloorTokens, transactionTotalMs, type Policy } from './policy.ts'
+import { SummaryDeadline } from './summary-deadline.ts'
 
 interface Entry {
   epoch: number
@@ -62,7 +63,7 @@ export class IdleCompactor {
   constructor(
     private readonly ctx: Context,
     private readonly owns: (agent: Agent) => boolean,
-    private readonly compact: (agent: Agent, signal: AbortSignal, preflight: (allowBelow?: boolean) => Promise<void>, pruned: () => void) => Promise<CompactionResult | null>,
+    private readonly compact: (agent: Agent, signal: AbortSignal, preflight: (allowBelow?: boolean) => Promise<void>, pruned: () => void, deadline: SummaryDeadline) => Promise<CompactionResult | null>,
   ) {
     ctx.on('agent/created', async ({ agent }) => { if (owns(agent)) await this.restore(agent) })
     ctx.on('agent/status', ({ agent, status }) => {
@@ -246,7 +247,10 @@ export class IdleCompactor {
     const epoch = entry.epoch
     let generation = agent.session.surface.replaceGeneration
     const route = routeOf(agent)
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(this.ctx.contextManager.snapshot().timeoutMs)])
+    // The idle attempt shares the one visible compaction bound: pre-checks and
+    // the transaction inside it are covered by the same value, never a third timer.
+    const bound = new SummaryDeadline(deadlineLimits(this.ctx.contextManager.snapshot()), [controller.signal])
+    const signal = bound.signal
     entry.abort = controller
     let release: (() => void) | undefined
     let rearm = 0
@@ -263,7 +267,7 @@ export class IdleCompactor {
       signal.throwIfAborted()
       this.assertReady(agent, entry, epoch, generation, route, this.ctx.contextManager.snapshot())
       if (activity.length) {
-        if (++entry.checks <= 3) rearm = 30000
+        rearm = Math.min(300000, 30000 * 2 ** Math.min(entry.checks++, 4))
         throw new IdleSkipped('background', '后台任务尚未结束，本轮暂不整理')
       }
       const config = agent.session.requestHeader()?.config
@@ -294,7 +298,7 @@ export class IdleCompactor {
       }
       checkPressure()
       release = this.ctx.contextManager.acquireIdle()
-      if (!release) { if (++entry.checks <= 3) rearm = 30000; throw new IdleSkipped('busy', '其他会话正在整理，稍后检查') }
+      if (!release) { rearm = Math.min(300000, 30000 * 2 ** Math.min(entry.checks++, 4)); throw new IdleSkipped('busy', '其他会话正在整理，稍后检查') }
       const record = await store.claim(eligibility, attemptId, before)
       if (!record) throw new IdleSkipped('already_attempted', '本轮已经处理，不重复压缩')
       claimed = true
@@ -322,7 +326,7 @@ export class IdleCompactor {
         signal.throwIfAborted()
         if (entry.epoch !== epoch) throw new IdleSkipped('state_changed', '会话状态已变化')
         generation = agent.session.surface.replaceGeneration
-      })
+      }, bound)
       const result = await operation
       signal.throwIfAborted()
       if (entry.epoch !== epoch) return
@@ -344,6 +348,7 @@ export class IdleCompactor {
       }
       if (!skipped && !controller.signal.aborted) this.ctx.logger.warn('闲置压缩失败：%s', error)
     } finally {
+      bound.dispose()
       release?.()
       if (entry.abort === controller) entry.abort = undefined
       entry.expectStart = false

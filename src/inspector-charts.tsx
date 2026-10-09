@@ -6,7 +6,7 @@ import { composition, usageSlices, usageCompleteness, type ContextGroup } from '
 import type { InspectorText } from './inspector-locales.ts'
 import type { Policy } from './policy.ts'
 
-export const formatTokens = (value: number | null | undefined) => value == null ? '—' : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : Math.round(value).toLocaleString()
+export const formatTokens = (value: number | null | undefined) => value == null ? '—' : value >= 1_000_000 ? `${(value / 1_000_000).toFixed(2)}M` : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : Math.round(value).toLocaleString()
 export const formatCapacity = (value: number | null) => value === null ? '—' : value >= 1_000_000 ? `${(value / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}M` : formatTokens(value)
 export const formatTokenK = (value: number) => `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })}K`
 export const exactTokens = (value: number | null | undefined) => value == null ? '—' : Math.round(value).toLocaleString()
@@ -26,20 +26,16 @@ export function ContextComposition({ data, policy, t, onGroup }: { data: Inspect
   const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatTokenK(chart.limit!)} Token` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
   const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id)} ≈ ${exactTokens(slice.value)} Token${chart.window === null ? '' : ` · ${slice.share.toFixed(1)}%`}${hint(slice) ? ` · ${hint(slice)}` : ''}`
   return <article className="cmv-card cmv-composition">
-    <div className="cmv-heading"><div><h3>{t('current')}</h3><Tooltip label={`${t('capacity')} ${exactTokens(chart.window)} Token`} portal><div tabIndex={0} className="cmv-number"><strong>{formatCapacity(chart.window)}</strong><span>{t('capacity')}</span></div></Tooltip></div>
-      <div className="cmv-capacity-used"><span>{t('used')} ≈ <strong>{formatTokenK(chart.used)}</strong></span><b>{pct === null ? '—' : `${pct.toFixed(1)}%`}</b></div></div>
+    <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('current')}</h3><Tooltip label={`${t('effort')} ${data.model?.effort ?? '—'}`} portal><span tabIndex={0} className="cmv-muted cmv-model">{data.model ? `${data.model.provider} / ${data.model.model}` : t('noRequest')}</span></Tooltip></div><b>{pct === null ? '—' : `${pct.toFixed(1)}%`}</b></div>
+    <Tooltip label={`${t('used')} ≈ ${exactTokens(chart.used)} / ${t('capacity')} ${exactTokens(chart.window)} Token`} portal><div tabIndex={0} className="cmv-number"><strong>≈ {formatTokenK(chart.used)}</strong><span>/ {formatCapacity(chart.window)} Token</span></div></Tooltip>
     <div className="cmv-stack cmv-capacity-stack" role="group" aria-label={t('windowBasis')} data-total={chart.total} data-capacity={chart.window}>
       {chart.window !== null && chart.slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? t('reserveTooltip') : sliceLabel(slice)} side="bottom" portal>
         {isGroup(slice.id) ? <button type="button" data-color={slice.id} style={{ width: `${slice.value / chart.total * 100}%` }} aria-label={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}/> : <span data-color={slice.id} role="img" aria-label={sliceLabel(slice)} style={{ width: `${slice.value / chart.total * 100}%` }} tabIndex={0}>{slice.share >= 12 && slice.id !== 'other' ? t(slice.id) : null}</span>}
       </Tooltip>)}
     </div>
     <div className="cmv-legend">{chart.slices.map(slice => <button key={slice.id} type="button" className="cmv-key" disabled={!isGroup(slice.id)} data-slice={slice.id} data-value={slice.value} data-share={slice.share} title={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span><i data-color={slice.id}/>{t(slice.id)}</span><strong>{formatTokenK(slice.value)}<small>{chart.window === null ? '—' : `${slice.share.toFixed(1)}%`}</small></strong></button>)}</div>
-    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${exactTokens(chart.measured)} Token`}`} portal><span tabIndex={0}>{t('estimate')}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatTokenK(chart.used - chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')} portal><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
-    {!data.historical && <div className="cmv-growth cmv-muted"><span>{t('growthBasis')}</span>{(['sinceCompaction', 'lastToolResult'] as const).map(key => {
-      const delta = data.contextGrowth?.[key]
-      const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${exactTokens(delta.beforeTokens)} → ${exactTokens(delta.afterTokens)} Token` : ` ${t('growthUnknownHint')}`}`
-      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta ? `≈ ${delta.deltaTokens > 0 ? '+' : delta.deltaTokens < 0 ? '-' : ''}${formatTokens(Math.abs(delta.deltaTokens))} Token` : t('growthUnknown')}</strong></span></Tooltip>
-    })}</div>}
+    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${exactTokens(chart.measured)} Token`}`} portal><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatTokens(data.model?.maxTokens)} Token</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatTokenK(chart.used - chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')} portal><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
+
   </article>
 }
 
@@ -58,25 +54,36 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
   </article>
 }
 
-/** Compaction comparisons use replaced-region counts on a shared per-card scale. */
-export function CompactionChart({ data, t }: { data: Inspection; t: InspectorText }) {
+type CompactionEntry = Inspection['compactions'][number]
+function compactionSource(entry: CompactionEntry, historical: boolean) {
+  const sources = { idle: 'triggerIdle', pressure: 'triggerPressure', overflow: 'triggerOverflow', manual: 'triggerManual' } as const
+  return entry.kind === 'prune' ? 'toolCleanup' : !historical && entry.trigger ? sources[entry.trigger] : entry.manual ? 'betweenTurns' : 'duringTask'
+}
+/** Compare only the latest replaced region; records below retain all attempts. */
+export function CompactionChart({ data, t, onRecord }: { data: Inspection; t: InspectorText; onRecord: () => void }) {
+  const entry = data.compactions.at(-1)
+  const known = entry?.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined
+  const maximum = Math.max(1, entry?.beforeTokens ?? 0, entry?.afterTokens ?? 0)
+  const delta = known ? entry.beforeTokens! - entry.afterTokens! : null
+  return <article className="cmv-card cmv-compactions"><div className="cmv-heading"><h3>{t('latestCompaction')}</h3><span className="cmv-muted">{t('segment')}</span></div>
+    {!entry ? <div className="cmv-empty">{t('noCompaction')}</div> : <>
+      <div className="cmv-between cmv-muted"><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span></div>
+      {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: `${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.beforeTokens)}</b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: `${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.afterTokens)}</b></div><div className="cmv-caption"><span>{delta! >= 0 ? t('reduced') : t('increased')}</span><strong>{formatTokens(Math.abs(delta!))} Token</strong><span>{entry.beforeTokens! > 0 ? `${Math.round(Math.abs(delta!) / entry.beforeTokens! * 100)}%` : '—'}</span></div></> : <p className="cmv-muted cmv-summary-usage">{t('unknownUsage')}</p>}
+      {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}
+      <Button size="sm" variant="ghost" onClick={onRecord}>{t('recordDetails')}</Button>
+    </>}
+  </article>
+}
+
+export function CompactionRecords({ data, t, openLatest }: { data: Inspection; t: InspectorText; openLatest: number }) {
   const [expanded, setExpanded] = useState(false)
   const entries = [...data.compactions].reverse()
-  const shown = expanded ? entries : entries.slice(0, 2)
-  const maximum = Math.max(1, ...shown.flatMap(entry => [entry.beforeTokens ?? 0, entry.afterTokens ?? 0]))
-  return <article className="cmv-card cmv-compactions"><div className="cmv-heading"><h3>{t('compactions')}</h3><span className="cmv-muted">{t('segment')}</span></div>
-    {!entries.length ? <div className="cmv-empty">{t('noCompaction')}</div> : <ol className="cmv-events">{shown.map(entry => {
-      const known = entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined
-      const delta = known ? entry.beforeTokens! - entry.afterTokens! : null
-      const trigger = data.historical ? undefined : entry.trigger
-      const sources = { idle: 'triggerIdle', pressure: 'triggerPressure', overflow: 'triggerOverflow', manual: 'triggerManual' } as const
-      const source = entry.kind === 'prune' ? 'toolCleanup' : trigger ? sources[trigger] : entry.manual ? 'betweenTurns' : 'duringTask'
-      return <li key={entry.id}><div className="cmv-between"><Tooltip label={`${t('input')} ${exactTokens(entry.inputTokens)} · ${t('output')} ${exactTokens(entry.outputTokens)} Token${entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}`} portal><span tabIndex={0}>{formatTime(entry.startedAt)} · {t(source)}</span></Tooltip><span className="cmv-muted">{t(entry.status)}</span></div>
-        {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: `${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.beforeTokens)}</b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: `${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.afterTokens)}</b></div><div className="cmv-between cmv-muted"><span>{delta! >= 0 ? t('reduced') : t('increased')} {formatTokens(Math.abs(delta!))}</span><span>{entry.beforeTokens! > 0 ? `${Math.round(Math.abs(delta!) / entry.beforeTokens! * 100)}%` : '—'}</span></div></> : <p className="cmv-muted">{t('unknownUsage')}</p>}
+  return <article className="cmv-card cmv-records"><div className="cmv-heading"><h3>{t('recordList')}</h3>{entries.length > 2 && <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapse' : 'allRecords')}</Button>}</div>
+    {!entries.length ? <p className="cmv-muted">{t('noCompaction')}</p> : <ol className="cmv-events">{(expanded ? entries : entries.slice(0, 2)).map((entry, index) => <li key={entry.id}><details key={`${entry.id}:${index === 0 ? openLatest : 0}`} open={index === 0 && openLatest > 0 ? true : undefined}>
+      <summary><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} → ${formatTokens(entry.afterTokens)} Token` : t('unknownUsage')}</span></summary>
+      <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {exactTokens(Math.abs(entry.beforeTokens - entry.afterTokens))} Token · {entry.beforeTokens > 0 ? `${Math.round(Math.abs(entry.beforeTokens - entry.afterTokens) / entry.beforeTokens * 100)}%` : '—'}</p>}<p>{t('segment')} · {t('compactions')} {exactTokens(entry.beforeTokens)} → {exactTokens(entry.afterTokens)} Token</p><p>{t('input')} {exactTokens(entry.inputTokens)} · {t('output')} {exactTokens(entry.outputTokens)} Token{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
         {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}{entry.error && <p className="cmv-error">{entry.error}</p>}
-      </li>
-    })}</ol>}
-    {entries.length > 2 && <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? t('collapse') : t('allRecords')}</Button>}
+      </div></details></li>)}</ol>}
   </article>
 }
 
@@ -159,7 +166,7 @@ function ReductionLine({ reduction, t }: { reduction: ReductionReadout; t: Inspe
 }
 
 /** Session consumption is disjoint from the current context composition. */
-export function UsageComposition({ data, t, onCut }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void }) {
+export function UsageComposition({ data, t }: { data: Inspection; t: InspectorText }) {
   const chart = usageSlices(data.usage)
   const summary = data.historical ? undefined : data.summaryUsage
   const labels = ['uncached', 'read', 'write', 'output'] as const
@@ -174,17 +181,31 @@ export function UsageComposition({ data, t, onCut }: { data: Inspection; t: Insp
       data.efficiency.mirrored.cacheWrite, data.efficiency.mirrored.output].map(field => field.missing)
   return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('usage')}</h3><Tooltip label={t('usageHint')} portal><span tabIndex={0} className="cmv-muted">Token</span></Tooltip></div>
     {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <><div className="cmv-usage-total" data-usage-completeness={completeness ?? 'unqualified'}><div className="cmv-number">
-      {unknownTotal ? <><strong>—</strong><span>{t('effUnknownValue')}</span></> : <><strong>{boundedTotal ? '≥ ' : ''}{formatTokens(chart.total)}</strong><span>Token</span></>}</div><CacheDonut value={chart.hit} t={t}/></div>
-      {unknownTotal && <p className="cmv-muted" data-usage-bound="unknown">{t('usageUnknownHint')}</p>}
-      {boundedTotal && <p className="cmv-muted" data-usage-bound="partial">{t('effBoundHint')}</p>}
+      {unknownTotal ? <><strong>—</strong><span>{t('effUnknownValue')}</span></> : <><strong>{boundedTotal ? '≥ ' : ''}{formatTokens(chart.total)}</strong><span>Token</span></>}</div><span className="cmv-muted">{t('cache')} {chart.hit === null ? '—' : `${Math.round(chart.hit * 100) / 100}%`}</span></div>
+      {unknownTotal && <p className="cmv-muted" data-usage-bound="unknown">{t('effUnknownValue')}</p>}
+      {boundedTotal && <p className="cmv-muted" data-usage-bound="partial">{t('knownBound')}</p>}
       {chart.total > 0 && !unknownTotal && <div className="cmv-stack cmv-usage-stack" role="img" aria-label={`${t('usage')} ${exactTokens(chart.total)} Token`}>{chart.values.map((value, index) => <span key={labels[index]} data-usage={labels[index]} style={{ width: `${value / chart.total * 100}%` }}/>)}</div>}
       <dl className="cmv-usage-legend">{chart.values.map((value, index) => <div key={labels[index]} data-legend-missing={unknownTotal ? 'unknown' : String(missing[index]!)}><dt><i data-usage={labels[index]}/>{t(labels[index]!)}</dt><dd>{unknownTotal ? '—' : formatTokens(value)}<small>{unknownTotal ? t('effUnknownValue') : <>{chart.total ? `${chart.shares[index]!.toFixed(1)}%` : '—'}{missing[index]! > 0 ? ` · ${missing[index]} ${t('effUnknownValue')}` : ''}</>}</small></dd></div>)}</dl>
     </>}
     {!data.historical && <p className="cmv-muted cmv-summary-usage">{summary
       ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${exactTokens(summary.input)} / ${t('output')} ${exactTokens(summary.output)} Token`} portal><span tabIndex={0}>{t('summaryRecorded')} {formatTokens(summary.input + summary.output)} Token · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
       : t('noSummaryUsage')}</p>}
+
+  </article>
+}
+
+/** Secondary diagnostics are reachable without making the summary cards tall. */
+export function UsageDetails({ data, t, onCut }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void }) {
+  const recent = data.requests.at(-1)
+  return <details className="cmv-card cmv-data-basis"><summary>{t('dataBasis')}</summary><div>
+    {recent && <p className="cmv-muted">{t('recent')} · {recent.turn} {t('turn')} · {recent.step} {t('step')}</p>}
+    {!data.historical && <div className="cmv-growth cmv-muted"><span>{t('growthBasis')}</span>{(['sinceCompaction', 'lastToolResult'] as const).map(key => {
+      const delta = data.contextGrowth?.[key]
+      const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${exactTokens(delta.beforeTokens)} → ${exactTokens(delta.afterTokens)} Token` : ` ${t('growthUnknownHint')}`}`
+      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta ? `≈ ${delta.deltaTokens > 0 ? '+' : delta.deltaTokens < 0 ? '-' : ''}${formatTokens(Math.abs(delta.deltaTokens))} Token` : t('growthUnknown')}</strong></span></Tooltip>
+    })}</div>}
     {data.efficiency && <EfficiencyLine efficiency={data.efficiency} t={t}/>}
     {data.reduction ? <ReductionLine reduction={data.reduction} t={t}/> : data.historical ? <p className="cmv-muted cmv-summary-usage">{t('histUnavailable')}</p> : null}
     {data.requests.length > 0 && <details className="cmv-request-details"><summary>{t('requests')} · {data.requestCount}</summary><div><table><thead><tr><th>{t('record')}</th><th>{t('input')}</th><th>{t('output')}</th><th>{t('read')}</th></tr></thead><tbody>{[...data.requests].reverse().map(request => <tr key={request.seq}><td><button type="button" onClick={() => onCut(request.seq)}>{request.turn} / {request.step}</button></td><td>{formatTokens(request.input)}</td><td>{formatTokens(request.output)}</td><td>{formatTokens(request.cacheRead)}</td></tr>)}</tbody></table></div></details>}
-  </article>
+  </div></details>
 }

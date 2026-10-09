@@ -25,6 +25,7 @@ export { PeakIndicator } from './peak-indicator.tsx'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespaceMap {
+    contextRecovery: { authorizeOnce(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
     contextInspector: {
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
@@ -58,12 +59,13 @@ export async function apply(ctx: Context) {
   }, ContextPage))))
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE)
   ctx.effect(() => unmount, 'context-manager: remote')
-  ctx.inject(['remote.contextInspector'], scope => {
+  ctx.inject(['remote.contextInspector', 'remote.contextRecovery'], scope => {
     const unwrap = <T,>(result: RemoteResult<T>): T => {
       if (!result.ok) throw new Error(`上下文读取失败：${result.error.code}`)
       return result.value
     }
     const api: InspectorApi = {
+      authorizeOnce: async (query, signal) => unwrap(await scope.remote.contextRecovery.authorizeOnce(query, signal)),
       idleStatus: async (query, signal) => unwrap(await scope.remote.contextInspector.idleStatus(query, signal)),
       inspect: async (query, signal) => unwrap(await scope.remote.contextInspector.inspect(query, signal)),
       content: async (query, signal) => unwrap(await scope.remote.contextInspector.content(query, signal)),
@@ -87,7 +89,7 @@ export function ContextPage({ form }: { form: ConfigForm<Values> }) {
   </section>
 }
 
-const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
+const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
@@ -200,7 +202,15 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('maxPasses', '每个请求最多压缩次数', '可设 1 或 2。闲置整理只尝试一次，没有新增任务不会重复整理。')}
           {toggle('formatRepairEnabled', '摘要格式修复', '摘要结构校验失败时，仅把失败输出与结构要求重发一次（不重发历史）。关闭后格式失败直接保留原文并终止。', !draft.enabled)}
           {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）', '修复请求的输出上限；其输入只包含有界失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled)}
-          {numeric('timeoutMs', '单次摘要超时（毫秒）', '超时后停止；不会自动循环重试。')}
+          <div role="group" aria-label="压缩时限模式">
+            {(['fixed', 'adaptive'] as const).map(summaryTimeoutMode => <Button key={summaryTimeoutMode} size="sm" aria-pressed={draft.summaryTimeoutMode === summaryTimeoutMode} disabled={disabled} onClick={() => edit({ summaryTimeoutMode })}>{summaryTimeoutMode === 'fixed' ? '固定总时限' : '按输出进展等待'}</Button>)}
+          </div>
+          {numeric('timeoutMs', '原固定总时限（毫秒）', draft.summaryTimeoutMode === 'fixed' ? '整笔压缩共享此上限，包含修复；保留原配置。' : '此模式不使用该值；切回固定模式恢复。', disabled || draft.summaryTimeoutMode !== 'fixed')}
+          {draft.summaryTimeoutMode === 'adaptive' && <>
+            {numeric('summaryTotalMs', '整笔压缩硬总限（毫秒）', '所有摘要、修复与提交共享；输出进展不会延长。')}
+            {numeric('summaryFirstOutputMs', '首个有效输出等待（毫秒）', '每次调用重新计时；空数据和用量不算进展。')}
+            {numeric('summaryStallMs', '输出停滞上限（毫秒）', '仅非空正文或思考增量续期，仍受硬总限约束。')}
+          </>}
           <div className="cm-native-example"><label htmlFor="context-manager-example">触发示例窗口（Token）</label><Input id="context-manager-example" type="number" min="1000" step="1000" value={exampleWindow} onChange={e => setExampleWindow(Number(e.target.value))}/>
             <p className="cm-hint">{preview ? automatic
               ? `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}）。自动工作集的近期原文预算为 ${preview.recentTokens.toLocaleString()} Token，压后总量取决于受保护内容与检查点。`

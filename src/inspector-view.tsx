@@ -4,7 +4,7 @@ import { Button, Checkbox, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-cli
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { Policy } from './policy.ts'
 import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery } from './inspector-types.ts'
-import { CacheDonut, CompactionChart, ContextComposition, PressureTrend, UsageComposition, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
+import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, PressureTrend, UsageComposition, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
 import { inspectorText, type InspectorText } from './inspector-locales.ts'
 import { useReadonlyView } from './readonly-view.ts'
 import type { IdleStatus } from './idle-types.ts'
@@ -24,6 +24,10 @@ function Loading() { return <div className="cmv-empty"><StateDot state="ongoing"
 function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText }) {
   const [state, setState] = useState<{ target: string; value: IdleStatus } | null>(null)
   const [error, setError] = useState(false)
+  const [recovering, setRecovering] = useState(false)
+  const [recoveryResult, setRecoveryResult] = useState('')
+  const action = useRef<AbortController | null>(null)
+  useEffect(() => { setRecovering(false); setRecoveryResult(''); return () => { action.current?.abort() } }, [target])
   useEffect(() => {
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -44,7 +48,23 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: {
   const value = state?.target === target ? state.value : null
   const message = value?.status === 'scheduled' && value.dueAt !== null && !/background|busy/u.test(value.reasonCode ?? '')
     ? `${value.restored ? `${t('restored')} · ` : ''}${Math.max(0, Math.ceil((value.dueAt - Date.now()) / 60000))} ${t('minutes')}` : value?.message
-  return <span role="status" aria-label={t('idle')}>{t('idle')} · {error ? t('idleUnknown') : message ?? t('idleWait')}</span>
+  const recover = async () => {
+    if (!value?.recovery?.requestHash || !api.authorizeOnce || recovering) return
+    const controller = new AbortController(); action.current = controller
+    setRecovering(true); setRecoveryResult('')
+    try {
+      await api.authorizeOnce({ sessionId: target, requestHash: value.recovery.requestHash }, controller.signal)
+      if (!controller.signal.aborted) setRecoveryResult('恢复压缩完成，可继续原任务')
+    } catch (reason) { if (!controller.signal.aborted) setRecoveryResult(errorText(reason, t)) }
+    finally { if (!controller.signal.aborted) setRecovering(false) }
+  }
+  return <span role="status" aria-label={t('idle')}>{t('idle')} · {error ? t('idleUnknown') : message ?? t('idleWait')}
+    {value?.owner === 'other' && <> · 当前压缩由其他引擎接管，本插件未接管自动调用</>}
+    {value?.deadline && <> · {value.deadline}</>}
+    {value?.recovery?.message && <> · {value.recovery.message}</>}
+    {value?.recovery?.available && api.authorizeOnce && <Button size="sm" disabled={recovering} onClick={() => { void recover() }}>授权额外收费并恢复一次</Button>}
+    {recoveryResult && <> · {recoveryResult}</>}
+  </span>
 }
 
 function RequestStatus({ data, policy, stale, t }: { data: Inspection; policy: Policy | undefined; stale: boolean; t: InspectorText }) {
@@ -55,8 +75,9 @@ function RequestStatus({ data, policy, stale, t }: { data: Inspection; policy: P
   const source = gate ? gate.admissionSource === 'absolute' ? t('gateAbsolute') : gate.admissionSource === 'hard' ? t('gateHard') : t('gatePercent') : ''
   const recent = data.requests.at(-1)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-quick"><article className="cmv-card"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div><Tooltip label={t('admissionHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatTokens(reading.tokens)} Token` : t('growthUnknown')}</span></Tooltip><span className="cmv-muted">{t('gate')} {formatTokens(gate?.admission)} Token{gate ? ` · ${source}` : ''}</span></article>
-    <article className="cmv-card cmv-latest"><div><h3>{t('recent')}</h3><div className="cmv-small-number">{formatTokens(recent?.input ?? pressure?.input)} <small>Token</small></div><span className="cmv-muted">{recent ? `${recent.turn} ${t('turn')} · ${recent.step} ${t('step')}` : t('noRequest')}</span></div><CacheDonut value={hit} t={t}/></article>
+  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={t('admissionHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatTokens(reading.tokens)}` : t('growthUnknown')} / {t('gate')} {formatTokens(gate?.admission)} Token{gate ? ` · ${source}` : ''}</span></Tooltip></div>
+    <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{formatTokens(recent?.input ?? pressure?.input)} <small>Token</small></strong></div></div>
+    <div><h3>{t('cache')}</h3><div className="cmv-request-values"><strong>{hit === null ? '—' : `${Math.round(hit)}%`}</strong></div></div>
   </div>
 }
 
@@ -95,8 +116,8 @@ function ContentReader({ target, cutSeq, row, api, t, onSource }: ContentDetailP
   </>
 }
 
-function ContentBrowser({ data, query, change, api, target, loading, t }: { data: Inspection; query: InspectQuery; change: (patch: Partial<InspectQuery>) => void; api: InspectorApi; target: string; loading: boolean; t: InspectorText }) {
-  const [selected, setSelected] = useState('')
+function ContentBrowser({ data, query, change, api, target, loading, t, initialSelected }: { data: Inspection; initialSelected?: string; query: InspectQuery; change: (patch: Partial<InspectQuery>) => void; api: InspectorApi; target: string; loading: boolean; t: InspectorText }) {
+  const [selected, setSelected] = useState(initialSelected ?? '')
   const [shown, setShown] = useState(4)
   const row = data.rows.slice(0, shown).find(item => item.id === selected) ?? data.rows[0]
   const grouped = query.group === 'message' || query.group === 'instruction'
@@ -112,8 +133,11 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const t = useMemo(() => inspectorText(locale), [locale])
   const viewRef = useReadonlyView(target)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [expanded, setExpanded] = useState(true)
-  useEffect(() => setExpanded(true), [target])
+  const [expanded, setExpanded] = useState(false)
+  const [selectedContent, setSelectedContent] = useState('')
+  const [openLatest, setOpenLatest] = useState(0)
+  const recordsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0) }, [target])
   const scrollToContent = useRef(false)
   const [query, setQuery] = useState<InspectQuery>({ sessionId: target, ...defaultQuery })
   const [data, setData] = useState<{ value: Inspection; key: string } | null>(null)
@@ -151,11 +175,13 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
         <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={loading || !!error} t={t}/></div>
-        <div className="cmv-meta"><Tooltip label={`${t('effort')} ${safeData.model?.effort ?? '—'} · ${t('reserved')} ${exactTokens(safeData.model?.maxTokens)} Token`} portal><span tabIndex={0}>{safeData.model ? `${safeData.model.provider} / ${safeData.model.model}` : t('noRequest')}</span></Tooltip><span>{safeData.activeCount} {t('items')} · {t('reserved')} {formatTokens(safeData.model?.maxTokens)}</span></div>
-        <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t}/><UsageComposition data={safeData} t={t} onCut={showCut}/></div>
+        <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
+        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest}/></div>
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
-          {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
+          {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatTokens(row.tokens)}</b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
+          {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
         </div>
+        <UsageDetails data={safeData} t={t} onCut={showCut}/>
         <footer className="cmv-footer"><span>{t('updated')} {formatTime(safeData.sampledAt)}</span><span>{t('readonly')} · {t('record')} {safeData.cutSeq}</span></footer>
       </>}
     </div>

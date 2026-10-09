@@ -141,8 +141,8 @@ test('inspector cancels stale Session reads, never flashes another Session and r
     assert.match(document.body.textContent, /fixture \/ second-session/)
     assert.match(document.body.textContent, /等待完整参数/)
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0, 'all context sections share one panel')
-    for (const title of ['当前上下文', '压缩前后', '收起当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
-    assert.ok(document.querySelector('#cmi-content-panel'), 'details open on entering the view')
+    for (const title of ['当前上下文', '最近压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
+    assert.equal(document.querySelector('#cmi-content-panel'), null, 'entry shows compact preview without loading bodies')
     assert.ok(!document.body.textContent.includes('预计可继续执行'))
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0)
     await render('third-session')
@@ -243,9 +243,12 @@ test('read-only view hides only its own composer, restores drafts and reads only
     assert.equal(seat.style.display, 'none'); assert.equal(seat.style.getPropertyPriority('display'), 'important')
     assert.ok(seat.hasAttribute('hidden') && seat.hasAttribute('inert'))
     assert.equal(other.getAttribute('style'), null); assert.equal(other.hasAttribute('hidden'), false)
-    assert.equal(reads, 1, 'expanded details fetch only the selected body')
+    assert.equal(reads, 0, 'compact preview does not fetch bodies')
+    await click('展开当前有效内容')
+    assert.equal(reads, 1, 'explicit expansion fetches only the selected body')
     assert.equal(document.querySelectorAll('.cmv-legend > button').length, 4)
     assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
+    assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 10 Token · 50%/)
     await click('全部记录'); assert.equal(document.querySelectorAll('.cmv-events > li').length, 4)
     assert.match(document.querySelector('.cmi-body').textContent, /read-only content/)
     await click('收起当前有效内容'); assert.equal(document.querySelector('#cmi-content-panel'), null)
@@ -265,7 +268,7 @@ test('read-only view hides only its own composer, restores drafts and reads only
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
-test('details reopen for each visit or target, stay collapsed on refresh, and cancel stale paginated bodies', async () => {
+test('compact previews reset per target, stay collapsed on refresh, and cancel stale paginated bodies', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const state = { status: 'ready', writable: true, revision: 1, value: { policy: defaults } }
@@ -294,6 +297,8 @@ test('details reopen for each visit or target, stay collapsed on refresh, and ca
   const content = () => document.querySelector('#cmi-content-panel')
   try {
     await render('a'); await settle()
+    assert.equal(content(), null); assert.equal(document.querySelectorAll('.cmv-preview > button').length, 3)
+    assert.equal(bodies.length, 0); await click('展开当前有效内容')
     assert.ok(content()); assert.ok(document.querySelector('#cmi-history-panel'))
     for (const title of ['当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelectorAll('.cmi-content-list > button[aria-pressed]').length, 4)
@@ -307,6 +312,7 @@ test('details reopen for each visit or target, stay collapsed on refresh, and ca
     await reply(bodies[1], 'late body from a')
     assert.ok(!document.body.textContent.includes('late body from a'))
     await settle()
+    assert.equal(content(), null); await click('展开当前有效内容')
     assert.ok(content()); assert.equal(bodies[2].query.sessionId, 'b'); assert.equal(bodies[2].query.offset, 0)
     await click('收起当前有效内容')
     assert.equal(bodies[2].signal.aborted, true)
@@ -321,7 +327,8 @@ test('details reopen for each visit or target, stay collapsed on refresh, and ca
     assert.equal(inspections.length, inspectionsBeforeRefresh + 2)
     assert.equal(content(), null); assert.equal(bodies.length, readsBeforeRefresh, 'projection refresh preserves manual collapse')
     await render('a'); await settle()
-    assert.ok(content(), 'changing target resets collapsed state to open')
+    assert.equal(content(), null, 'changing target resets to compact preview')
+    await click('展开当前有效内容')
     assert.equal(bodies.at(-1).query.sessionId, 'a'); assert.equal(bodies.at(-1).query.offset, 0)
     await reply(bodies.at(-1), 'new a body')
     await click('下一页'); await settle()
@@ -332,7 +339,8 @@ test('details reopen for each visit or target, stay collapsed on refresh, and ca
     await click('收起当前有效内容')
     await act(async () => root.render(null))
     await render('a'); await settle()
-    assert.ok(content(), 'reopening the same target starts expanded')
+    assert.equal(content(), null, 'reopening starts with compact preview')
+    await click('展开当前有效内容')
     assert.equal(inspections.at(-1).offset, 0); assert.equal(bodies.at(-1).query.id, 'event:0')
   } finally {
     await act(async () => root.unmount())
@@ -495,7 +503,7 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="write"]').style.width, '5%')
     assert.equal(document.querySelectorAll('.cmv-request-details tbody tr').length, 2)
     const cards = [...document.querySelector('.cmv-chart-grid').children].map(node => node.querySelector('h3').textContent)
-    assert.deepEqual(cards, ['占用变化', '压缩前后', '本会话累计'])
+    assert.deepEqual(cards, ['占用变化', '最近压缩', '本会话累计'])
     assert.ok(document.querySelector('.cmv-content').compareDocumentPosition(document.querySelector('.cmv-chart-grid')) & 2, 'content follows every chart')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
@@ -520,7 +528,9 @@ test('current context shows one full 1M window and every K bucket without a basi
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'capacity', form, api, pulse })))
     await act(async () => ready)
     const card = document.querySelector('.cmv-composition')
-    assert.equal(card.querySelector('.cmv-number strong').textContent,'1M')
+    assert.equal(card.querySelector('.cmv-number strong').textContent,'≈ 320K')
+    assert.equal(card.querySelector('.cmv-number span').textContent,'/ 1M Token')
+    assert.ok(card.querySelector('.cmv-context-title .cmv-model'))
     assert.equal(card.querySelector('.cmv-capacity-stack').dataset.capacity,'1000000')
     assert.equal(card.querySelector('[data-color="free"]').style.width,'47%')
     assert.equal(card.querySelector('.cmv-capacity-stack').lastElementChild.dataset.color,'reserve')
@@ -554,7 +564,7 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'admission', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
   }
-  const status = () => document.querySelector('.cmv-quick > article')
+  const status = () => document.querySelector('.cmv-quick')
   try {
     await render({ ...base, admission: reading })
     assert.match(status().textContent, /预计先压缩，再执行/)
@@ -912,5 +922,67 @@ test('every grant of a deduplicated original renders with its own call identity'
     assert.deepEqual([...rows].map(row => row.dataset.reducedChars), ['900', '700'])
     assert.match(document.body.textContent, /sha256:shared/)
     assert.ok(!/NaN|undefined/u.test(document.body.textContent))
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('settings: legacy timeout remains fixed and unchanged; adaptive is explicit with separately saved limits', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
+  const {summaryTimeoutMode,summaryTotalMs,summaryFirstOutputMs,summaryStallMs,...legacy}=defaults
+  let snapshot={status:'ready',writable:true,mode:'host',revision:1,value:{policy:{...legacy,timeoutMs:135000}}}
+  const listeners=new Set(),writes=[]
+  const form={subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)},getSnapshot:()=>snapshot,
+    mutate:async(ops,revision)=>{writes.push(ops[0].value);snapshot={...snapshot,revision:revision+1,value:{policy:ops[0].value}};listeners.forEach(cb=>cb());return true}}
+  const root=createRoot(document.getElementById('root'))
+  const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label)
+  const click=async label=>act(async()=>button(label).click())
+  try {
+    await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
+    assert.equal(button('固定总时限').getAttribute('aria-pressed'),'true')
+    assert.equal(document.getElementById('context-manager-timeoutMs').value,'135000')
+    assert.equal(writes.length,0)
+    await click('按输出进展等待')
+    assert.equal(document.getElementById('context-manager-timeoutMs').disabled,true)
+    assert.equal(document.getElementById('context-manager-summaryTotalMs').value,'600000')
+    await click('保存设置')
+    assert.equal(writes[0].timeoutMs,135000);assert.equal(writes[0].summaryTimeoutMode,'adaptive')
+    await click('固定总时限');await click('保存设置')
+    assert.equal(writes[1].timeoutMs,135000);assert.equal(writes[1].summaryTimeoutMode,'fixed')
+  } finally {await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
+})
+
+
+test('compact panel keeps long model, failures and exact content selection reachable without the request donut', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const model = 'long-model-' .repeat(12)
+  const reason = 'provider result is unknown; authorization required. '.repeat(30)
+  const rows = Array.from({ length: 7 }, (_, i) => ({ id: `row-${i}`, seq: i, title: `Full content title ${i}`, category: 'user', current: true, source: 'fixture', tokens: 100 + i, images: 0 }))
+  const readIds = []
+  const state = { revision: 1, value: { policy: defaults } }
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: reason }),
+    inspect: async query => ({ ...query, cursor: 10, cutSeq: 10, sampledAt: 1000, historical: false, pressure: null, official: null, usage: null,
+      model: { provider: 'synthetic', model, maxTokens: 8192, effort: null }, parts: [], rows, total: 7, pageSize: 50, activeCount: 7, archivedCount: 0,
+      requests: [{ seq: 9, turn: 9, step: 28, input: 8000000, output: null, cacheRead: null }], requestCount: 1, pressureHistory: [],
+      compactions: [{ id: 'failed', kind: 'compact', status: 'failed', startedAt: 1000, applied: false, error: reason }, { id: 'running', kind: 'compact', status: 'running', startedAt: 2000, applied: false }] }),
+    content: async query => { readIds.push(query.id); return { ...query, text: 'selected original', totalChars: 17, nextOffset: null } } }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'compact', api, form: { subscribe: () => () => {}, getSnapshot: () => state }, pulse: { subscribe: () => () => {}, getSnapshot: () => 1 } })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.equal(document.querySelector('.cmv-context-title .cmv-model').textContent, `synthetic / ${model}`)
+    assert.equal(document.querySelectorAll('.cmv-model').length, 1)
+    assert.equal(document.querySelector('.cmv-quick .cmv-donut'), null)
+    assert.match(document.querySelector('.cmv-quick').textContent, /8.00M/)
+    assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /9 轮/)
+    assert.match(document.querySelector('.cmv-data-basis').textContent, /9 轮 · 28 步/)
+    assert.equal(document.querySelector('.cmv-record-detail .cmv-error').textContent, reason)
+    assert.match(document.querySelector('.cmv-compactions').textContent, /进行中/)
+    assert.equal(document.querySelectorAll('.cmv-preview > button').length, 3)
+    assert.equal(readIds.length, 0)
+    await act(async () => document.querySelectorAll('.cmv-preview > button')[2].click())
+    assert.deepEqual(readIds, ['row-2'])
+    assert.equal(document.querySelector('.cmv-reader h3').textContent, 'Full content title 2')
+    assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })

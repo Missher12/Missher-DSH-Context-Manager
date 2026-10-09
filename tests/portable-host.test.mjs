@@ -408,7 +408,7 @@ test('working set: 200K long-task checkpoint leaves room for eight further tasks
   }
   assert.equal(adapter.summaries.length, 1, 'new moderate work must not recompact the same checkpoint each turn')
   assert.equal(adapter.requests.length, 9)
-  assert.equal(ctx.contextManager.compactionCycles.peek(SESSION).calls, 1)
+  assert.equal(ctx.contextManager.summaryOperations.records(SESSION).length, 1)
   assertHistory(agent, original)
   for (const request of adapter.requests) assertPairs(request.messages)
 })

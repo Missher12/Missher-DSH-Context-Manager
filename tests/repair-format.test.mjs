@@ -149,16 +149,16 @@ test('repair: a second failure terminates without commit, charges both attempts 
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: disabled by policy, a structural failure performs exactly one attempt', { timeout: 8000 }, async () => {
+test('repair: disabled by policy, a structural failure permits one bounded primary reissue but no repair', { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture({ typeBroken: true }, { formatRepairEnabled: false })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start'])
+    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'])
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
-    assert.deepEqual(ledger.recent.map(item => item.status), ['failed'])
+    assert.equal(ledger.attempts, 2); assert.equal(ledger.unknownAttempts, 0)
+    assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'failed'])
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
     assert.match(view.compactions[0].error ?? '', /格式修复已关闭/)
   } finally { await ctx.fiber.dispose() }
@@ -183,14 +183,14 @@ for (const [name, option, errorMatch] of [
   ['truncated JSON', { truncated: true }, /损坏或截断/],
   ['missing fields', { missingField: true }, /缺少字段/],
   ['prose', { prose: true }, /损坏或截断/],
-]) test(`repair: ${name} is rejected without any second provider call`, { timeout: 8000 }, async () => {
+]) test(`repair: ${name} is rejected without format repair and at most one exact primary reissue`, { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture(option)
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start'], 'damaged input must never reach a repair call')
+    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'], 'damaged input must never reach a repair call')
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    assert.equal(stats(ctx).attempts, 1)
+    assert.equal(stats(ctx).attempts, 2)
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
     assert.match(view.compactions[0].error ?? '', errorMatch)
   } finally { await ctx.fiber.dispose() }
@@ -200,7 +200,7 @@ test('repair: a failed output whose complete repair request exceeds the window b
   const { ctx, adapter, agent } = await fixture({ oversize: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start'], 'over-budget output must never reach a repair call')
+    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'], 'over-budget output must never reach a repair call')
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics

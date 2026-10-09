@@ -6,9 +6,13 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.1**, an uninstalled development candidate. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.2**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
-The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Use the checksummed 0.10.0-local.1 release tarball. The retained old root `lib` refers only to the protected local development workspace; this public repository contains all 16 final r2 runtime files. This change does not alter Goal limits or MSE quotas.
+The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
+
+### Compact context view
+
+The actual model follows the current-context heading. The request strip keeps admission pressure and its check separate from the last request input and cache hit. Three compact cards show occupancy, the latest replaced region, and session usage. Unknown usage remains unknown; partial totals remain lower bounds. Two compaction records and three content previews appear by default, with full records, errors, bodies and sources available on demand. Accounting details and request turn/step identifiers remain under Data basis and details.
 
 ## Tool-result reduction, original archive and usage attribution
 
@@ -61,14 +65,14 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: open **Plugins → Add plugin**, select the checksummed `.tgz` from [v0.10.0-local.1](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.1), or enter its download URL, then restart normally. The public `lib` is the final r2 runtime; the older protected local development files are not the published Git runtime. See [PUBLICATION.md](./PUBLICATION.md) for verified Host scope and data-preservation steps.
+Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. Use the [v0.10.0-local.2 frozen package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.2).
 
-The following command is the previous stable 0.7 release example, not the current candidate. For this candidate use only the frozen tarball in READY.md.
+The CLI installs the same package; replace the example path with your downloaded file.
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.7.0-local.2/missher-dsh-context-manager-0.7.0-local.2.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.2/missher-dsh-context-manager-0.10.0-local.2.tgz
 ```
 
 Keep the previous package and configuration, wait for active tasks to finish, and **fully restart the target application or profile** after updating. Confirm the version and all three active entries: `context-manager`, `context-manager-engine` and `context-manager-inspector`. Open **Context**, after **Trace**, in a session. An old process may cache package exports; a page refresh or enable toggle does not replace a restart. Do not enable both old and renamed packages.
@@ -128,7 +132,7 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 
 Historical evidence from 2026-10-03 includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A subsequent Intel macOS daily installation confirmed three active entries and read-only RPC.
 
-The r2 independent typechecks, rebuild and package boundary passed; all 16 runtime files match, and the affected settings/wire checks passed 29/29. The r1 enhanced-SDK full suite passed 279 with two old-only skips; unchanged modules retain that evidence, not a claimed r2 full rerun. Actual isolated Host acceptance completed: three active Loader entries, exact client payload, eight RPC semantic checks, six reference-identity checks and reduce settings persisted across a normal stop and a new process. Visual acceptance was blocked by ERR_BLOCKED_BY_CLIENT; real-model benefits remain untested. Extra legacy-SDK failures are retained. This version is not installed in the daily environment. See [PUBLICATION.md](./PUBLICATION.md) and the [verification record](./verification/RESULTS-EFFICIENCY-20261009.json).
+The final enhanced-SDK suite passed 313 tests with two legacy-only skips. Focused tests against the actual packaged Desktop runtime passed 142 tests with two legacy-only skips after test-output-directory repair. Actual Host loading, exact client bytes, settings round-trip and eight RPC semantic samples passed. Exact-client component rendering covers light/dark and narrow/short views; actual-Host browser inspection was blocked. Native visuals, real-provider fidelity, remote machines and full legacy-Host compatibility remain unverified. Counts from separate suites must not be added. See [PUBLICATION.md](./PUBLICATION.md).
 
 These are separate, dated validation layers, not fresh acceptance on every platform. Real-provider summary quality, long-task semantic retention, and native Windows/Linux execution remain unverified. Compaction retries do not completely rerun the host's dynamic `preStep` rule/plan assembly; files and task state must be checked through existing tools as needed. See the repository's [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification).
 
@@ -150,3 +154,11 @@ The linker creates this copy's explicit `harness-sdk` and development dependency
 ## License and sources
 
 [MIT](./LICENSE). Generated presets and the settings layout derive from DeepSeek Harness and retain DeepSeek's attribution. The browser's bundled Zod MIT text is included in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). The compactor and shared UI are imported from the host rather than bundled with another plugin or compatibility package. `bowenliang123/dsh-context` informed research; its runtime source was not copied.
+
+## Automatic compaction repair and timeout settings
+
+Existing configurations keep fixed mode and their exact transaction-wide `timeoutMs`. Adaptive mode is opt-in: 600 seconds total, 120 seconds to first nonempty text/reasoning, and 180 seconds stalled by default. Repairs share the remaining total. Usage/heartbeat/empty chunks never renew progress.
+
+Durable permits bind each provider attempt to its ledger and compaction. All new, manual and recovery calls share a 2-primary/4-total source budget. Unknown outcomes never automatically replay. The context panel offers an explicit, expiring, exact-source/route recovery mutation when budget is provable; unbound legacy manual charges require verification. Busy idle plans retain eligibility with capped backoff.
+
+Back up context_manager_operations with cycles/idle/summaries and the recovery journal. Older versions cannot enforce the new permit table: disable automatic compaction before a coordinated downgrade; keep current sessions and accounting. Exact evidence and limitations are in [PUBLICATION.md](./PUBLICATION.md). Earlier local.1 results are historical.

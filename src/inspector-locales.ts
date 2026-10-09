@@ -1,5 +1,6 @@
 /** Copy owned by the context panel. Native settings retain their existing copy. */
 export const zh = {
+  latestCompaction: '最近压缩', recordList: '压缩记录', recordDetails: '查看记录与原因', dataBasis: '数据口径与详情', knownBound: '已知用量下界',
   title: '上下文', readonly: '只读', refresh: '刷新数据', settingsHint: '设置 → 上下文管理',
   current: '当前上下文', contentBasis: '有效内容', windowBasis: '整个窗口', basis: '组成口径',
   summary: '记忆摘要', tool: '工具结果', message: '对话消息', instruction: '指令与定义', free: '未占用', other: '其他占用',
@@ -65,6 +66,7 @@ export const zh = {
 } as const
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
+  latestCompaction: 'Latest compaction', recordList: 'Compaction records', recordDetails: 'Record and reason', dataBasis: 'Data basis and details', knownBound: 'Known usage lower bound',
   title: 'Context', readonly: 'Read only', refresh: 'Refresh', settingsHint: 'Settings → Context manager',
   current: 'Current context', contentBasis: 'Active content', windowBasis: 'Full window', basis: 'Composition basis',
   summary: 'Memory summary', tool: 'Tool results', message: 'Conversation', instruction: 'Instructions & definitions', free: 'Unoccupied', other: 'Other occupancy',

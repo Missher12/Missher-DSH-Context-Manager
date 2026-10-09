@@ -141,6 +141,7 @@ export interface ContentQuery { sessionId: string; cutSeq: number; id: string; o
 export interface ContentSources { rows: ContentRow[]; offset: number; total: number; nextOffset: number | null }
 export interface ContentPage { sessionId: string; cutSeq: number; id: string; text: string; offset: number; totalChars: number; nextOffset: number | null; sources?: ContentSources }
 export interface InspectorApi {
+  authorizeOnce?(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }>
   idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus>
   inspect(query: InspectQuery, signal: AbortSignal): Promise<Inspection>
   content(query: ContentQuery, signal: AbortSignal): Promise<ContentPage>

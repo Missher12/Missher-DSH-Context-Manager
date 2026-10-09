@@ -41,8 +41,11 @@ class Adapter extends LlmAdapter {
       this.order.push('summary-start'); this.summaries.push(options)
       if (this.options.pause) await this.options.pause(options.signal)
       if (this.options.fail) { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'summary unavailable' } } }; return }
-      const text = this.options.malformed ? 'incomplete checkpoint' : JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: this.options.noShrink ? ['oversized '.repeat(5000)] : [], next: 'Continue after completed preparation', uncertainties: [] })
+      const text = (this.options.malformed || this.options.firstMalformed && this.summaries.length === 1) ? 'incomplete checkpoint' : JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: this.options.noShrink ? ['oversized '.repeat(5000)] : [], next: 'Continue after completed preparation', uncertainties: [] })
       yield { type: 'block-start', index: 0, blockType: 'text' }
+      if (this.options.progress) {
+        for (let step=0;step<3;step++) { this.options.progress(); yield { type: 'text-delta', index: 0, text: text.slice(Math.floor(step*text.length/3),Math.floor((step+1)*text.length/3)) } }
+      }
       yield { type: 'block-end', index: 0, block: { type: 'text', text } }
       yield { type: 'usage', usage: { inputTokens: 500, cacheReadTokens: 250, outputTokens: 20 } }
       this.order.push('summary-finish')
@@ -99,7 +102,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
     await ctx.plugin(Loader); ctx.loader.builtins.group = Group
     await ctx.plugin(AgentPresets, { default: 'one' })
     for (const id of ['one', 'two']) await ctx.plugin({ inject: ['agentPresets'], async *apply(child) {
-      yield await child.agentPresets.register({ id, plugins: [{ name: 'cordis:group', group: true, isolate: { compaction: true }, config: [{ name: new URL('../lib/engine.js', import.meta.url).href }] }] })
+      yield await child.agentPresets.register({ id, plugins: [{ name: 'cordis:group', group: true, isolate: { compaction: true }, config: [{ name: options.customBasic ? '@deepseek-ai/dsh-compaction-basic' : new URL('../lib/engine.js', import.meta.url).href, ...(options.customBasic ? { config: { auto: false } } : {}) }] }] })
     } })
   }
   const adapter = new Adapter(options)
@@ -194,22 +197,29 @@ test('idle: restored history is dormant; a completed task arms exactly one maint
   } finally { await ctx.fiber.dispose() }
 })
 
-test('idle: short context and running background work skip model use', { timeout: 8000 }, async t => {
+test('idle: short context skips; background busy past 90 seconds retains eligibility and eventually compacts once', { timeout: 10000 }, async t => {
   clock(t)
   for (const background of [false, true]) {
     const { ctx, adapter, agent } = await fixture({}, {}, history(background ? 28000 : 2000))
-    if (background) ctx.on('workspace/session-activity', async () => [{ kind: 'background', label: 'fixture work' }])
+    let busy = background, checks = 0
+    if (background) ctx.on('workspace/session-activity', async () => { checks++; return busy ? [{ kind: 'background', label: 'fixture work' }] : [] })
     try {
       agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off'].includes(idleState(ctx, agent).status)); t.mock.timers.tick(900000)
       if (background) {
-        for (let i = 0; i < 3; i++) {
+        for (const delay of [30000,60000,120000,240000]) {
           await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
-          t.mock.timers.tick(30000)
+          assert.equal(adapter.summaries.length,0)
+          t.mock.timers.tick(delay)
         }
+        await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
+        assert.ok(checks >= 5); busy=false; t.mock.timers.tick(300000)
+        await drainUntil(() => idleState(ctx, agent).status === 'completed')
+        assert.equal(adapter.summaries.length,1)
+        t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length,1)
+      } else {
+        await drainUntil(() => idleState(ctx, agent).status === 'skipped')
+        assert.equal(adapter.summaries.length,0)
       }
-      await drainUntil(() => idleState(ctx, agent).status === 'skipped')
-      assert.equal(adapter.summaries.length, 0)
-      assert.match(idleState(ctx, agent).message, background ? /后台/ : /未达到/)
     } finally { await ctx.fiber.dispose() }
   }
 })
@@ -284,10 +294,9 @@ for (const kind of ['fail', 'noShrink', 'malformed']) test(`idle: ${kind} keeps 
     agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off'].includes(idleState(ctx, agent).status)); const before = agent.session.deriveMessages()
     t.mock.timers.tick(900000); await drainUntil(() => idleState(ctx, agent).status === 'failed')
     assert.deepEqual(agent.session.deriveMessages(), before)
-    // None of these failures is a value-level type mismatch, so no repair call
-    // is allowed: error finishes, prose and size failures all stop after one
-    // bounded attempt and keep the original context.
-    t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length, 1)
+    // Malformed, physically settled output permits one exact reissue; it is
+    // not a format-repair request. Other failures stay conservative.
+    t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length, kind === 'malformed' ? 2 : 1)
     assert.equal(adapter.requests.length, 1)
   } finally { await ctx.fiber.dispose() }
 })
@@ -359,9 +368,8 @@ for (const kind of ['fail', 'noShrink', 'malformed']) test(`real loop: ${kind} p
   const { ctx, adapter, agent } = await fixture({ [kind]: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    // Error finishes, prose and size failures are not value-level type
-    // mismatches, so the narrow repair is never offered: exactly one attempt.
-    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(adapter.summaries.length, 1)
+    // One bounded exact reissue is allowed only for a settled local format failure.
+    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(adapter.summaries.length, kind === 'malformed' ? 2 : 1)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     assert.equal(agent.session.snapshotEvents().filter(e => e.type === 'compaction/summary').length, 0)
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
@@ -441,7 +449,7 @@ test('real loop: source growth permits an older large region after compacting th
   { historyMode: 'automatic', recentTokens: 20000, idleEnabled: false }, seed)
   const permits = []
   ctx.on('llm/stream', async function* (options, next) {
-    if (options.purpose === 'compaction') permits.push(ctx.contextManager.compactionCycles.peek(String(agent.id)))
+    if (options.purpose === 'compaction') permits.push(ctx.contextManager.summaryOperations.records(String(agent.id)).at(-1))
     yield* next()
   }, true)
   try {
@@ -476,7 +484,7 @@ test('real loop: source growth permits an older large region after compacting th
     assert.equal(permits[0].sourceWatermark, results[0].seq)
     assert.equal(permits[1].cycle, 2, 'the newly added 45K satisfies the new-content requirement')
     assert.equal(permits[1].sourceWatermark, results[1].seq, 'cycle watermarks follow the whole session, not selection order')
-    assert.equal(permits[1].calls, 1)
+    assert.equal(permits[1].ordinal, 1)
     const usage = ctx.contextManager.summaryLedger.stats(String(agent.id))
     assert.equal(usage.attempts, 2)
     assert.equal(usage.input, 1500, 'two 500 input + 250 cache-read attempts are counted exactly once')
@@ -651,7 +659,7 @@ for (const scenario of [
     assert.equal(added.filter(event => event.type === 'compaction/start').length, 1)
     assert.equal(added.filter(event => event.type === 'compaction/end').length, 1, 'failed/cancelled maintenance closes its bracket')
     assert.equal(added.filter(event => event.type === 'compaction/summary').length, scenario.outcome === 'success' ? 1 : 0)
-    assert.equal(adapter.summaries.length, 1)
+    assert.equal(adapter.summaries.length, scenario.outcome === 'malformed' ? 2 : 1)
     if (scenario.outcome !== 'success') assert.deepEqual(agent.session.deriveMessages(), surface)
     const reopened = await assertPhysicalSessionRestore(agent.session)
     assert.equal(reopened.header.isSeeded, scenario.seeded)
@@ -797,15 +805,15 @@ test('layered failure preserves original history when pruning committed before a
     assert.equal(events.filter(event => event.type === 'compaction/summary').length, 0)
     assert.equal(adapter.requests.length, 0)
     // Prose is not a value-level type mismatch, so the narrow repair never
-    // runs; the single bounded attempt keeps the original history.
-    assert.equal(adapter.summaries.length, 1)
+    // runs; both bounded primary attempts keep the original history.
+    assert.equal(adapter.summaries.length, 2)
     assert.ok(events.some(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'text' && block.text === 'original evidence '.repeat(2200))))
     const current = agent.session.deriveMessages()
     assert.deepEqual(current.find(item => item.id === task.id).content, task.content)
     assert.ok(current.filter(item => item.role === 'tool').every(item => item.content.every(block => block.type !== 'text' || block.text.length <= 2000)))
     const summary = ctx.contextManager.summaryLedger.stats(String(agent.id))
-    assert.equal(summary.attempts, 1); assert.equal(summary.unknownAttempts, 0)
-    assert.equal(summary.input, 750); assert.equal(summary.output, 20)
+    assert.equal(summary.attempts, 2); assert.equal(summary.unknownAttempts, 0)
+    assert.equal(summary.input, 1500); assert.equal(summary.output, 40)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -839,4 +847,101 @@ test('a model selection after completion cancels the old idle qualification befo
     t.mock.timers.tick(60001); await immediate()
     assert.equal(adapter.summaries.length, 0)
   } finally { t.mock.timers.reset(); await ctx.fiber.dispose() }
+})
+
+// These use the real AgentLoop, storage domains and automatic request-error hook.
+// The deterministic adapter makes no network call and is not real-model acceptance.
+test('automatic recovery: first settled invalid result retries once and continues the same task without /compact', async () => {
+  const {ctx,adapter,agent}=await fixture({firstMalformed:true})
+  try {
+    const task=message(); agent.followup(task);await agent.whenIdle()
+    assert.equal(adapter.summaries.length,2);assert.ok(adapter.requests.length>0)
+    assert.deepEqual(adapter.order.slice(0,5),['summary-start','summary-finish','summary-start','summary-finish','main'])
+    assert.equal(agent.session.deriveMessages().filter(m=>m.id===task.id).length,1)
+    const rows=ctx.contextManager.summaryOperations.records(String(agent.id))
+    assert.deepEqual(rows.map(r=>r.phase),['known_failed_unapplied','committed'])
+    assert.equal(new Set(rows.map(r=>r.attemptId)).size,2)
+    assert.equal(new Set(rows.map(r=>r.compactionId)).size,1)
+    assert.equal(ctx.contextManager.summaryLedger.stats(String(agent.id)).attempts,2)
+    assert.equal(ctx.contextManager.compactionCycles.records(String(agent.id)).length,0,'new permits never double-write legacy table')
+  } finally {await ctx.fiber.dispose()}
+})
+
+test('explicit recovery: real mutation grants one bound maintenance call; inspector reads cannot grant', async () => {
+  const {ctx,adapter,agent}=await fixture({fail:true})
+  try {
+    agent.followup(message());await agent.whenIdle()
+    assert.equal(adapter.summaries.length,1);assert.equal(adapter.requests.length,0)
+    const {ContextRecovery}=await import('../lib/inspector.js')
+    await ctx.plugin(ContextRecovery)
+    const before=ctx.contextManager.summaryOperations.records(String(agent.id))
+    for(let n=0;n<3;n++)assert.equal(ctx.contextManager.idleStatus(String(agent.id)).recovery.available,true)
+    assert.deepEqual(ctx.contextManager.summaryOperations.records(String(agent.id)),before)
+    const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
+    adapter.options.fail=false
+    await ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal)
+    assert.equal(adapter.summaries.length,2)
+    const rows=ctx.contextManager.summaryOperations.records(String(agent.id))
+    assert.equal(rows[0].phase,'unknown_interrupted')
+    assert.equal(rows[1].phase,'committed');assert.ok(rows[1].authorizationId)
+    assert.equal(new Set(rows.map(row=>row.attemptId)).size,2)
+    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal))
+    assert.equal(adapter.summaries.length,2)
+  } finally {await ctx.fiber.dispose()}
+})
+
+test('explicit recovery: changed source cannot use prior authorization or start a fresh paid call', async () => {
+  const {ctx,adapter,agent}=await fixture({fail:true})
+  try {
+    agent.followup(message());await agent.whenIdle()
+    const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
+    agent.followup(message());await agent.whenIdle()
+    assert.equal(adapter.summaries.length,1,'ordinary continue is not authorization')
+    const {ContextRecovery}=await import('../lib/inspector.js');await ctx.plugin(ContextRecovery)
+    adapter.options.fail=false
+    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal))
+    assert.equal(adapter.summaries.length,1)
+  } finally {await ctx.fiber.dispose()}
+})
+
+for (const mode of ['adaptive', 'fixed', 'total']) test(`real manual deadline: ${mode} shares progress and total boundary`, async t => {
+  t.mock.timers.enable({apis:['Date'],now:Date.now()})
+  const {ctx,adapter,agent}=await fixture({progress:()=>t.mock.timers.tick(100000)},
+    {summaryTimeoutMode:mode==='fixed'?'fixed':'adaptive',summaryTotalMs:mode==='total'?250000:600000,timeoutMs:90000},history(28000))
+  try {
+    agent.followup(message());await agent.whenIdle();assert.equal(adapter.summaries.length,0)
+    if(mode==='adaptive') assert.ok(await ctx.compaction.compactNow(agent,new AbortController().signal))
+    else await assert.rejects(ctx.compaction.compactNow(agent,new AbortController().signal))
+    assert.equal(adapter.summaries.length,1)
+    assert.equal(agent.session.snapshotEvents().filter(e=>e.type==='compaction/summary').length,mode==='adaptive'?1:0)
+    const row=ctx.contextManager.summaryOperations.records(String(agent.id))[0]
+    if(mode==='adaptive') assert.equal(row.phase,'committed')
+    else {assert.equal(row.phase,'unknown_interrupted');assert.equal(row.reasonCode,'total_timeout')}
+    assert.equal(ctx.contextManager.snapshot().timeoutMs,90000)
+  } finally {await ctx.fiber.dispose()}
+})
+
+test('automatic commit guard: elapsed deadline during final durable ledger await blocks late commit without ticker', async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.now()})
+ const {ctx,adapter,agent}=await fixture()
+ try {
+  const ledger=ctx.contextManager.summaryLedger,finish=ledger.finish
+  ledger.finish=async function(...args){await finish.apply(this,args);if(args[2]==='generated')t.mock.timers.tick(90001)}
+  agent.followup(message());await agent.whenIdle()
+  assert.equal(adapter.summaries.length,1);assert.equal(adapter.requests.length,0)
+  assert.equal(agent.session.snapshotEvents().filter(e=>e.type==='compaction/summary').length,0)
+  const row=ctx.contextManager.summaryOperations.records(String(agent.id))[0]
+  assert.equal(row.phase,'generated_uncommitted');assert.equal(row.reasonCode,'total_timeout')
+  assert.equal(ledger.stats(String(agent.id)).recent[0].status,'generated')
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('ownership: a custom Basic preset stays unowned and inspector reports the actual owner',async()=>{
+ const {ctx,adapter,agent}=await fixture({presets:true,customBasic:true})
+ try {
+  agent.followup(message());await agent.whenIdle()
+  assert.equal(adapter.summaries.length,0);assert.equal(adapter.requests.length,1)
+  assert.equal(ctx.contextManager.idleStatus(String(agent.id)).owner,'other')
+  assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,0)
+ } finally {await ctx.fiber.dispose()}
 })

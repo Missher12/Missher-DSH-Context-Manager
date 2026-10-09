@@ -1,5 +1,6 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Volatile } from '@deepseek-ai/cosmokit'
 import type {} from '@deepseek-ai/dsh-settings'
 import { defaults, validatePolicy, type Policy } from './policy.ts'
@@ -13,6 +14,7 @@ import { existsSync } from 'node:fs'
 import type {} from '@deepseek-ai/dsh-app-boot'
 import { RecoveryJournal } from './recovery-journal.ts'
 import { CompactionCycles } from './compaction-cycles.ts'
+import { SummaryOperations } from './summary-operations.ts'
 import { registerHistoryTools } from './history-tools.ts'
 import { TextArchive, type ArchiveSummary } from './archive.ts'
 import type { ReductionReadout } from './inspector-types.ts'
@@ -51,6 +53,8 @@ export default class ContextManager extends Service {
   idleStore!: IdleStore
   summaryLedger!: SummaryLedger
   compactionCycles!: CompactionCycles
+  /** Additive durable call outcomes; the v1 cycle table keeps its shape and semantics. */
+  summaryOperations!: SummaryOperations
   supportsSafeShutdown = false
   private reductionStats!: () => ReductionStats
   private pipelineReported!: () => boolean
@@ -61,6 +65,8 @@ export default class ContextManager extends Service {
   private idleActive = false
   private readonly idleReaders = new Map<string, () => IdleStatus>()
   private readonly compactReaders = new Map<string, () => CompactPhase | undefined>()
+  private readonly stops = new Map<string, { reasonCode: string; message: string }>()
+  private readonly recoveries = new Map<string, (signal: AbortSignal) => Promise<void>>()
   private readonly drains = new Set<() => Promise<void>>()
   static Config = z.object({
     policy: z.object({
@@ -73,7 +79,11 @@ export default class ContextManager extends Service {
       safetyPercent: z.number().min(1).max(10).default(defaults.safetyPercent),
       summaryMaxTokens: z.number().min(256).max(32768).step(1).default(defaults.summaryMaxTokens),
       maxPasses: z.number().min(1).max(2).step(1).default(defaults.maxPasses),
-      timeoutMs: z.number().min(1000).max(300000).step(1).default(defaults.timeoutMs),
+      summaryTimeoutMode: z.union([z.const('fixed'), z.const('adaptive')]).default(defaults.summaryTimeoutMode),
+      summaryTotalMs: z.number().min(10000).max(3600000).step(1).default(defaults.summaryTotalMs),
+      summaryFirstOutputMs: z.number().min(5000).max(900000).step(1).default(defaults.summaryFirstOutputMs),
+      summaryStallMs: z.number().min(5000).max(1800000).step(1).default(defaults.summaryStallMs),
+      timeoutMs: z.number().min(1000).max(1800000).step(1).default(defaults.timeoutMs),
       idleEnabled: z.boolean().default(defaults.idleEnabled),
       idleMinutes: z.number().min(1).max(1440).step(1).default(defaults.idleMinutes),
       idleMinPercent: z.number().min(10).max(95).default(defaults.idleMinPercent),
@@ -123,9 +133,13 @@ export default class ContextManager extends Service {
       this.idleStore = await IdleStore.open(this.ctx.storageDomain, journal)
       this.summaryLedger = await SummaryLedger.open(this.ctx.storageDomain, journal)
       this.compactionCycles = await CompactionCycles.open(this.ctx.storageDomain)
+      this.summaryOperations = await SummaryOperations.open(this.ctx.storageDomain)
     } catch (error) {
-      try { await this.summaryLedger?.close() }
-      finally { try { await this.idleStore?.close() } finally { journal?.close() } }
+      try { await this.summaryOperations?.close() }
+      finally {
+        try { await this.compactionCycles?.close(); await this.summaryLedger?.close() }
+        finally { try { await this.idleStore?.close() } finally { journal?.close() } }
+      }
       throw error
     }
     let closing: Promise<void> | undefined
@@ -134,8 +148,11 @@ export default class ContextManager extends Service {
       // engines before closing shared stores; registration order is not a lock.
       const outcomes = await Promise.allSettled([...this.drains].map(drain => drain()))
       try {
-        try { await this.compactionCycles.close() }
-        finally { try { await this.summaryLedger.close() } finally { await this.idleStore.close() } }
+        try { await this.summaryOperations.close() }
+        finally {
+          try { await this.compactionCycles.close() }
+          finally { try { await this.summaryLedger.close() } finally { await this.idleStore.close() } }
+        }
       } finally { journal?.close() }
       const errors = outcomes.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       if (errors.length) throw new AggregateError(errors.map(result => result.reason), '上下文压缩收尾未完成')
@@ -151,6 +168,7 @@ export default class ContextManager extends Service {
         releases.push(facility.registerDrain('context_manager_summaries', close))
         releases.push(facility.registerDrain('context_manager_idle', close))
         releases.push(facility.registerDrain('context_manager_cycles', close))
+        releases.push(facility.registerDrain('context_manager_operations', close))
         this.supportsSafeShutdown = true
       } catch (error) { this.ctx.logger.warn('宿主存储排空不可用，使用插件恢复日志：%s', error) }
     }
@@ -329,6 +347,28 @@ export default class ContextManager extends Service {
     return () => { if (this.compactReaders.get(sessionId) === read) this.compactReaders.delete(sessionId) }
   }
 
+  reportStop(sessionId: string, reasonCode?: string): void {
+    if (!reasonCode) { this.stops.delete(sessionId); return }
+    const labels: Record<string, string> = { first_output_timeout: '等待首个有效输出超时', stall_timeout: '摘要输出停滞超时',
+      total_timeout: '整笔压缩达到硬总时限', provider_timeout: '供应商返回超时', aborted: '压缩被取消',
+      invalid_structure: '摘要结构不合格', operation_state: '持久调用许可阻止重复收费', failed: '压缩未完成' }
+    this.stops.set(sessionId, { reasonCode, message: labels[reasonCode] ?? labels.failed! })
+  }
+
+  registerRecovery(sessionId: string, run: (signal: AbortSignal) => Promise<void>): () => void {
+    this.recoveries.set(sessionId, run)
+    return () => { if (this.recoveries.get(sessionId) === run) this.recoveries.delete(sessionId) }
+  }
+
+  async authorizeRecovery(sessionId: string, requestHash: string, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
+    const run = this.recoveries.get(sessionId)
+    if (!run) throw new Error('该会话没有可恢复的原压缩计划，请重新检查上下文状态')
+    await this.summaryOperations.grant(sessionId, requestHash)
+    signal.throwIfAborted()
+    await run(signal)
+  }
+
   /**
    * Read live or persisted status without loading a Session or scheduling work.
    * An in-flight compaction phase wins over the idle reader so the page shows
@@ -337,6 +377,19 @@ export default class ContextManager extends Service {
    * @returns the live status, or an inactive default.
    */
   idleStatus(sessionId: string): IdleStatus {
+    const base = this.readIdleStatus(sessionId)
+    const stop = this.stops.get(sessionId)
+    const status: IdleStatus = stop && base.status !== 'compacting' ? { ...base, ...stop } : base
+    const policy = this.snapshot()
+    const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
+    const engine = agent && (this.ctx.get('agentPresets')?.serviceFor(agent, 'compaction') ?? agent.ctx.get('compaction'))
+    const owner: IdleStatus['owner'] = engine ? ('contextManagerOwner' in engine ? 'context-manager' : 'other') : 'unknown'
+    return { ...status, owner, deadline: policy.summaryTimeoutMode === 'adaptive'
+      ? `总限 ${policy.summaryTotalMs / 1000}s · 首输出 ${policy.summaryFirstOutputMs / 1000}s · 停滞 ${policy.summaryStallMs / 1000}s`
+      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: this.summaryOperations.recoveryStatus(sessionId) }
+  }
+
+  private readIdleStatus(sessionId: string): IdleStatus {
     const compact = this.compactReaders.get(sessionId)?.()
     if (compact) return { status: 'compacting', dueAt: null, message: compact.message, compactionPhase: compact.phase }
     const policy = this.snapshot()

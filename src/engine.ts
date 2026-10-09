@@ -9,12 +9,17 @@ import type { TokenMeasurement } from '@deepseek-ai/dsh-token-meter'
 import type { SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from './index.ts'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
-import { budget, idleFloorTokens, type Policy } from './policy.ts'
+import { budget, deadlineLimits, idleFloorTokens, type Policy } from './policy.ts'
+import { DeadlineError, SummaryDeadline, chunkProgresses } from './summary-deadline.ts'
 import { IdleCompactor, IdleSkipped, withAbort } from './idle.ts'
 import type { CompactPhase } from './idle-types.ts'
 import type { SummaryTrigger } from './summary-ledger.ts'
 import { estimateMessage } from '@deepseek-ai/dsh-token-meter/estimate'
 import { CHECKPOINT_FORMAT, CheckpointFormatError, expectedRepair, formatCheckpoint, parseCheckpoint, repairDeviations } from './checkpoint.ts'
+import { OperationStateError, routeHashOf, type OperationPhase } from './summary-operations.ts'
+
+/** A terminal phase; a settled call is never left `recorded`. */
+type SettledPhase = Exclude<OperationPhase, 'recorded'>
 import { compactContextRegion } from './transaction.ts'
 import { planWorkingSet, validateWorkingCandidate, type WorkingPlan } from './working-set.ts'
 
@@ -23,6 +28,7 @@ export const BLOCKED = 'CONTEXT_MANAGER_BLOCKED'
 type RequestBudget = ReturnType<typeof budget>
 interface Admission { turn: number; step: number; passes: number; policy: Readonly<Policy>; budget: RequestBudget; pressure: number }
 interface SummaryInput { readonly messages: readonly Message[]; readonly tools?: readonly ToolSchema[] }
+interface Receipt { id: string; dispatched: boolean; physical: boolean; generated: boolean; failedProof: boolean; settled: boolean }
 interface StreamResult { readonly blocks: ContentBlock[]; readonly text: string; readonly usage?: TokenUsage }
 
 /** Bounded physical cleanup window for adapters that hang inside stream.return(). */
@@ -32,7 +38,11 @@ const LATE_USAGE_TIMEOUT_MS = 15000
 
 /** A stream failure that still carries the usage observed before the failure. */
 class SummaryStreamError extends Error {
-  constructor(message: string, readonly usage: TokenUsage | undefined, cause: unknown) { super(message, { cause }) }
+  constructor(message: string, readonly usage: TokenUsage | undefined, cause: unknown,
+    /** The provider stream ended by itself; nothing is still in flight. */
+    readonly settledPhysical = false,
+    /** An abort (deadline, user, route, unload, new input) won the race. */
+    readonly aborted = false) { super(message, { cause }) }
 }
 
 const INSTRUCTION = `Summarize ONLY the preceding conversation span into a concise continuation checkpoint.
@@ -61,22 +71,28 @@ export default class ContextEngine extends BasicCompactionEngine {
   private readonly lifetime = new AbortController()
   private readonly activeSummaries = new Set<Promise<unknown>>()
   private readonly summaryAborts = new WeakMap<Agent, AbortController>()
+  private readonly outerDeadlines = new WeakMap<Agent, SummaryDeadline>()
+  /** One receipt per recorded call, with in-process dispatch evidence. */
+  private readonly operationRefs = new WeakMap<Agent, Receipt[]>()
   /** Every member is pre-raced with its own deadline, so disposal stays bounded. */
   private readonly physical = new Set<Promise<unknown>>()
   private readonly idlePreflights = new WeakMap<Agent, (allowBelow?: boolean) => Promise<void>>()
   private readonly idlePruned = new WeakMap<Agent, () => void>()
   private readonly summaryTriggers = new WeakMap<Agent, SummaryTrigger>()
   private readonly compactPhases = new WeakMap<Agent, CompactPhase>()
+  private readonly recoveryIdentity = new WeakMap<Agent, { requestHash: string; sourceHash: string; routeHash: string; sourceWatermark: number }>()
+  private readonly recoveryReaders = new WeakMap<Agent, () => void>()
   private readonly compactReaders = new WeakMap<Agent, () => void>()
 
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx, { ...config, auto: false })
     const engine = this
-    const idle = new IdleCompactor(ctx, agent => engine.owns(agent), (agent, signal, preflight, pruned) => {
+    const idle = new IdleCompactor(ctx, agent => engine.owns(agent), (agent, signal, preflight, pruned, deadline) => {
+      engine.outerDeadlines.set(agent, deadline)
       engine.idlePreflights.set(agent, preflight)
       engine.idlePruned.set(agent, pruned)
-      try { return engine.compactNow(agent, signal).finally(() => { engine.idlePreflights.delete(agent); engine.idlePruned.delete(agent) }) }
-      catch (error) { engine.idlePreflights.delete(agent); engine.idlePruned.delete(agent); throw error }
+      try { return engine.compactNow(agent, signal).finally(() => { engine.idlePreflights.delete(agent); engine.idlePruned.delete(agent); engine.outerDeadlines.delete(agent) }) }
+      catch (error) { engine.idlePreflights.delete(agent); engine.idlePruned.delete(agent); engine.outerDeadlines.delete(agent); throw error }
     })
     let draining: Promise<void> | undefined
     const drain = () => draining ??= (async () => {
@@ -97,6 +113,7 @@ export default class ContextEngine extends BasicCompactionEngine {
       if (status === 'idle') engine.admissions.delete(agent)
     })
     ctx.on('agent/inbox/inserted', ({ agent }) => {
+      ctx.contextManager.reportStop(String(agent.id))
       engine.summaryAborts.get(agent)?.abort(new Error('新输入已到达，旧摘要停止；新任务仍保留在队列中'))
     })
     ctx.on('session/event', (session, event) => {
@@ -111,6 +128,8 @@ export default class ContextEngine extends BasicCompactionEngine {
       const release = engine.compactReaders.get(agent)
       if (release) { release(); engine.compactReaders.delete(agent) }
       engine.compactPhases.delete(agent)
+      engine.recoveryReaders.get(agent)?.()
+      engine.recoveryReaders.delete(agent)
     })
     ctx.on('llm/stream', async function* (options, next) {
       if (!isAgentLoopRequest(options) || options.sessionId === undefined) { yield* next(); return }
@@ -198,7 +217,7 @@ export default class ContextEngine extends BasicCompactionEngine {
   override compactRegion(start: SessionSeq, end: SessionSeq, agent: Agent, signal?: AbortSignal) {
     return this.withTransaction(agent, signal, async active => {
       await this.ensureRegionPlan(agent, start, end, active)
-      return compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false }, active)
+      return compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false, flush: async () => { await this.ctx.sessions.flush(agent.session) } }, active)
     })
   }
 
@@ -267,6 +286,7 @@ export default class ContextEngine extends BasicCompactionEngine {
         this.recovering.add(agent)
       },
       validateCandidate: (agent, start, end, checkpoint, before) => {
+        this.outerDeadlines.get(agent)?.assertAlive()
         const plan = this.plans.get(agent)
         if (!plan || plan.start !== start || plan.end !== end) throw new Error('压缩计划已失效，原文保留')
         if (before.totalTokens !== plan.before) throw new Error('压缩计划的压力已变化，原文保留')
@@ -288,15 +308,41 @@ export default class ContextEngine extends BasicCompactionEngine {
       return Promise.reject(new IdleSkipped('host_capability_missing', '上下文用量恢复日志不可用，压缩未执行；请检查插件数据目录权限，任务原文保留'))
     }
     if (this.summaryAborts.has(agent)) return Promise.reject(new Error('该会话已有上下文压缩正在收尾'))
+    this.ctx.contextManager.reportStop(String(agent.id))
     const abort = new AbortController()
     this.summaryAborts.set(agent, abort)
     this.transactionCalls.set(agent, 0)
     this.transactionRepairs.delete(agent)
-    const active = AbortSignal.any([abort.signal, this.lifetime.signal,
-      AbortSignal.timeout(this.ctx.contextManager.snapshot().timeoutMs), ...(signal ? [signal] : [])])
-    const operation = (async () => { active.throwIfAborted(); return await work(active) })()
+    // Exactly one hard bound per transaction, shared with any outer layer that
+    // already started one. Per-call first-output/stall windows live inside it
+    // and can never extend the total.
+    const policy = this.ctx.contextManager.snapshot()
+    const existing = this.outerDeadlines.get(agent)
+    const outer = existing ?? new SummaryDeadline(deadlineLimits(policy))
+    if (existing === undefined) this.outerDeadlines.set(agent, outer)
+    outer.link(abort.signal)
+    outer.link(this.lifetime.signal)
+    if (signal) outer.link(signal)
+    const active = outer.signal
+    const generation = agent.session.surface.replaceGeneration
+    const operation = (async () => {
+      active.throwIfAborted()
+      try {
+        const result = await work(active)
+        await this.settleOperations(agent, generation, undefined)
+        return result
+      } catch (error) {
+        await this.settleOperations(agent, generation, error)
+        this.ctx.contextManager.reportStop(String(agent.id), active.aborted && !(active.reason instanceof DeadlineError) ? 'aborted' : this.reasonCodeOf(active.aborted ? active.reason : error))
+        throw error
+      }
+    })()
     this.activeSummaries.add(operation)
     void operation.finally(() => {
+      if (existing === undefined) {
+        outer.dispose()
+        if (this.outerDeadlines.get(agent) === outer) this.outerDeadlines.delete(agent)
+      }
       this.activeSummaries.delete(operation)
       if (this.summaryAborts.get(agent) === abort) this.summaryAborts.delete(agent)
       this.plans.delete(agent)
@@ -392,23 +438,61 @@ export default class ContextEngine extends BasicCompactionEngine {
     return { start: plan.start as SessionSeq, end: plan.end as SessionSeq }
   }
 
-  /** Count real source growth, not freshly numbered replacement checkpoints. */
-  private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger) {
+  private async settleOperations(agent: Agent, generation: number, error: unknown): Promise<void> {
+    const refs = this.operationRefs.get(agent) ?? []
+    this.operationRefs.delete(agent)
+    // A generation change alone can be a different consumer. Verify this exact compaction.
+    const ends = agent.session.snapshotEvents().filter(event => event.type === 'compaction/end' && !event.data.error)
+    const records = this.ctx.contextManager.summaryOperations.records(String(agent.id))
+    for (const receipt of refs) {
+      if (receipt.settled) continue
+      const row = records.find(row => row.operationId === receipt.id)
+      const applied = error === undefined && agent.session.surface.replaceGeneration > generation
+        && ends.some(event => event.type === 'compaction/end' && String(event.data.compactionId) === row?.compactionId)
+      const phase: SettledPhase = !receipt.dispatched ? 'not_dispatched' : receipt.failedProof ? 'known_failed_unapplied'
+        : applied ? 'committed' : receipt.generated ? 'generated_uncommitted' : 'unknown_interrupted'
+      try { await this.ctx.contextManager.summaryOperations.settle(String(agent.id), receipt.id, phase,
+        { reasonCode: error === undefined ? undefined : this.reasonCodeOf(error) }) }
+      catch (persist) { this.ctx.logger.warn('压缩调用终态未持久化，保持未知以免重复收费：%s', persist) }
+    }
+  }
+
+  private reasonCodeOf(error: unknown): string {
+    if (error instanceof DeadlineError) return error.code
+    if (error instanceof LlmError && /timeout|timed.?out/i.test(error.code + ' ' + error.message)) return 'provider_timeout'
+    if (error instanceof Error && error.cause) return this.reasonCodeOf(error.cause)
+    if (error instanceof SummaryStreamError && error.aborted) return 'aborted'
+    if (error instanceof CheckpointFormatError) return 'invalid_structure'
+    if (error instanceof Error && error.name === 'OperationStateError') return 'operation_state'
+    return 'failed'
+  }
+
+  /** Source lineage, exact routed output budget and persistent permit all precede dispatch. */
+  private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger, compactionId: string): Promise<Receipt> {
     const calls = this.transactionCalls.get(agent) ?? 0
     if (calls >= 4) throw new Error('本次压缩已达 4 次模型调用上限，原文保留')
     if (purpose === 'repair' && this.transactionRepairs.has(agent)) throw new Error('同一压缩事务最多修复一次，原文保留')
-    this.transactionCalls.set(agent, calls + 1)
-    if (purpose === 'repair') this.transactionRepairs.add(agent)
-    if (trigger === 'manual') return // an explicit user-requested retry is its own authorization
-    const plan = this.plans.get(agent)
-    if (!plan) throw new Error('缺少可核验的压缩计划，任务原文保留')
-    const store = this.ctx.contextManager.compactionCycles
-    const previous = store.peek(String(agent.id))
-    const nodes = agent.session.surface.nodes
-    // The cycle belongs to the session, not to whichever span won this plan.
-    // A later plan may legitimately return to an earlier uncompressed region.
-    const queue = [...nodes]
-    const seen = new Set<number>()
+    if (!this.plans.get(agent)) throw new Error('缺少可核验压缩计划')
+    const sessionId = String(agent.id), operations = this.ctx.contextManager.summaryOperations
+    // A crash can occur after the Session commit flush but before the operation
+    // terminal write. Only the exact complete public bracket proves commitment.
+    const events = agent.session.snapshotEvents()
+    for (const row of operations.records(sessionId).filter(row => row.phase === 'recorded')) {
+      const summary = events.find(event => event.type === 'compaction/summary' && String(event.data.compactionId) === row.compactionId)
+      const end = events.find(event => event.type === 'compaction/end' && String(event.data.compactionId) === row.compactionId && !event.data.error)
+      const replacement = summary && events.find(event => event.type === 'user/message' && typeof event.surfaceOp === 'object'
+        && event.data.source.kind === 'compact-checkpoint' && 'compactionId' in event.data.source
+        && String(event.data.source.compactionId) === row.compactionId && event.sourceEventSeqs?.includes(summary.seq))
+      if (summary && replacement && end && summary.seq < replacement.seq && replacement.seq < end.seq) {
+        await this.ctx.sessions.flush(agent.session)
+        this.outerDeadlines.get(agent)?.assertAlive()
+        await operations.settle(sessionId, row.operationId, 'committed')
+      }
+    }
+    const legacy = this.ctx.contextManager.compactionCycles.records(sessionId)
+    const watermark = operations.watermark(sessionId, legacy)
+    const queue = [...agent.session.surface.nodes], seen = new Set<number>()
+    const originals: [number, Message][] = []
     let sourceWatermark = 0, freshTokens = 0
     while (queue.length) {
       const seq = queue.pop()!
@@ -417,25 +501,75 @@ export default class ContextEngine extends BasicCompactionEngine {
       if (seen.size > 50000) throw new Error('压缩来源链超过安全读取范围，原文保留')
       const event = agent.session.eventAt(seq)
       if (!event) throw new Error('压缩原文来源不可读取')
-      // Original append events can also reference tool/call metadata. They
-      // remain original content; only replacement lineage moves backwards.
       if (event.surfaceOp !== 'append' && 'sourceEventSeqs' in event && event.sourceEventSeqs?.length) {
         queue.push(...event.sourceEventSeqs); continue
       }
       const message = agent.session.deriveEventMessage(event)
       if (!message) continue
+      originals.push([seq, message])
       sourceWatermark = Math.max(sourceWatermark, seq)
-      if (seq > (previous?.sourceWatermark ?? -1)) freshTokens += this.ctx.tokenMeter.estimateMessage(message)
+      if (seq > watermark) freshTokens += this.ctx.tokenMeter.estimateMessage(message)
     }
-    await store.claim({ sessionId: String(agent.id), sourceWatermark, freshTokens,
+    const sourceHash = createHash('sha256').update(JSON.stringify(originals.sort((a, b) => a[0] - b[0]))).digest('hex')
+    const requestHash = createHash('sha256').update(JSON.stringify(options.messages)).digest('hex')
+    const expected = this.recoveryIdentity.get(agent)
+    if (expected && (expected.requestHash !== requestHash || expected.sourceHash !== sourceHash
+      || expected.routeHash !== routeHashOf(options) || expected.sourceWatermark !== sourceWatermark)) {
+      throw new OperationStateError('来源或模型已改变，一次恢复授权不能用于新请求')
+    }
+    const stats = this.ctx.contextManager.summaryLedger.stats(sessionId)
+    const bound = new Set(operations.records(sessionId).map(row => row.attemptId))
+    // Old manual calls bypassed v1. Without an exact binding we cannot promise remaining budget.
+    const unboundManual = legacy.length > 0 && stats !== undefined && (stats.attempts > stats.recent.length
+      || stats.recent.some(row => row.trigger === 'manual' && !bound.has(row.id)))
+      const plan = this.plans.get(agent)
+      if (plan && purpose !== 'repair') {
+        this.recoveryReaders.get(agent)?.()
+        this.recoveryReaders.set(agent, this.ctx.contextManager.registerRecovery(sessionId, async signal => {
+          // The explicit mutation owns maintenance of the captured range. It adds
+          // no user message, and the permit gate rechecks exact source and route.
+          this.recoveryIdentity.set(agent, { requestHash, sourceHash, sourceWatermark, routeHash: routeHashOf(options) })
+          try { await this.withTransaction(agent, signal, active => agent.runMaintenance(async maintenance => {
+            const operation = AbortSignal.any([active, maintenance])
+            await this.ensureRegionPlan(agent, plan.start as SessionSeq, plan.end as SessionSeq, operation)
+            await compactContextRegion(this.transactionDependencies(), agent, plan.start as SessionSeq, plan.end as SessionSeq,
+              { idle: true, flush: async () => { await this.ctx.sessions.flush(agent.session) } }, operation)
+          })) } finally { this.recoveryIdentity.delete(agent) }
+        }))
+      }
+    const row = await operations.claim({ sessionId, sourceHash, sourceWatermark, freshTokens,
       minNewTokens: Math.max(1024, Math.floor((this.admissions.get(agent)?.budget.hard ?? 100000) * 0.05)),
-      requestHash: createHash('sha256').update(JSON.stringify(options.messages)).digest('hex'), purpose })
-    options.signal?.throwIfAborted()
+      requestHash, routeHash: routeHashOf(options), purpose, trigger, compactionId, legacy, unboundManual })
+    const receipt: Receipt = { id: row.operationId, dispatched: false, physical: false, generated: false, failedProof: false, settled: false }
+    this.operationRefs.set(agent, [...(this.operationRefs.get(agent) ?? []), receipt])
+    this.transactionCalls.set(agent, calls + 1)
+    if (purpose === 'repair') this.transactionRepairs.add(agent)
+    this.outerDeadlines.get(agent)?.assertAlive()
+    return receipt
   }
 
   /** Same routed model/effort; the plugin transaction checks shrink, replay and cancellation. */
   protected override summarize(input: SummaryInput, agent: Agent, signal?: AbortSignal) {
-    const operation = this.runSummary(input, agent, signal)
+    const operation = (async () => {
+      for (let retry = 0; ; retry++) {
+        try { return await this.runSummary(input, agent, signal) }
+        catch (error) {
+          const refs = this.operationRefs.get(agent) ?? []
+          const pending = refs.filter(row => !row.settled)
+          if (!pending.length || pending.some(row => !row.failedProof)
+            || this.outerDeadlines.get(agent)?.signal.aborted) throw error
+          // Physically complete, proven unapplied failures only. Exact identity and
+          // the shared 2/4 budget are checked again by the serialized permit gate.
+          for (const receipt of pending) {
+            await this.ctx.contextManager.summaryOperations.settle(String(agent.id), receipt.id,
+              'known_failed_unapplied', { reasonCode: this.reasonCodeOf(error) })
+            receipt.settled = true
+          }
+          if (retry >= 1 || this.transactionRepairs.has(agent) || error instanceof SummaryStreamError && error.cause instanceof LlmError) throw error
+          this.outerDeadlines.get(agent)?.assertAlive()
+        }
+      }
+    })()
     this.activeSummaries.add(operation)
     void operation.finally(() => {
       this.activeSummaries.delete(operation)
@@ -467,12 +601,17 @@ export default class ContextEngine extends BasicCompactionEngine {
    * and cancellation: any failure throws {@link SummaryStreamError} carrying
    * the usage assembled so far, so the attempt always settles its known cost.
    */
-  private async streamAttempt(options: GenerateOptions, signal: AbortSignal, onLateUsage: (usage: TokenUsage) => Promise<unknown> | void, retainUsage: () => () => void): Promise<StreamResult> {
+  private async streamAttempt(options: GenerateOptions, agent: Agent, signal: AbortSignal, deadline: SummaryDeadline | undefined, receipt: Receipt, onLateUsage: (usage: TokenUsage) => Promise<unknown> | void, retainUsage: () => () => void): Promise<StreamResult> {
+    const startedAt = Date.now()
     const assembler = new BlockAssembler()
     let observedUsage: TokenUsage | undefined
+    deadline?.beginCall()
+    deadline?.assertAlive()
+    receipt.dispatched = true
     const stream = this.ctx.llm.stream(options)[Symbol.asyncIterator]()
     let pending: Promise<IteratorResult<StreamChunk>> | undefined
     let harvesting = false
+    let settledPhysical = false
     try {
       try {
         while (true) {
@@ -491,7 +630,9 @@ export default class ContextEngine extends BasicCompactionEngine {
             }
             throw error
           }
-          if (item.done) break
+          if (item.done) { settledPhysical = true; deadline?.endCall(); break }
+          if (chunkProgresses(item.value)) deadline?.noteProgress()
+          deadline?.assertAlive()
           assembler.push(item.value)
           // The host assembler keeps only the latest usage snapshot. Account
           // every delivered snapshot so a later partial one cannot erase an
@@ -517,13 +658,16 @@ export default class ContextEngine extends BasicCompactionEngine {
           const closeBound = withAbort(cleanup, AbortSignal.timeout(CLEANUP_TIMEOUT_MS))
           this.trackPhysical(closeBound)
           try {
-            await withAbort(Promise.resolve(closeBound), signal)
+            const closed = await withAbort(Promise.resolve(closeBound), signal)
+            if (closed.done) settledPhysical = true
           } catch (cleanupError) {
             if (signal.aborted) throw cleanupError
-            this.ctx.logger.warn('摘要流物理清理超时：%s', cleanupError)
+            settledPhysical = false
+            throw cleanupError
           }
         }
       }
+      deadline?.assertAlive()
       signal.throwIfAborted()
       if (assembler.finish.kind === 'error' || assembler.finish.kind === 'aborted') {
         const failure = assembler.finish.failure
@@ -536,7 +680,20 @@ export default class ContextEngine extends BasicCompactionEngine {
       return { blocks, text, ...(observedUsage === undefined ? {} : { usage: observedUsage }) }
     } catch (error) {
       // Failures, cancellations and late aborts settle the usage seen so far.
-      throw new SummaryStreamError(this.reasonOf(error), observedUsage, error)
+      // The physical flags decide the durable outcome: only a stream that ended
+      // by itself can ever be a known unapplied failure.
+      throw new SummaryStreamError(this.reasonOf(error), observedUsage, error,
+        settledPhysical && !harvesting, signal.aborted || error instanceof DeadlineError)
+    } finally {
+      receipt.physical = settledPhysical && !harvesting
+      deadline?.endCall()
+      try {
+        const output = assembler.blocks().filter(block => block.type === 'text').map(block => block.text).join('\n')
+        await this.ctx.contextManager.summaryOperations.describe(String(agent.id), receipt.id, {
+          finish: assembler.finish.kind, chars: output.length, outputHash: createHash('sha256').update(output).digest('hex'),
+          elapsedMs: Math.max(0, Date.now() - startedAt), totalMs: deadline?.limits.totalMs ?? 0,
+        })
+      } catch (error) { this.ctx.logger.warn('压缩诊断元数据未保存：%s', error) }
     }
   }
 
@@ -583,9 +740,13 @@ export default class ContextEngine extends BasicCompactionEngine {
     const config = agent.session.requestHeader()?.config
     if (!config) throw new Error('尚无实际模型路由，无法生成摘要')
     const policy = this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
-    const timeout = AbortSignal.timeout(policy.timeoutMs)
-    const activeSignal = AbortSignal.any([this.lifetime.signal, timeout, ...(signal ? [signal] : [])])
-    activeSignal.throwIfAborted()
+    // The transaction owns the total bound; this call only re-arms the
+    // first-output/stall window inside the remaining total.
+    const deadline = this.outerDeadlines.get(agent)
+    if (deadline === undefined) throw new Error('缺少事务时限，未生成摘要；任务原文保留')
+    if (signal) deadline.link(signal)
+    const activeSignal = deadline.signal
+    deadline.assertAlive()
     const info = await withAbort(this.ctx.llm.resolveModelInfo(config.provider, config.model, activeSignal), activeSignal)
     if (!info.context) throw new Error('摘要模型缺少窗口信息')
     // compactNow owns maintenance here. Revalidate after asynchronous preparation,
@@ -620,15 +781,17 @@ export default class ContextEngine extends BasicCompactionEngine {
         + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
         + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
       if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens).hard) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
-      await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger)
+      const primaryReceipt = await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger, compactionId)
       const primaryAttempt = await ledger.start(sessionId, compactionId, trigger)
+      await this.ctx.contextManager.summaryOperations.bind(sessionId, primaryReceipt.id, { attemptId: primaryAttempt })
+      deadline.assertAlive()
       const releasePrimary = ledger.retainUsage(primaryAttempt)
       let primaryUsage: TokenUsage | undefined
       let primaryText = ''
       try {
         await this.idlePreflights.get(agent)?.()
         activeSignal.throwIfAborted()
-        const primary = await this.streamAttempt(primaryOptions, activeSignal, usage => {
+        const primary = await this.streamAttempt(primaryOptions, agent, activeSignal, deadline, primaryReceipt, usage => {
           return ledger.recordUsage(sessionId, primaryAttempt, usage).catch(persist => this.ctx.logger.warn('晚到摘要用量补记失败：%s', persist))
         }, () => ledger.retainUsage(primaryAttempt))
         primaryUsage = primary.usage
@@ -637,13 +800,17 @@ export default class ContextEngine extends BasicCompactionEngine {
         // A cancellation that lands while the durable accounting settles must
         // still win: re-validate after every final await before any commit.
         await ledger.finish(sessionId, primaryAttempt, 'generated', primaryUsage)
-        activeSignal.throwIfAborted()
+        primaryReceipt.generated = true
+        deadline.assertAlive()
         return { summary, rawOutput: primary.blocks, llmStreamCall: true as const, provider: config.provider, model: config.model,
           maxTokens, ...(primaryUsage === undefined ? {} : { usage: primaryUsage }) }
       } catch (error) {
         // Known usage survives failures and cancellations via the stream error.
         primaryUsage = error instanceof SummaryStreamError ? error.usage : primaryUsage
         const aborted = activeSignal.aborted
+        primaryReceipt.failedProof = primaryReceipt.physical && !aborted && (error instanceof CheckpointFormatError
+          || error instanceof SummaryStreamError && !error.aborted && error.settledPhysical
+            && error.cause instanceof LlmError && error.cause.code === 'IMAGE_OFFLOAD_REQUIRED')
         await ledger.finish(sessionId, primaryAttempt, aborted ? 'cancelled' : 'failed', primaryUsage)
         if (aborted) throw error
         // Only a structural format failure that admits a deterministic,
@@ -674,13 +841,15 @@ export default class ContextEngine extends BasicCompactionEngine {
           maxTokens: repairMaxTokens, purpose: 'compaction', sessionId: agent.session.id,
           signal: activeSignal, messages: [repairMessage],
         }
-        await this.claimSummaryCall(agent, repairOptions, 'repair', trigger)
+        const repairReceipt = await this.claimSummaryCall(agent, repairOptions, 'repair', trigger, compactionId)
         const repairAttempt = await ledger.start(sessionId, compactionId, trigger)
+        await this.ctx.contextManager.summaryOperations.bind(sessionId, repairReceipt.id, { attemptId: repairAttempt })
+        deadline.assertAlive()
         const releaseRepair = ledger.retainUsage(repairAttempt)
         let repairUsage: TokenUsage | undefined
         try {
           activeSignal.throwIfAborted()
-          const repaired = await this.streamAttempt(repairOptions, activeSignal, usage => {
+          const repaired = await this.streamAttempt(repairOptions, agent, activeSignal, deadline, repairReceipt, usage => {
             return ledger.recordUsage(sessionId, repairAttempt, usage).catch(persist => this.ctx.logger.warn('晚到摘要用量补记失败：%s', persist))
           }, () => ledger.retainUsage(repairAttempt))
           repairUsage = repaired.usage
@@ -693,13 +862,17 @@ export default class ContextEngine extends BasicCompactionEngine {
           }
           const summary: ContentBlock[] = [{ type: 'text', text: formatCheckpoint(repaired.text, source) }]
           await ledger.finish(sessionId, repairAttempt, 'generated', repairUsage)
-          activeSignal.throwIfAborted()
+          repairReceipt.generated = true
+          deadline.assertAlive()
           const usage = this.mergeUsage(primaryUsage, repairUsage)
           return { summary, rawOutput: repaired.blocks, llmStreamCall: true as const, provider: config.provider, model: config.model,
             maxTokens: repairMaxTokens, ...(usage === undefined ? {} : { usage }) }
         } catch (repairError) {
           repairUsage = repairError instanceof SummaryStreamError ? repairError.usage : repairUsage
           const aborted = activeSignal.aborted
+          repairReceipt.failedProof = repairReceipt.physical && !aborted && (repairError instanceof CheckpointFormatError
+            || repairError instanceof SummaryStreamError && repairError.settledPhysical && !repairError.aborted
+              && repairError.cause instanceof LlmError && repairError.cause.code === 'IMAGE_OFFLOAD_REQUIRED')
           await ledger.finish(sessionId, repairAttempt, aborted ? 'cancelled' : 'failed', repairUsage)
           if (aborted) throw repairError
           throw new Error(`摘要格式修复未通过校验，摘要未应用，原始记录保留：${this.reasonOf(repairError)}`)

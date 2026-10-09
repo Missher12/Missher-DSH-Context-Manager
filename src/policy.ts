@@ -1,3 +1,5 @@
+import type { DeadlineLimits } from './summary-deadline.ts'
+
 /** Admission limits and working-history policy shared by the engine and settings preview. */
 export interface Policy {
   enabled: boolean
@@ -12,7 +14,22 @@ export interface Policy {
   safetyPercent: number
   summaryMaxTokens: number
   maxPasses: number
+  /** Hard bound for the entire fixed-mode compaction transaction. Meaning and saved values are unchanged. */
   timeoutMs: number
+  /**
+   * `fixed` (default, and every existing saved configuration) keeps the saved
+   * `timeoutMs` as the one hard bound of the whole compaction transaction.
+   * `adaptive` is chosen explicitly in native settings and uses
+   * {@link Policy.summaryTotalMs} instead, with a first-output wait and a
+   * progress-renewed stall bound inside it. No mode adds a hidden extra bound.
+   */
+  summaryTimeoutMode: 'fixed' | 'adaptive'
+  /** Adaptive only: the one visible hard bound of the whole compaction transaction. */
+  summaryTotalMs: number
+  /** Adaptive only: how long one call may take before its first non-empty output. */
+  summaryFirstOutputMs: number
+  /** Adaptive only: how long one call's output may stop progressing after it started. */
+  summaryStallMs: number
   idleEnabled: boolean
   idleMinutes: number
   idleMinPercent: number
@@ -49,6 +66,7 @@ export const defaults: Policy = {
   enabled: true, historyMode: 'automatic', recentTokens: 20000,
   triggerPercent: 80, targetPercent: 55, earlyPercent: 1,
   safetyPercent: 2, summaryMaxTokens: 8192, maxPasses: 2, timeoutMs: 90000,
+  summaryTimeoutMode: 'fixed', summaryTotalMs: 600000, summaryFirstOutputMs: 120000, summaryStallMs: 180000,
   idleEnabled: true, idleMinutes: 15, idleMinPercent: 65, summaryInstructions: '',
   formatRepairEnabled: true, formatRepairMaxTokens: 2048,
   absoluteEnabled: false, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000,
@@ -66,11 +84,13 @@ export function validatePolicy(p: Policy): void {
   if (typeof p.absoluteEnabled !== 'boolean') throw new Error('绝对工作历史软预算开关必须是布尔值')
   if (typeof p.prefixDiagnosticsEnabled !== 'boolean') throw new Error('请求前缀指纹诊断开关必须是布尔值')
   if (p.toolResultsMode !== 'off' && p.toolResultsMode !== 'observe' && p.toolResultsMode !== 'reduce') throw new Error('工具结果精简模式必须为 off、observe 或 reduce')
+  if (p.summaryTimeoutMode !== 'fixed' && p.summaryTimeoutMode !== 'adaptive') throw new Error('压缩超时模式必须为 fixed 或 adaptive')
   if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
-  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions'>, [number, number]> = {
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode'>, [number, number]> = {
     recentTokens: [1000, 128000],
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],
-    safetyPercent: [1, 10], summaryMaxTokens: [256, 32768], maxPasses: [1, 2], timeoutMs: [1000, 300000],
+    safetyPercent: [1, 10], summaryMaxTokens: [256, 32768], maxPasses: [1, 2], timeoutMs: [1000, 1800000],
+    summaryTotalMs: [10000, 3600000], summaryFirstOutputMs: [5000, 900000], summaryStallMs: [5000, 1800000],
     idleMinutes: [1, 1440], idleMinPercent: [10, 95],
     formatRepairMaxTokens: [256, 8192],
     absoluteTriggerTokens: [10000, 1_000_000_000], absoluteTargetTokens: [1000, 1_000_000_000],
@@ -83,7 +103,7 @@ export function validatePolicy(p: Policy): void {
   }
   if (p.historyMode === 'custom' && p.targetPercent > p.triggerPercent - p.earlyPercent - 10) throw new Error('自定义占用上限须比实际检查阈值至少低 10 个百分点')
   if (p.historyMode === 'custom' && p.absoluteEnabled && p.absoluteTargetTokens > Math.floor(p.absoluteTriggerTokens * 0.8)) throw new Error('绝对占用上限须比绝对软触发至少低 20%')
-  for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const) {
+  for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const) {
     if (!Number.isInteger(p[key])) throw new Error(`${key} 必须是整数`)
   }
 }
@@ -152,4 +172,23 @@ export function idleFloorTokens(policy: Policy, window: number, outputReserve: n
   const minimumPercent = policy.historyMode === 'automatic' ? policy.idleMinPercent : Math.max(policy.idleMinPercent, policy.targetPercent + 10)
   const percentFloor = window * minimumPercent / 100
   return Math.min(percentFloor, limits.admission)
+}
+
+/**
+ * Effective bounds. `fixed` reproduces the previous contract exactly: the saved
+ * `timeoutMs` is the single hard bound of the whole transaction, and
+ * first-output/stall collapse into it so no other timer can preempt it.
+ */
+export function deadlineLimits(policy: Readonly<Policy>): DeadlineLimits {
+  if (policy.summaryTimeoutMode === 'adaptive') {
+    const totalMs = policy.summaryTotalMs
+    return { firstOutputMs: Math.min(policy.summaryFirstOutputMs, totalMs),
+      stallMs: Math.min(policy.summaryStallMs, totalMs), totalMs }
+  }
+  return { firstOutputMs: policy.timeoutMs, stallMs: policy.timeoutMs, totalMs: policy.timeoutMs }
+}
+
+/** The one visible hard bound; every entry (manual, pressure, idle, repair, recovery) shares it. */
+export function transactionTotalMs(policy: Readonly<Policy>): number {
+  return deadlineLimits(policy).totalMs
 }
