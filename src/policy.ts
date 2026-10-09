@@ -17,9 +17,9 @@ export interface Policy {
   /** Hard bound for the entire fixed-mode compaction transaction. Meaning and saved values are unchanged. */
   timeoutMs: number
   /**
-   * `fixed` (default, and every existing saved configuration) keeps the saved
+   * `fixed` (preserved for legacy saved policies without a mode) keeps the saved
    * `timeoutMs` as the one hard bound of the whole compaction transaction.
-   * `adaptive` is chosen explicitly in native settings and uses
+   * `adaptive` is the new-install default, or explicitly chosen in settings, and uses
    * {@link Policy.summaryTotalMs} instead, with a first-output wait and a
    * progress-renewed stall bound inside it. No mode adds a hidden extra bound.
    */
@@ -66,7 +66,7 @@ export const defaults: Policy = {
   enabled: true, historyMode: 'automatic', recentTokens: 20000,
   triggerPercent: 80, targetPercent: 55, earlyPercent: 1,
   safetyPercent: 2, summaryMaxTokens: 8192, maxPasses: 2, timeoutMs: 90000,
-  summaryTimeoutMode: 'fixed', summaryTotalMs: 600000, summaryFirstOutputMs: 120000, summaryStallMs: 180000,
+  summaryTimeoutMode: 'adaptive', summaryTotalMs: 600000, summaryFirstOutputMs: 120000, summaryStallMs: 180000,
   idleEnabled: true, idleMinutes: 15, idleMinPercent: 65, summaryInstructions: '',
   formatRepairEnabled: true, formatRepairMaxTokens: 2048,
   absoluteEnabled: false, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000,

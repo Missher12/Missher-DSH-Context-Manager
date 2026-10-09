@@ -93,7 +93,7 @@ const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPe
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
-  const normalized = { ...defaults, ...policy }
+  const normalized = { ...defaults, ...policy, summaryTimeoutMode: policy.summaryTimeoutMode ?? 'fixed' as const }
   const fields = Object.fromEntries(numericKeys.map(key => [key, String(normalized[key])])) as Record<NumericKey, string>
   return { ...normalized, ...fields }
 }
@@ -153,6 +153,11 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
       state={{ available: accepted.status === 'ready', writable: accepted.writable, dirty: dirty && !disabled, invalid: !!invalid, saving, failed }}
       onSave={() => { void save() }} onDiscard={() => { /* Unmount releases this form's draft. */ }}>
       <fieldset disabled={disabled} className="cm-native-fields">
+        {draft.summaryTimeoutMode === 'fixed' && <div role="status">
+          <p className="cm-hint">当前保留固定总时限 {Number(draft.timeoutMs) / 1000} 秒；即使摘要持续输出也会到时停止。长任务建议按输出进展等待，成功后自动继续当前任务。</p>
+          <Button size="sm" disabled={disabled} onClick={() => edit({ summaryTimeoutMode: 'adaptive' })}>切换为按进展等待</Button>
+          <p className="cm-hint">点击后保存设置才生效；保留原固定值及现有分层时限。不会恢复已经结束的任务，也不会重试未知收费请求。</p>
+        </div>}
         {toggle('enabled', '自动压缩', '在执行前检查完整请求，必要时先压缩。关闭后停止自动整理，超出安全窗口时暂停。')}
         <div className="cm-native-presets" role="group" aria-label="压缩策略">
           {([[70, '提前整理 · 70%'], [80, '均衡 · 80%'], [85, '稍后整理 · 85%']] as const).map(([triggerPercent, label]) =>

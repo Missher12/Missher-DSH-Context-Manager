@@ -1,3 +1,45 @@
+# Context 0.10.0-local.3：长任务压缩后继续执行
+
+本版修复默认固定 90 秒使持续生成摘要的长任务被中断的使用路径。新安装采用按输出进展等待；已有配置不猜测来源、不静默覆盖，顶部提供明确切换和原生保存入口。沿用现有 Basic / AgentLoop 公开协议：同一回合内成功压缩后继续下一步，已完成工具不重放。紧凑上下文页面、历史、费用和取消保护保持。
+
+## 安装与启用
+
+从 [本版下载](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.3) 获取 `missher-dsh-context-manager-0.10.0-local.3.tgz`，在 DSH 插件管理中更新。先等待任务结束并备份 profile、会话、学习数据和所有 Context 账本/原文档案，然后正常退出重开。
+
+已有安装还需进入“设置 → 上下文管理”，点击“切换为按进展等待”，确认整事务 600000ms、首输出 120000ms、停滞 180000ms 后保存。原 `timeoutMs` 保留，模型和其他预算不变。多台电脑各自保存配置；下载或 Git 同步不会修改另一台电脑的设置。无需额外兼容插件或专用桌面包。
+
+## 精确包与验证
+
+原包保持冻结字节，不因公开文档更新而重新打包：
+
+```text
+ee89235c016b76f6fac653fc8096ebd012a46aa314ea2b9f0b55d3700e48a50d  missher-dsh-context-manager-0.10.0-local.3.tgz
+```
+
+87 清单源文件、16 运行件和 23 包成员已逐项核对；仓库既有 CI/历史文件保留。本版源码与文档覆盖映射见 [GIT_DELIVERY.json](./GIT_DELIVERY.json)。
+
+- 增强 SDK：318 通过、2 个旧 SDK 场景跳过；最终专项 7/7。
+- 当前桌面提取 SDK、Node 25：87 通过、2 跳过。
+- 实际 Electron Node 24.18.1：59 个 AgentLoop/配置/恢复测试和 11 个 deadline 测试通过。设置组件测试因打包 SDK 不含 Button.tsx 开发源码而无法加载，未计作通过；组件由增强 SDK 单列验证，实际设置另由 Host RPC 验证。
+- 实际隔离 Host：202 条 Loader、174 个启用项 active、11 客户端匹配；四字段 fixed→adaptive→fixed 保存回读，固定值及其他命名空间保持，运行 deadline 对应 600/120/180 秒。零模型/外部请求，正常排空。
+- 长任务使用真实 AgentLoop、合成供应商及虚拟时间：工具只执行一次，摘要持续输出累计 300 秒后同回合继续；固定/总限/停滞反例停止且不继续业务、不暗中重试收费。不是物理等待 300 秒或真实模型验收。
+
+各组重叠，不相加。正式发布需同提交既有 12 项存储 CI 全部通过，见 [CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/workflows/context-portability.yml)。原生点击、真实供应商摘要质量/等待体验、远端设备未验收；发布不等于用户机器已更新。
+
+## 失败与回退
+
+首输出、停滞与整事务硬总限依然生效。取消、新输入、切模型和关闭优先，禁止迟到摘要提交。每个来源最多两次主摘要、四次总调用；未知或物理未结束调用不因重启或普通“继续”自动再次收费。已结束回合不从历史自动复活，手动 `/compact` 只执行维护。
+
+降级前停止任务并关闭自动/闲置压缩，保留升级后的会话、`context_manager_operations`、cycles、idle、summaries、恢复日志和原文档案。不得拿旧备份覆盖新增数据，也不能忽略新调用账本后继续自动收费。
+
+## English
+
+New installs default to progress-based timing; existing fixed choices and values remain intact until explicitly saved otherwise. Native AgentLoop continuation resumes the current turn after successful compaction without replaying completed tools. Tested with exact frozen runtime bytes, synthetic long-output/cancellation/cost safeguards and real packaged Host settings round trips. Real providers, remote devices and native clicks are not validated here. Preserve all current ledgers and data when downgrading.
+
+---
+
+## 历史：local.2
+
 # Context 0.10.0-local.2：自动压缩恢复与紧凑界面
 
 本版同时交付自动压缩修复和紧凑上下文界面。普通任务按阈值自动整理；已经证实结束且没有应用的失败，可在同源预算内有限恢复。未知或中断调用继续保留记录，不能靠重启、换请求标识或重复点击自动再次收费。

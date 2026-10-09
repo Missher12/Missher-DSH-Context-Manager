@@ -6,9 +6,17 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.2**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.3**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
+
+## 0.10.0-local.3: wait while long compaction makes progress
+
+New installations use adaptive timing: 600 seconds for the whole transaction, 120 seconds for first meaningful output, and 180 seconds without further output. A progressing summary can exceed the old 90-second limit; a successful commit resumes the same native AgentLoop turn without replaying a completed tool.
+
+**Existing fixed settings are preserved during upgrade.** In Settings → Context Manager, use the visible switch to progress-based waiting, review the three limits, then save. The original fixed value remains available when switching back. Cancellation, hard deadlines and unknown-call accounting protections remain; an already ended failed turn is not revived.
+
+Download the plugin `.tgz` from [v0.10.0-local.3](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.3). See [release evidence and limits](./PUBLICATION.md).
 
 ### Compact context view
 

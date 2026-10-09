@@ -79,7 +79,9 @@ export default class ContextManager extends Service {
       safetyPercent: z.number().min(1).max(10).default(defaults.safetyPercent),
       summaryMaxTokens: z.number().min(256).max(32768).step(1).default(defaults.summaryMaxTokens),
       maxPasses: z.number().min(1).max(2).step(1).default(defaults.maxPasses),
-      summaryTimeoutMode: z.union([z.const('fixed'), z.const('adaptive')]).default(defaults.summaryTimeoutMode),
+      // An existing policy without a mode is ambiguous: preserve fixed semantics.
+      // A new installation with no policy receives the complete adaptive defaults below.
+      summaryTimeoutMode: z.union([z.const('fixed'), z.const('adaptive')]).default('fixed'),
       summaryTotalMs: z.number().min(10000).max(3600000).step(1).default(defaults.summaryTotalMs),
       summaryFirstOutputMs: z.number().min(5000).max(900000).step(1).default(defaults.summaryFirstOutputMs),
       summaryStallMs: z.number().min(5000).max(1800000).step(1).default(defaults.summaryStallMs),

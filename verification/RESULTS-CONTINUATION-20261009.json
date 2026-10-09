@@ -1,0 +1,48 @@
+{
+  "version": "0.10.0-local.3",
+  "packageSha256": "ee89235c016b76f6fac653fc8096ebd012a46aa314ea2b9f0b55d3700e48a50d",
+  "tests": {
+    "enhancedSdk": {
+      "pass": 318,
+      "skip": 2
+    },
+    "packagedSdkNode25": {
+      "pass": 87,
+      "skip": 2
+    },
+    "actualElectronNode24": {
+      "pass": 70,
+      "settingsComponent": "unavailable: SDK omits development Button.tsx; separate component and real Host RPC checks"
+    }
+  },
+  "host": {
+    "loader": 202,
+    "enabledActive": 174,
+    "clientResources": 11,
+    "settingsRoundTrip": true,
+    "noExternalOrModelRequests": true
+  },
+  "limitations": [
+    "real provider not tested",
+    "remote device not changed",
+    "native clicks not tested"
+  ],
+  "frozenRuntimeFiles": {
+    "lib/client.js": "e0bcb84b04a4d865ad0e4f8924a7a0dd0c1fb679f4c8c9c5563a0eec1ccc8bbe",
+    "lib/diagnostics.js": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+    "lib/working-set.js": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879",
+    "lib/reducer.js": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
+    "lib/typert.js": "4dab8e4128f5781b7cf677982840414a0da1a586e2687cd56de0ea2c0fb8477f",
+    "lib/policy.js": "cd472bd34be212883ffc0f453e1103a68cf4a0031a85285ebcf7222db25602dc",
+    "lib/inspector.js": "c3619454445d9400a31d0e54ff88ecad7ace48fb0b06d00f9d1a25809c99edff",
+    "lib/history-tools.js": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
+    "lib/efficiency.js": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
+    "lib/compaction-cycles.js": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
+    "lib/index.js": "a366821b04ef74f6ce58413c5e8649b7d578ff9de9b08677a75fb6a4f7dab067",
+    "lib/inspector-fold.js": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+    "lib/tool-results.js": "a39cf55da8c7fa61200e1a7136541619aa610fe561f3c530a59e0f15c94816de",
+    "lib/chart-data.js": "9122f0f4dc2d97633f62542bbd0f0c41cdf90f875d560e0d94bb45d7adb67e8c",
+    "lib/engine.js": "cbf7ec8d6bc1a184dd19f5546225ec8c2c197d01a7e07432745a4091ab2671ca",
+    "lib/archive.js": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0"
+  }
+}

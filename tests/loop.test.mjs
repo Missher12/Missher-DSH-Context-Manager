@@ -923,7 +923,7 @@ for (const mode of ['adaptive', 'fixed', 'total']) test(`real manual deadline: $
 
 test('automatic commit guard: elapsed deadline during final durable ledger await blocks late commit without ticker', async t=>{
  t.mock.timers.enable({apis:['Date'],now:Date.now()})
- const {ctx,adapter,agent}=await fixture()
+ const {ctx,adapter,agent}=await fixture({}, {summaryTimeoutMode:'fixed'})
  try {
   const ledger=ctx.contextManager.summaryLedger,finish=ledger.finish
   ledger.finish=async function(...args){await finish.apply(this,args);if(args[2]==='generated')t.mock.timers.tick(90001)}
@@ -944,4 +944,48 @@ test('ownership: a custom Basic preset stays unowned and inspector reports the a
   assert.equal(ctx.contextManager.idleStatus(String(agent.id)).owner,'other')
   assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,0)
  } finally {await ctx.fiber.dispose()}
+})
+
+// Reproduce the reported boundary: completed side effect -> next step admission
+// -> a progressing summary beyond 90s -> native retry in the SAME turn.
+for (const mode of ['default', 'fixed', 'total', 'stall']) test(`automatic long task continuation: ${mode}`, async t => {
+  t.mock.timers.enable({apis:['Date'],now:Date.now()})
+  let chunks=0
+  const policy=mode==='fixed'?{summaryTimeoutMode:'fixed'}:mode==='total'?{summaryTotalMs:250000}:{}
+  const {ctx,adapter,agent}=await fixture({contextWindow:191931,tools:true,
+    toolOutput:'result '.repeat(88000),progress:()=>t.mock.timers.tick(mode==='stall' && chunks++>0?180001:100000)},
+    {...policy,idleEnabled:false},history(1000))
+  try {
+    const task=message();agent.followup(task);await agent.whenIdle()
+    const events=agent.session.snapshotEvents()
+    assert.equal(adapter.work,1,'completed side effect must never replay')
+    assert.equal(events.filter(e=>e.type==='user/message' && e.data.id===task.id).length,1)
+    assert.equal(adapter.summaries.length,1,'no hidden second paid attempt')
+    const row=ctx.contextManager.summaryOperations.records(String(agent.id))[0]
+    writeFileSync(new URL(`../verification/continuation-${mode}.json`,import.meta.url),JSON.stringify({mode,policy:ctx.contextManager.snapshot(),work:adapter.work,order:adapter.order,operation:row,events:events.filter(e=>['turn/start','turn/end','step/start','step/end','compaction/start','compaction/end'].includes(e.type))},null,2))
+    if(mode==='default') {
+      completed(agent)
+      assert.deepEqual(adapter.order,['main','tool','summary-start','summary-finish','main'])
+      assert.equal(row.phase,'committed')
+      const starts=events.filter(e=>e.type==='turn/start');assert.equal(starts.length,2,'one seeded turn plus one live task')
+      const steps=events.filter(e=>e.type==='step/start' && e.data.turn===starts.at(-1).data.turn)
+      assert.equal(steps.length,2,'retry rebuilds step two without opening another step')
+      assert.equal(events.filter(e=>e.type==='tool/result').length,1)
+      assert.equal(events.filter(e=>e.type==='compaction/summary').length,1)
+    } else {
+      assert.equal(adapter.requests.length,1,'unsafe request must not continue')
+      assert.equal(events.filter(e=>e.type==='compaction/summary').length,0)
+      assert.equal(row.phase,'unknown_interrupted')
+      assert.equal(row.reasonCode,mode==='stall'?'stall_timeout':'total_timeout')
+    }
+  } finally {await ctx.fiber.dispose()}
+})
+
+test('configuration upgrade preserves explicit and ambiguous legacy choices',()=>{
+  assert.equal(Manager.Config({}).policy.get().summaryTimeoutMode,'adaptive')
+  for(const timeoutMs of [90000,135000]) {
+    assert.equal(Manager.Config({policy:{timeoutMs}}).policy.get().summaryTimeoutMode,'fixed')
+    assert.equal(Manager.Config({policy:{timeoutMs,summaryTimeoutMode:'fixed'}}).policy.get().timeoutMs,timeoutMs)
+  }
+  assert.equal(Manager.Config({policy:{summaryTimeoutMode:'adaptive'}}).policy.get().summaryTimeoutMode,'adaptive')
 })
