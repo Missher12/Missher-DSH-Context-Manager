@@ -25,7 +25,7 @@ export { PeakIndicator } from './peak-indicator.tsx'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespaceMap {
-    contextRecovery: { authorizeOnce(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
+    contextRecovery: { prepareEmergency(query:{sessionId:string},signal:AbortSignal):Promise<RemoteResult<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>>; executeEmergency(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<RemoteResult<{granted:true}>>; authorizeOnce(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
     contextInspector: {
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
@@ -65,6 +65,8 @@ export async function apply(ctx: Context) {
       return result.value
     }
     const api: InspectorApi = {
+      prepareEmergency: async(query,signal)=>unwrap(await scope.remote.contextRecovery.prepareEmergency(query,signal)),
+      executeEmergency: async(query,signal)=>unwrap(await scope.remote.contextRecovery.executeEmergency(query,signal)),
       authorizeOnce: async (query, signal) => unwrap(await scope.remote.contextRecovery.authorizeOnce(query, signal)),
       idleStatus: async (query, signal) => unwrap(await scope.remote.contextInspector.idleStatus(query, signal)),
       inspect: async (query, signal) => unwrap(await scope.remote.contextInspector.inspect(query, signal)),

@@ -106,7 +106,7 @@ export interface ReductionReadout {
   /** Why the archive is unavailable for this run; absent when it opened. */
   archiveError?: string
 }
-export type InspectedCompaction = CompactionEntry & { trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
+export type InspectedCompaction = CompactionEntry & { execution?:string; modelCallStatus?: 'not_dispatched'|'dispatched'; trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
 /** Read-only host goal projection; the context page never mutates it. */
 export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
 export interface Inspection {
@@ -141,6 +141,8 @@ export interface ContentQuery { sessionId: string; cutSeq: number; id: string; o
 export interface ContentSources { rows: ContentRow[]; offset: number; total: number; nextOffset: number | null }
 export interface ContentPage { sessionId: string; cutSeq: number; id: string; text: string; offset: number; totalChars: number; nextOffset: number | null; sources?: ContentSources }
 export interface InspectorApi {
+  prepareEmergency?(query:{sessionId:string},signal:AbortSignal):Promise<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>
+  executeEmergency?(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<{granted:true}>
   authorizeOnce?(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }>
   idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus>
   inspect(query: InspectQuery, signal: AbortSignal): Promise<Inspection>

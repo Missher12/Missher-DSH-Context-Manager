@@ -1,3 +1,5 @@
+import { startupProof } from './startup-guard.ts'
+import type { EmergencyPlan } from './summary-operations.ts'
 import { randomUUID, createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import { BasicCompactionEngine, type BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
@@ -20,12 +22,18 @@ import { OperationStateError, routeHashOf, type OperationPhase } from './summary
 
 /** A terminal phase; a settled call is never left `recorded`. */
 type SettledPhase = Exclude<OperationPhase, 'recorded'>
-import { compactContextRegion } from './transaction.ts'
+import { prepareContextInput, compactContextRegion } from './transaction.ts'
 import { planWorkingSet, validateWorkingCandidate, type WorkingPlan } from './working-set.ts'
 
 export const REBUILD = 'CONTEXT_MANAGER_REBUILD_REQUIRED'
 export const BLOCKED = 'CONTEXT_MANAGER_BLOCKED'
 type RequestBudget = ReturnType<typeof budget>
+const transportKey = Symbol.for('@missher/context-manager/unfinished-transports/v1')
+const transportGlobals = globalThis as unknown as Record<symbol, Map<string, Set<object>>>
+const rootScopeKey=Symbol.for('@missher/context-manager/transport-root-scope/v1')
+const rootScopes=(globalThis as unknown as Record<symbol,WeakMap<object,string>>)[rootScopeKey]??=new WeakMap<object,string>()
+const unfinishedTransports = transportGlobals[transportKey] ??= new Map<string, Set<object>>()
+class EmergencyPrepared extends Error { constructor() { super('人工急救预检完成，未调用模型；请确认可能额外收费后执行'); this.name='EmergencyPrepared' } }
 interface Admission { turn: number; step: number; passes: number; policy: Readonly<Policy>; budget: RequestBudget; pressure: number }
 interface SummaryInput { readonly messages: readonly Message[]; readonly tools?: readonly ToolSchema[] }
 interface Receipt { id: string; dispatched: boolean; physical: boolean; generated: boolean; failedProof: boolean; settled: boolean }
@@ -71,6 +79,37 @@ export default class ContextEngine extends BasicCompactionEngine {
   private readonly lifetime = new AbortController()
   private readonly activeSummaries = new Set<Promise<unknown>>()
   private readonly summaryAborts = new WeakMap<Agent, AbortController>()
+  private startupReady: ReturnType<typeof startupProof> = {ready:false,reason:'启动尚未核验'}
+  private readonly fallbackTransportScope: string
+  private readonly emergencyIntent = new WeakMap<Agent, {kind:'prepare'; plan?:EmergencyPlan} | {kind:'execute';token:string}>()
+  private transportId(agent: Agent): string { return `${this.ctx.get('profileContext')?.dir ?? this.fallbackTransportScope}:${agent.id}` }
+  private assertTransportIdle(agent: Agent): void {
+    if(!this.startupReady.ready)throw new Error(this.startupReady.reason)
+    if(unfinishedTransports.get(this.transportId(agent))?.size) throw new Error('本进程仍有未结束的摘要传输，不能并发人工急救；逻辑超时不代表供应商已结束')
+  }
+  async prepareEmergency(agent: Agent, signal: AbortSignal): Promise<EmergencyPlan> {
+    this.assertTransportIdle(agent)
+    if(this.emergencyIntent.has(agent)) throw new Error('人工急救操作已在进行')
+    const intent: {kind:'prepare';plan?:EmergencyPlan}={kind:'prepare'};this.emergencyIntent.set(agent,intent)
+    try {
+      try {await this.withTransaction(agent,signal,active=>agent.runMaintenance(async maintenance=>{
+        const operation=AbortSignal.any([active,maintenance]),range=await this.selectMaintenanceRange(agent,operation)
+        operation.throwIfAborted();if(!range)throw new Error('没有可安全压缩的急救计划')
+        return this.runSummary(prepareContextInput(this.transactionDependencies(),agent,range.start,range.end),agent,operation)
+      }))} catch(error) {let cause:unknown=error;for(let depth=0;depth<8 && cause instanceof Error && !(cause instanceof EmergencyPrepared);depth++)cause=cause.cause
+        if(!(cause instanceof EmergencyPrepared)) throw error}
+      signal.throwIfAborted();if(!intent.plan) throw new Error('没有可安全压缩的急救计划')
+      return intent.plan
+    } finally {this.emergencyIntent.delete(agent)}
+  }
+  async executeEmergency(agent: Agent, token: string, signal: AbortSignal): Promise<void> {
+    this.assertTransportIdle(agent)
+    if(this.emergencyIntent.has(agent)) throw new Error('人工急救操作已在进行')
+    this.emergencyIntent.set(agent,{kind:'execute',token})
+    try {if(!await this.compactNow(agent,signal)) throw new Error('急救计划已不再需要压缩')} finally {this.emergencyIntent.delete(agent)}
+  }
+  private readonly executionIds = new WeakMap<Agent, string>()
+  private readonly transactionPolicies = new WeakMap<Agent, Readonly<Policy>>()
   private readonly outerDeadlines = new WeakMap<Agent, SummaryDeadline>()
   /** One receipt per recorded call, with in-process dispatch evidence. */
   private readonly operationRefs = new WeakMap<Agent, Receipt[]>()
@@ -86,6 +125,8 @@ export default class ContextEngine extends BasicCompactionEngine {
 
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx, { ...config, auto: false })
+    this.fallbackTransportScope=rootScopes.get(ctx.root)??randomUUID();rootScopes.set(ctx.root,this.fallbackTransportScope)
+    this.startupReady=startupProof(import.meta.url,ctx.get('profileContext'))
     const engine = this
     const idle = new IdleCompactor(ctx, agent => engine.owns(agent), (agent, signal, preflight, pruned, deadline) => {
       engine.outerDeadlines.set(agent, deadline)
@@ -227,7 +268,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     if (!refresh && existing?.start === start && existing.end === end) return
     const config = agent.session.requestHeader()?.config
     if (!config) throw new Error('尚无实际模型路由，原文保留')
-    const policy = this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
+    const policy = this.transactionPolicies.get(agent) ?? this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
     const info = await withAbort(this.ctx.llm.resolveModelInfo(config.provider, config.model, signal), signal)
     signal.throwIfAborted()
     if (!info.context) throw new Error('摘要模型缺少窗口信息')
@@ -293,7 +334,7 @@ export default class ContextEngine extends BasicCompactionEngine {
         validateWorkingCandidate(plan, this.ctx.tokenMeter.estimateMessage(checkpoint))
       },
       summarize: (input, agent, signal) => this.summarize(input, agent, signal),
-      recover: (error, agent, sourceEventSeqs, signal) => this.ctx.waterfall('compaction/summary-error', {
+      recover: (error, agent, sourceEventSeqs, signal) => this.emergencyIntent.has(agent) ? false : this.ctx.waterfall('compaction/summary-error', {
         session: agent.session, sourceEventSeqs, signal,
         // Keep usage on our wrapper, but give public recovery plugins the
         // typed provider failure they require (e.g. retained image offload).
@@ -317,21 +358,30 @@ export default class ContextEngine extends BasicCompactionEngine {
     // already started one. Per-call first-output/stall windows live inside it
     // and can never extend the total.
     const policy = this.ctx.contextManager.snapshot()
+    this.transactionPolicies.set(agent, policy)
     const existing = this.outerDeadlines.get(agent)
     const outer = existing ?? new SummaryDeadline(deadlineLimits(policy))
     if (existing === undefined) this.outerDeadlines.set(agent, outer)
     outer.link(abort.signal)
     outer.link(this.lifetime.signal)
     if (signal) outer.link(signal)
+    const execution = `Context 0.10.0-local.4 · ${new Date().toISOString()} · ${existing ? 'idle预检' : '事务开始'} · 总限${outer.limits.totalMs / 1000}s/首输出${outer.limits.firstOutputMs / 1000}s/停滞${outer.limits.stallMs / 1000}s`
+    this.ctx.contextManager.reportExecution(String(agent.id), `执行中：${execution}`)
     const active = outer.signal
     const generation = agent.session.surface.replaceGeneration
     const operation = (async () => {
       active.throwIfAborted()
       try {
         const result = await work(active)
+        await this.finishRun(agent,'completed')
         await this.settleOperations(agent, generation, undefined)
+        this.ctx.contextManager.reportExecution(String(agent.id), `已完成：${execution}`)
         return result
       } catch (error) {
+        const code = active.aborted && !(active.reason instanceof DeadlineError) ? 'aborted' : this.reasonCodeOf(active.aborted ? active.reason : error)
+        this.ctx.contextManager.reportExecution(String(agent.id), `本次停止 ${code}：${execution}`)
+        if (error instanceof Error) error.message += ` [${code}；${execution}]`
+        await this.finishRun(agent,code)
         await this.settleOperations(agent, generation, error)
         this.ctx.contextManager.reportStop(String(agent.id), active.aborted && !(active.reason instanceof DeadlineError) ? 'aborted' : this.reasonCodeOf(active.aborted ? active.reason : error))
         throw error
@@ -347,6 +397,8 @@ export default class ContextEngine extends BasicCompactionEngine {
       if (this.summaryAborts.get(agent) === abort) this.summaryAborts.delete(agent)
       this.plans.delete(agent)
       this.recovering.delete(agent)
+      this.executionIds.delete(agent)
+      this.transactionPolicies.delete(agent)
       this.transactionCalls.delete(agent)
       this.transactionRepairs.delete(agent)
     }).catch(() => { /* Caller owns the rejection. */ })
@@ -395,7 +447,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     if (!window) throw new Error('当前模型未提供上下文窗口')
     const limits = budget(policy, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
     let measure = this.ctx.tokenMeter.measure(agent.session)
-    if (this.pruneOlderTools(agent, measure)) {
+    if (!this.emergencyIntent.has(agent) && this.pruneOlderTools(agent, measure)) {
       this.idlePruned.get(agent)?.()
       await this.ctx.sessions.flush(agent.session)
       signal.throwIfAborted()
@@ -438,12 +490,16 @@ export default class ContextEngine extends BasicCompactionEngine {
     return { start: plan.start as SessionSeq, end: plan.end as SessionSeq }
   }
 
+  private async finishRun(agent:Agent,code:string) {
+    const id=this.executionIds.get(agent)
+    if(id)await this.ctx.contextManager.summaryOperations.endRun(String(agent.id),id,code,(this.operationRefs.get(agent)??[]).filter(row=>row.dispatched).length)
+  }
   private async settleOperations(agent: Agent, generation: number, error: unknown): Promise<void> {
     const refs = this.operationRefs.get(agent) ?? []
     this.operationRefs.delete(agent)
     // A generation change alone can be a different consumer. Verify this exact compaction.
     const ends = agent.session.snapshotEvents().filter(event => event.type === 'compaction/end' && !event.data.error)
-    const records = this.ctx.contextManager.summaryOperations.records(String(agent.id))
+    const records = this.ctx.contextManager.summaryOperations.allRecords(String(agent.id))
     for (const receipt of refs) {
       if (receipt.settled) continue
       const row = records.find(row => row.operationId === receipt.id)
@@ -458,17 +514,31 @@ export default class ContextEngine extends BasicCompactionEngine {
   }
 
   private reasonCodeOf(error: unknown): string {
+    if (error instanceof EmergencyPrepared) return 'prepared'
     if (error instanceof DeadlineError) return error.code
     if (error instanceof LlmError && /timeout|timed.?out/i.test(error.code + ' ' + error.message)) return 'provider_timeout'
     if (error instanceof Error && error.cause) return this.reasonCodeOf(error.cause)
     if (error instanceof SummaryStreamError && error.aborted) return 'aborted'
     if (error instanceof CheckpointFormatError) return 'invalid_structure'
-    if (error instanceof Error && error.name === 'OperationStateError') return 'operation_state'
+    if (error instanceof Error && error.name === 'OperationStateError') return 'code' in error && error.code === 'budget_exhausted' ? 'budget_exhausted' : 'operation_state'
     return 'failed'
   }
 
+  private emergencyConfirmationHash(agent:Agent,options:GenerateOptions):string {
+    return createHash('sha256').update(JSON.stringify({messages:options.messages,tools:options.tools,
+      policy:this.ctx.contextManager.snapshot(),plan:this.plans.get(agent),limits:this.outerDeadlines.get(agent)?.limits,
+      surface:agent.session.deriveMessages(),header:agent.session.requestHeader(),
+      // A selection event may precede the next request/header fold. Bind it too.
+      selection:agent.session.snapshotEvents().findLast(event=>event.type==='model/selection')?.data,
+    })).digest('hex')
+  }
+
   /** Source lineage, exact routed output budget and persistent permit all precede dispatch. */
-  private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger, compactionId: string): Promise<Receipt> {
+  private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger, compactionId: string, estimatedInput: number): Promise<Receipt> {
+    if(this.emergencyIntent.get(agent)?.kind!=='prepare') {
+      this.executionIds.set(agent,compactionId)
+      await this.ctx.contextManager.summaryOperations.startRun(String(agent.id),compactionId,this.outerDeadlines.get(agent)!.limits)
+    }
     const calls = this.transactionCalls.get(agent) ?? 0
     if (calls >= 4) throw new Error('本次压缩已达 4 次模型调用上限，原文保留')
     if (purpose === 'repair' && this.transactionRepairs.has(agent)) throw new Error('同一压缩事务最多修复一次，原文保留')
@@ -477,7 +547,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     // A crash can occur after the Session commit flush but before the operation
     // terminal write. Only the exact complete public bracket proves commitment.
     const events = agent.session.snapshotEvents()
-    for (const row of operations.records(sessionId).filter(row => row.phase === 'recorded')) {
+    for (const row of operations.allRecords(sessionId).filter(row => row.phase === 'recorded' && this.emergencyIntent.get(agent)?.kind!=='prepare')) {
       const summary = events.find(event => event.type === 'compaction/summary' && String(event.data.compactionId) === row.compactionId)
       const end = events.find(event => event.type === 'compaction/end' && String(event.data.compactionId) === row.compactionId && !event.data.error)
       const replacement = summary && events.find(event => event.type === 'user/message' && typeof event.surfaceOp === 'object'
@@ -518,14 +588,15 @@ export default class ContextEngine extends BasicCompactionEngine {
       throw new OperationStateError('来源或模型已改变，一次恢复授权不能用于新请求')
     }
     const stats = this.ctx.contextManager.summaryLedger.stats(sessionId)
-    const bound = new Set(operations.records(sessionId).map(row => row.attemptId))
+    const bound = new Set(operations.allRecords(sessionId).map(row => row.attemptId))
     // Old manual calls bypassed v1. Without an exact binding we cannot promise remaining budget.
     const unboundManual = legacy.length > 0 && stats !== undefined && (stats.attempts > stats.recent.length
       || stats.recent.some(row => row.trigger === 'manual' && !bound.has(row.id)))
       const plan = this.plans.get(agent)
-      if (plan && purpose !== 'repair') {
+      if (plan && purpose !== 'repair' && !this.emergencyIntent.has(agent)) {
         this.recoveryReaders.get(agent)?.()
         this.recoveryReaders.set(agent, this.ctx.contextManager.registerRecovery(sessionId, async signal => {
+          this.assertTransportIdle(agent)
           // The explicit mutation owns maintenance of the captured range. It adds
           // no user message, and the permit gate rechecks exact source and route.
           this.recoveryIdentity.set(agent, { requestHash, sourceHash, sourceWatermark, routeHash: routeHashOf(options) })
@@ -537,9 +608,20 @@ export default class ContextEngine extends BasicCompactionEngine {
           })) } finally { this.recoveryIdentity.delete(agent) }
         }))
       }
-    const row = await operations.claim({ sessionId, sourceHash, sourceWatermark, freshTokens,
+    const permitInput = { sessionId, sourceHash, sourceWatermark, freshTokens,
       minNewTokens: Math.max(1024, Math.floor((this.admissions.get(agent)?.budget.hard ?? 100000) * 0.05)),
-      requestHash, routeHash: routeHashOf(options), purpose, trigger, compactionId, legacy, unboundManual })
+      requestHash, routeHash: routeHashOf(options), purpose, trigger, compactionId, legacy, unboundManual,
+      confirmation:{hash:this.emergencyConfirmationHash(agent,options),
+        model:`${options.provider}/${options.model} · ${options.reasoningEffort ?? 'default'} · 输出上限${options.maxTokens ?? 'default'}`.slice(0,240),
+        deadline:`总限${this.outerDeadlines.get(agent)!.limits.totalMs/1000}s · 首输出${this.outerDeadlines.get(agent)!.limits.firstOutputMs/1000}s · 停滞${this.outerDeadlines.get(agent)!.limits.stallMs/1000}s`,
+        estimatedInput}}
+    const emergency=this.emergencyIntent.get(agent)
+    if(emergency) {
+      this.assertTransportIdle(agent)
+      if(calls!==0 || purpose==='repair') throw new Error('人工急救仅允许一次实际调用，不允许重试或修复')
+      if(emergency.kind==='prepare') {emergency.plan=operations.prepareEmergency(permitInput);throw new EmergencyPrepared()}
+    }
+    const row = emergency?.kind==='execute' ? await operations.claimEmergency(permitInput,emergency.token) : await operations.claim(permitInput)
     const receipt: Receipt = { id: row.operationId, dispatched: false, physical: false, generated: false, failedProof: false, settled: false }
     this.operationRefs.set(agent, [...(this.operationRefs.get(agent) ?? []), receipt])
     this.transactionCalls.set(agent, calls + 1)
@@ -554,6 +636,7 @@ export default class ContextEngine extends BasicCompactionEngine {
       for (let retry = 0; ; retry++) {
         try { return await this.runSummary(input, agent, signal) }
         catch (error) {
+          if(this.emergencyIntent.has(agent)) throw error
           const refs = this.operationRefs.get(agent) ?? []
           const pending = refs.filter(row => !row.settled)
           if (!pending.length || pending.some(row => !row.failedProof)
@@ -607,8 +690,24 @@ export default class ContextEngine extends BasicCompactionEngine {
     let observedUsage: TokenUsage | undefined
     deadline?.beginCall()
     deadline?.assertAlive()
+    await this.ctx.contextManager.summaryOperations.dispatchRun(String(agent.id),this.executionIds.get(agent)!)
+    deadline?.assertAlive()
+    signal.throwIfAborted()
+    if(this.emergencyIntent.get(agent)?.kind==='execute') {
+      this.assertTransportIdle(agent)
+      this.ctx.contextManager.summaryOperations.assertEmergencyDispatch(String(agent.id),receipt.id,this.emergencyConfirmationHash(agent,options))
+    }
     receipt.dispatched = true
-    const stream = this.ctx.llm.stream(options)[Symbol.asyncIterator]()
+    const rawStream = this.ctx.llm.stream(options)[Symbol.asyncIterator]()
+    const identity=this.transportId(agent),marker={}
+    const transports=unfinishedTransports.get(identity) ?? new Set<object>();unfinishedTransports.set(identity,transports);transports.add(marker)
+    const observe=(value: PromiseLike<IteratorResult<StreamChunk>> | IteratorResult<StreamChunk>)=>Promise.resolve(value).then(item=>{
+      if(item.done){transports.delete(marker);if(!transports.size)unfinishedTransports.delete(identity)}
+      return item
+    })
+    const stream: AsyncIterator<StreamChunk> = {next:()=>observe(rawStream.next()),
+      ...(rawStream.return ? {return:()=>observe(rawStream.return!())} : {})}
+
     let pending: Promise<IteratorResult<StreamChunk>> | undefined
     let harvesting = false
     let settledPhysical = false
@@ -739,7 +838,7 @@ export default class ContextEngine extends BasicCompactionEngine {
   private async runSummary(input: SummaryInput, agent: Agent, signal?: AbortSignal) {
     const config = agent.session.requestHeader()?.config
     if (!config) throw new Error('尚无实际模型路由，无法生成摘要')
-    const policy = this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
+    const policy = this.transactionPolicies.get(agent) ?? this.admissions.get(agent)?.policy ?? this.ctx.contextManager.snapshot()
     // The transaction owns the total bound; this call only re-arms the
     // first-output/stall window inside the remaining total.
     const deadline = this.outerDeadlines.get(agent)
@@ -756,9 +855,9 @@ export default class ContextEngine extends BasicCompactionEngine {
     const summaryCap = Math.min(this.summaryCap(policy, info.context.contextWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
     const maxTokens = Math.min(summaryCap, config.maxTokens ?? Infinity)
     const start = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/start')
-    if (start?.type !== 'compaction/start') throw new Error('缺少压缩操作记录')
+    if (start?.type !== 'compaction/start' && this.emergencyIntent.get(agent)?.kind!=='prepare') throw new Error('缺少压缩操作记录')
     const sessionId = String(agent.id)
-    const compactionId = String(start.data.compactionId)
+    const compactionId = this.emergencyIntent.get(agent)?.kind==='prepare' ? `prepare-${randomUUID()}` : String(start!.data.compactionId)
     const source = { sessionId, compactionId }
     const trigger: SummaryTrigger = this.idlePreflights.has(agent) ? 'idle' : this.summaryTriggers.get(agent) ?? 'manual'
     const ledger = this.ctx.contextManager.summaryLedger
@@ -781,7 +880,7 @@ export default class ContextEngine extends BasicCompactionEngine {
         + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
         + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
       if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens).hard) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
-      const primaryReceipt = await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger, compactionId)
+      const primaryReceipt = await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger, compactionId, estimatedSummaryInput)
       const primaryAttempt = await ledger.start(sessionId, compactionId, trigger)
       await this.ctx.contextManager.summaryOperations.bind(sessionId, primaryReceipt.id, { attemptId: primaryAttempt })
       deadline.assertAlive()
@@ -812,7 +911,7 @@ export default class ContextEngine extends BasicCompactionEngine {
           || error instanceof SummaryStreamError && !error.aborted && error.settledPhysical
             && error.cause instanceof LlmError && error.cause.code === 'IMAGE_OFFLOAD_REQUIRED')
         await ledger.finish(sessionId, primaryAttempt, aborted ? 'cancelled' : 'failed', primaryUsage)
-        if (aborted) throw error
+        if (aborted || this.emergencyIntent.has(agent)) throw error
         // Only a structural format failure that admits a deterministic,
         // value-preserving repair qualifies. Stream failures, ledger
         // persistence failures and any other error rethrow as-is: a transient
@@ -841,7 +940,7 @@ export default class ContextEngine extends BasicCompactionEngine {
           maxTokens: repairMaxTokens, purpose: 'compaction', sessionId: agent.session.id,
           signal: activeSignal, messages: [repairMessage],
         }
-        const repairReceipt = await this.claimSummaryCall(agent, repairOptions, 'repair', trigger, compactionId)
+        const repairReceipt = await this.claimSummaryCall(agent, repairOptions, 'repair', trigger, compactionId, repairRequestTokens)
         const repairAttempt = await ledger.start(sessionId, compactionId, trigger)
         await this.ctx.contextManager.summaryOperations.bind(sessionId, repairReceipt.id, { attemptId: repairAttempt })
         deadline.assertAlive()

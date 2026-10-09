@@ -17,7 +17,7 @@ const { SummaryOperations } = await import(`data:text/javascript;base64,${Buffer
 const hash = s => createHash('sha256').update(s).digest('hex')
 const input = (name = 'H1', extra = {}) => ({ sessionId: 'subject', requestHash: hash(name), routeHash: hash('route'),
   sourceHash: hash('original'), sourceWatermark: 100, freshTokens: 0, minNewTokens: 10000,
-  purpose: 'summary', trigger: 'pressure', compactionId: 'compact-1', legacy: [], unboundManual: false, ...extra })
+  confirmation:{hash:hash('config'),model:'mock/large',deadline:'600s',estimatedInput:1000}, purpose: 'summary', trigger: 'pressure', compactionId: 'compact-1', legacy: [], unboundManual: false, ...extra })
 async function harness(t) {
   const root = await mkdtemp(join(tmpdir(), 'context-ops-'))
   let ctx, facility, backend, ops, blockWrite, afterWrite
@@ -38,7 +38,7 @@ async function harness(t) {
     return ops
   }
   t.after(async () => { await stop(); await rm(root, { recursive: true, force: true }) })
-  return { boot, stop, intercept: fn => { blockWrite = fn }, after: fn => { afterWrite = fn } }
+  return { boot, stop, facility:()=>facility, intercept: fn => { blockWrite = fn }, after: fn => { afterWrite = fn } }
 }
 async function failed(ops, row) { await ops.settle('subject', row.operationId, 'known_failed_unapplied') }
 
@@ -151,4 +151,61 @@ test('operations: a failed primary whose repair committed cannot be granted or r
  await ops.settle('subject',repair.operationId,'committed')
  await assert.rejects(ops.claim(input()),/已经提交/)
  assert.equal(ops.recoveryStatus('subject').available,false)
+})
+
+test('operations: exhausted budget remains visible after restart without a recoverable in-memory plan',async t=>{
+ const h=await harness(t);let ops=await h.boot()
+ const first=await ops.claim(input());await ops.settle('subject',first.operationId,'unknown_interrupted')
+ await ops.grant('subject',hash('H1'))
+ const second=await ops.claim(input());await ops.settle('subject',second.operationId,'unknown_interrupted')
+ await assert.rejects(ops.claim(input('H2')),error=>error.code==='budget_exhausted')
+ assert.equal(ops.recoveryStatus('subject').available,false)
+ assert.match(ops.recoveryStatus('subject').message,/本次未调用摘要模型/)
+ await h.stop();ops=await h.boot()
+ const before=ops.records('subject')
+ assert.equal(ops.recoveryStatus('subject').available,false)
+ assert.match(ops.recoveryStatus('subject').message,/主摘要 2\/2/)
+ assert.deepEqual(ops.records('subject'),before)
+ await assert.rejects(ops.grant('subject',hash('H1')))
+ assert.equal(ops.records('subject').length,2)
+})
+
+test('emergency: separate durable single-call budget survives restart and old automatic writes',async t=>{
+ const h=await harness(t);let ops=await h.boot()
+ const a=await ops.claim(input());await ops.settle('subject',a.operationId,'unknown_interrupted')
+ await ops.grant('subject',hash('H1'));const b=await ops.claim(input());await ops.settle('subject',b.operationId,'unknown_interrupted')
+ const normal=ops.records('subject'),plan=ops.prepareEmergency(input())
+ const results=await Promise.allSettled([ops.claimEmergency(input(),plan.token),ops.claimEmergency(input(),plan.token)])
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1)
+ assert.deepEqual(ops.records('subject'),normal)
+ await h.stop();ops=await h.boot()
+ assert.equal(ops.emergencyStatus('subject').used,true)
+ assert.throws(()=>ops.prepareEmergency(input()))
+ await assert.rejects(ops.claim(input('changed')),e=>e.code==='budget_exhausted')
+ assert.equal(ops.allRecords('subject').length,3)
+})
+
+test('emergency: expired or mismatched confirmation never consumes budget',async t=>{
+ const h=await harness(t),ops=await h.boot()
+ const a=await ops.claim(input());await ops.settle('subject',a.operationId,'unknown_interrupted')
+ await ops.grant('subject',hash('H1'));const b=await ops.claim(input());await ops.settle('subject',b.operationId,'unknown_interrupted')
+ const plan=ops.prepareEmergency(input())
+ await assert.rejects(ops.claimEmergency(input('changed'),plan.token))
+ t.mock.timers.enable({apis:['Date'],now:Date.now()});t.mock.timers.tick(120001)
+ await assert.rejects(ops.claimEmergency(input(),plan.token))
+ assert.equal(ops.allRecords('subject').length,2)
+})
+
+test('emergency: actual local.3 read and write cannot erase independent rescue consumption',{skip:!process.env.DSH_CONTEXT_PREVIOUS_SOURCE},async t=>{
+ const previous=await build({entryPoints:[process.env.DSH_CONTEXT_PREVIOUS_SOURCE],bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'public-api',setup(b){b.onResolve({filter:/^[^./]/},args=>({path:import.meta.resolve(args.path),external:true}))}}]})
+ const {SummaryOperations:Old}=await import(`data:text/javascript;base64,${Buffer.from(previous.outputFiles[0].text).toString('base64')}`)
+ const h=await harness(t);let ops=await h.boot()
+ const a=await ops.claim(input());await ops.settle('subject',a.operationId,'unknown_interrupted')
+ await ops.grant('subject',hash('H1'));const b=await ops.claim(input());await ops.settle('subject',b.operationId,'unknown_interrupted')
+ const plan=ops.prepareEmergency(input());await ops.claimEmergency(input(),plan.token);await ops.close()
+ const old=await Old.open(h.facility());await assert.rejects(old.claim(input('changed')),/上限/)
+ await old.bind('subject',a.operationId,{attemptId:'old-version-read-write'});await old.close()
+ ops=await SummaryOperations.open(h.facility())
+ assert.equal(ops.emergencyStatus('subject').used,true);assert.equal(ops.allRecords('subject').length,3)
+ assert.throws(()=>ops.prepareEmergency(input()));await ops.close()
 })

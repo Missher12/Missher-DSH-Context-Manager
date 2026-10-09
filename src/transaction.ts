@@ -75,6 +75,11 @@ function prepare(deps: Dependencies, session: Session, start: SessionSeq, end: S
   }
 }
 
+/** Shared read-only input preparation for an explicit no-model rescue preview. */
+export function prepareContextInput(deps: Dependencies, agent: Agent, start: SessionSeq, end: SessionSeq) {
+  return prepare(deps, agent.session, start, end).input
+}
+
 function stable(deps: Dependencies, session: Session, prepared: ReturnType<typeof prepare>, idle: boolean) {
   const span = selection(session, prepared.start, prepared.end), current = deps.meter.measure(session)
   if (current.totalTokens !== prepared.measurement.totalTokens || !isDeepStrictEqual(span.seqs, prepared.seqs) || !isDeepStrictEqual(

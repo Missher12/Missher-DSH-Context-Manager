@@ -6,17 +6,27 @@
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.3**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.4**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 
-## 0.10.0-local.3: wait while long compaction makes progress
+## 0.10.0-local.4: recover after an exhausted automatic allowance
+
+The context panel separates a request that never dispatched from unknown usage of an earlier call. It records the deadline and stop reason used by each attempt. Increasing a timeout does not erase past usage or refund the automatic limit of two primary and four total calls per original cycle.
+
+When that allowance is exhausted, run the manual rescue preflight, review the model, input estimate, deadline and unknown-cost warning, then explicitly confirm whether to continue. Each original cycle permits at most one additional manual summary call across restarts, without retries, repair or replaying an ended turn. Source, model, tool or policy changes invalidate confirmation, as does a two-minute expiry.
+
+Preflight makes no model call, trims no original content and consumes no allowance. A cold session uses normal Host loading, which can append one initialization metadata event; every existing event is preserved, and preflight on a loaded session adds no events. Unfinished local summary transport, hot replacement or unverified installation metadata blocks rescue. Quit normally and reopen before checking again. Confirmation must still account for unknown prior provider cost.
+
+Existing timeout choices are preserved. See [publication notes](./PUBLICATION.md) for installation and exact verification scope. Backups and downgrades must retain current sessions, old accounting and the new `context_manager_emergency` domain; deleting records must not replenish an allowance.
+
+## Wait while long compaction makes progress
 
 New installations use adaptive timing: 600 seconds for the whole transaction, 120 seconds for first meaningful output, and 180 seconds without further output. A progressing summary can exceed the old 90-second limit; a successful commit resumes the same native AgentLoop turn without replaying a completed tool.
 
 **Existing fixed settings are preserved during upgrade.** In Settings → Context Manager, use the visible switch to progress-based waiting, review the three limits, then save. The original fixed value remains available when switching back. Cancellation, hard deadlines and unknown-call accounting protections remain; an already ended failed turn is not revived.
 
-Download the plugin `.tgz` from [v0.10.0-local.3](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.3). See [release evidence and limits](./PUBLICATION.md).
+Download the plugin `.tgz` from [v0.10.0-local.4](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.4). See [release evidence and limits](./PUBLICATION.md).
 
 ### Compact context view
 
@@ -73,14 +83,14 @@ The Bundle does not impose a DSH version gate. This does not mean every version 
 
 Prefer a prebuilt `.tgz` from [GitHub Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases), and verify the SHA256 published for that release. It includes runnable entries and requires no local SDK or compilation. Use an asset that has actually been published.
 
-Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. Use the [v0.10.0-local.2 frozen package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.2).
+Desktop: open **Plugins → Add plugin**, select the downloaded `.tgz` or enter its Release download URL. Use the [v0.10.0-local.4 frozen package](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.4).
 
 The CLI installs the same package; replace the example path with your downloaded file.
 
 CLI/Web: replace `my-context` with your existing custom Web profile. Manage the reserved Desktop `desktop` profile inside the desktop application.
 
 ```sh
-dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.2/missher-dsh-context-manager-0.10.0-local.2.tgz
+dsh plugin --profile my-context add https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.4/missher-dsh-context-manager-0.10.0-local.4.tgz
 ```
 
 Keep the previous package and configuration, wait for active tasks to finish, and **fully restart the target application or profile** after updating. Confirm the version and all three active entries: `context-manager`, `context-manager-engine` and `context-manager-inspector`. Open **Context**, after **Trace**, in a session. An old process may cache package exports; a page refresh or enable toggle does not replace a restart. Do not enable both old and renamed packages.
@@ -140,7 +150,7 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 
 Historical evidence from 2026-10-03 includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A subsequent Intel macOS daily installation confirmed three active entries and read-only RPC.
 
-The final enhanced-SDK suite passed 313 tests with two legacy-only skips. Focused tests against the actual packaged Desktop runtime passed 142 tests with two legacy-only skips after test-output-directory repair. Actual Host loading, exact client bytes, settings round-trip and eight RPC semantic samples passed. Exact-client component rendering covers light/dark and narrow/short views; actual-Host browser inspection was blocked. Native visuals, real-provider fidelity, remote machines and full legacy-Host compatibility remain unverified. Counts from separate suites must not be added. See [PUBLICATION.md](./PUBLICATION.md).
+Final r3 affected-source checks passed 88 cases with one environment skip. Actual Electron Node24 passed 115 of 116 key cases; the skipped ASAR-path case has a separate 3/3 actual-Electron check. Actual Host settings saves, restart, cold and loaded preflight, original events and old accounting were verified without real model requests. Native visuals, real-provider quality and remote machines remain unverified. These overlapping groups must not be added; see [PUBLICATION.md](./PUBLICATION.md).
 
 These are separate, dated validation layers, not fresh acceptance on every platform. Real-provider summary quality, long-task semantic retention, and native Windows/Linux execution remain unverified. Compaction retries do not completely rerun the host's dynamic `preStep` rule/plan assembly; files and task state must be checked through existing tools as needed. See the repository's [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification).
 
@@ -167,6 +177,6 @@ The linker creates this copy's explicit `harness-sdk` and development dependency
 
 Existing configurations keep fixed mode and their exact transaction-wide `timeoutMs`. Adaptive mode is opt-in: 600 seconds total, 120 seconds to first nonempty text/reasoning, and 180 seconds stalled by default. Repairs share the remaining total. Usage/heartbeat/empty chunks never renew progress.
 
-Durable permits bind each provider attempt to its ledger and compaction. All new, manual and recovery calls share a 2-primary/4-total source budget. Unknown outcomes never automatically replay. The context panel offers an explicit, expiring, exact-source/route recovery mutation when budget is provable; unbound legacy manual charges require verification. Busy idle plans retain eligibility with capped backoff.
+Durable permits bind each provider attempt to its ledger and compaction. Ordinary automatic, manual and recovery calls share a 2-primary/4-total source budget. After exhaustion, the separate explicitly confirmed rescue permits only one additional call per cycle, without retries or repair. Unknown outcomes never automatically replay. The context panel offers an explicit, expiring, exact-source/route recovery mutation when budget is provable; unbound legacy manual charges require verification. Busy idle plans retain eligibility with capped backoff.
 
 Back up context_manager_operations with cycles/idle/summaries and the recovery journal. Older versions cannot enforce the new permit table: disable automatic compaction before a coordinated downgrade; keep current sessions and accounting. Exact evidence and limitations are in [PUBLICATION.md](./PUBLICATION.md). Earlier local.1 results are historical.

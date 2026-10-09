@@ -26,8 +26,9 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: {
   const [error, setError] = useState(false)
   const [recovering, setRecovering] = useState(false)
   const [recoveryResult, setRecoveryResult] = useState('')
+  const [emergencyPlan,setEmergencyPlan]=useState<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}|null>(null)
   const action = useRef<AbortController | null>(null)
-  useEffect(() => { setRecovering(false); setRecoveryResult(''); return () => { action.current?.abort() } }, [target])
+  useEffect(() => { setEmergencyPlan(null); setRecovering(false); setRecoveryResult(''); return () => { action.current?.abort() } }, [target])
   useEffect(() => {
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -58,11 +59,30 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: {
     } catch (reason) { if (!controller.signal.aborted) setRecoveryResult(errorText(reason, t)) }
     finally { if (!controller.signal.aborted) setRecovering(false) }
   }
+  const emergency = async (confirm:boolean) => {
+    if(recovering || !api.prepareEmergency || !api.executeEmergency)return
+    const controller=new AbortController();action.current=controller;setRecovering(true);setRecoveryResult('')
+    try {
+      if(confirm && emergencyPlan) {
+        const plan=emergencyPlan;setEmergencyPlan(null)
+        await api.executeEmergency({sessionId:target,token:plan.token,acceptUnknownCost:true},controller.signal)
+        if(!controller.signal.aborted)setRecoveryResult('人工急救压缩完成；原任务未自动重放')
+      }else{
+        const plan=await api.prepareEmergency({sessionId:target},controller.signal)
+        if(!controller.signal.aborted)setEmergencyPlan(plan)
+      }
+    }catch(reason){if(!controller.signal.aborted){setEmergencyPlan(null);setRecoveryResult(errorText(reason,t))}}
+    finally{if(!controller.signal.aborted)setRecovering(false)}
+  }
   return <span role="status" aria-label={t('idle')}>{t('idle')} · {error ? t('idleUnknown') : message ?? t('idleWait')}
     {value?.owner === 'other' && <> · 当前压缩由其他引擎接管，本插件未接管自动调用</>}
-    {value?.deadline && <> · {value.deadline}</>}
+    {value?.deadline && <> · 当前设置：{value.deadline}</>}
+    {value?.execution && <> · {value.execution}</>}
     {value?.recovery?.message && <> · {value.recovery.message}</>}
     {value?.recovery?.available && api.authorizeOnce && <Button size="sm" disabled={recovering} onClick={() => { void recover() }}>授权额外收费并恢复一次</Button>}
+    {value?.emergency?.message && <> · {value.emergency.message}</>}
+    {value?.emergency?.eligible && api.prepareEmergency && !emergencyPlan && <Button size="sm" disabled={recovering} onClick={()=>{void emergency(false)}}>预检一次人工急救（不调用模型）</Button>}
+    {emergencyPlan && <><span> · 第{emergencyPlan.cycle}批 · {emergencyPlan.model} · {emergencyPlan.deadline} · 预计输入{emergencyPlan.estimatedInput} Token · {emergencyPlan.warning} 授权两分钟内有效。</span><Button size="sm" disabled={recovering || emergencyPlan.expiresAt<=Date.now()} onClick={()=>{void emergency(true)}}>确认未知费用风险并额外调用一次</Button><Button size="sm" disabled={recovering} onClick={()=>setEmergencyPlan(null)}>取消</Button></>}
     {recoveryResult && <> · {recoveryResult}</>}
   </span>
 }

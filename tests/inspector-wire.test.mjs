@@ -194,3 +194,13 @@ test('shipped wire preserves deadline and recovery status; explicit mutation use
   assert.equal(query.safeParse({sessionId:'s',requestHash:'a'.repeat(64)}).success,true)
   assert.equal(query.safeParse({sessionId:'s',requestHash:'a'.repeat(64),sourceHash:'invented'}).success,false)
 })
+
+test('emergency confirmation requires explicit unknown-cost acceptance and exact token',()=>{
+ const mutation=TYPERT.invocations.find(row=>row.method==='executeEmergency'),schema=mutation.parameters[0].codec.create()
+ const value={sessionId:'s',token:'b8d1891c-f4cf-446d-9194-1b848648f22d',acceptUnknownCost:true}
+ assert.equal(schema.safeParse(value).success,true)
+ assert.equal(schema.safeParse({...value,acceptUnknownCost:false}).success,false)
+ assert.equal(schema.safeParse({sessionId:'s',token:value.token}).success,false)
+ const result={...inspection(),compactions:[{id:'c',kind:'compact',startedAt:1,status:'failed',manual:true,applied:false,modelCallStatus:'not_dispatched'}]}
+ assert.equal(roundTrip('inspect',result).compactions[0].modelCallStatus,'not_dispatched')
+})

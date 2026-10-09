@@ -7,6 +7,8 @@ const signed = () => z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.M
 const category = () => z.enum(['summary', 'system', 'tools', 'user', 'inject', 'skill', 'assistant', 'tool'])
 const sessionId = () => z.string().min(1).max(500)
 export function recoveryGrantSchema() { return z.object({ sessionId: sessionId(), requestHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict() }
+export function emergencyConfirmSchema(){return z.object({sessionId:sessionId(),token:z.string().uuid(),acceptUnknownCost:z.literal(true)}).strict()}
+export function emergencyPlanSchema(){return z.object({token:z.string().uuid(),expiresAt:count(),cycle:count(),warning:z.string().max(300),model:z.string().max(240),deadline:z.string().max(200),estimatedInput:count()}).strict()}
 export function recoveryResultSchema() { return z.object({ granted: z.literal(true) }).strict() }
 export function idleQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
 export function idleStatusSchema() { return z.object({
@@ -14,7 +16,7 @@ export function idleStatusSchema() { return z.object({
   dueAt: count().nullable(), message: z.string().max(300), beforeTokens: count().optional(), afterTokens: count().optional(),
   reasonCode: z.string().max(100).optional(), restored: z.boolean().optional(), windowTokens: count().optional(), minimumPercent: z.number().min(0).max(100).optional(), updatedAt: count().optional(),
   owner: z.enum(['context-manager', 'other', 'unknown']).optional(),
-  minimumTokens: count().optional(), deadline: z.string().max(200).optional(),
+  minimumTokens: count().optional(), deadline: z.string().max(200).optional(), execution: z.string().max(400).optional(), emergency:z.object({eligible:z.boolean(),used:z.boolean(),message:z.string().max(300)}).strict().optional(),
   recovery: z.object({ available: z.boolean(), message: z.string().max(300), requestHash: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict().optional(),
   compactionPhase: z.enum(['summarizing', 'repairing']).optional(),
 }) }
@@ -81,7 +83,7 @@ export function inspectionSchema() { return z.object({
   total: count(), offset: count(), pageSize: count(), activeCount: count(), archivedCount: count(),
   requests: z.array(z.object({ seq: seq(), time: count(), turn: count(), step: count(), provider: z.string(), model: z.string(), input: count().nullable(), output: count().nullable(), cacheRead: count().nullable() })).max(200),
   requestCount: count(),
-  compactions: z.array(z.object({ id: z.string(), kind: z.enum(['compact', 'prune']), startedAt: count(), endedAt: count().optional(), status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']), manual: z.boolean(), applied: z.boolean(), beforeTokens: count().optional(), afterTokens: count().optional(), messages: count().optional(), inputTokens: count().optional(), outputTokens: count().optional(), error: z.string().max(300).optional(), trigger: z.enum(['idle', 'pressure', 'overflow', 'manual']).optional() })).max(12),
+  compactions: z.array(z.object({ id: z.string(), kind: z.enum(['compact', 'prune']), startedAt: count(), endedAt: count().optional(), status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']), manual: z.boolean(), execution:z.string().max(400).optional(), modelCallStatus:z.enum(['not_dispatched','dispatched']).optional(), applied: z.boolean(), beforeTokens: count().optional(), afterTokens: count().optional(), messages: count().optional(), inputTokens: count().optional(), outputTokens: count().optional(), error: z.string().max(300).optional(), trigger: z.enum(['idle', 'pressure', 'overflow', 'manual']).optional() })).max(12),
 }) }
 export function contentPageSchema() { return z.object({ sessionId: sessionId(), cutSeq: seq(), id: z.string(), text: z.string().max(16000), offset: count(), totalChars: count(), nextOffset: count().nullable(),
   sources: z.object({ rows: z.array(contentRowSchema()).max(4), offset: count(), total: count(), nextOffset: count().nullable() }).strict().optional(),
@@ -89,6 +91,13 @@ export function contentPageSchema() { return z.object({ sessionId: sessionId(), 
 export const TYPERT_REMOTE = {
   package: '@missher/dsh-context-manager',
   descriptors: [
+    {id:'@missher/dsh-context-manager#contextRecovery/prepareEmergency',service:'contextRecovery',namespace:'contextRecovery',method:'prepareEmergency',invocation:{kind:'direct'},
+      parameters:[{name:'query',wire:'query',source:'json',codec:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#IdleQuery',create:idleQuerySchema}}],
+      cancellation:{parameter:'signal'},result:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#EmergencyPlan',create:emergencyPlanSchema}},
+    {id:'@missher/dsh-context-manager#contextRecovery/executeEmergency',service:'contextRecovery',namespace:'contextRecovery',method:'executeEmergency',invocation:{kind:'direct'},
+      parameters:[{name:'query',wire:'query',source:'json',codec:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#EmergencyConfirm',create:emergencyConfirmSchema}}],
+      cancellation:{parameter:'signal'},result:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#RecoveryResult',create:recoveryResultSchema}},
+
     { id: '@missher/dsh-context-manager#contextRecovery/authorizeOnce', service: 'contextRecovery', namespace: 'contextRecovery', method: 'authorizeOnce', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#RecoveryGrant', create: recoveryGrantSchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#RecoveryResult', create: recoveryResultSchema } },

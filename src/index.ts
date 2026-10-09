@@ -65,6 +65,7 @@ export default class ContextManager extends Service {
   private idleActive = false
   private readonly idleReaders = new Map<string, () => IdleStatus>()
   private readonly compactReaders = new Map<string, () => CompactPhase | undefined>()
+  private readonly executions = new Map<string, string>()
   private readonly stops = new Map<string, { reasonCode: string; message: string }>()
   private readonly recoveries = new Map<string, (signal: AbortSignal) => Promise<void>>()
   private readonly drains = new Set<() => Promise<void>>()
@@ -349,11 +350,13 @@ export default class ContextManager extends Service {
     return () => { if (this.compactReaders.get(sessionId) === read) this.compactReaders.delete(sessionId) }
   }
 
+  reportExecution(sessionId: string, value: string): void { this.executions.set(sessionId, value) }
+
   reportStop(sessionId: string, reasonCode?: string): void {
     if (!reasonCode) { this.stops.delete(sessionId); return }
-    const labels: Record<string, string> = { first_output_timeout: '等待首个有效输出超时', stall_timeout: '摘要输出停滞超时',
+    const labels: Record<string, string> = { prepared:'人工急救预检完成，尚未调用模型', first_output_timeout: '等待首个有效输出超时', stall_timeout: '摘要输出停滞超时',
       total_timeout: '整笔压缩达到硬总时限', provider_timeout: '供应商返回超时', aborted: '压缩被取消',
-      invalid_structure: '摘要结构不合格', operation_state: '持久调用许可阻止重复收费', failed: '压缩未完成' }
+      budget_exhausted: '本批历史调用额度已满，本次未调用摘要模型', invalid_structure: '摘要结构不合格', operation_state: '持久调用许可阻止重复收费', failed: '压缩未完成' }
     this.stops.set(sessionId, { reasonCode, message: labels[reasonCode] ?? labels.failed! })
   }
 
@@ -386,9 +389,9 @@ export default class ContextManager extends Service {
     const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
     const engine = agent && (this.ctx.get('agentPresets')?.serviceFor(agent, 'compaction') ?? agent.ctx.get('compaction'))
     const owner: IdleStatus['owner'] = engine ? ('contextManagerOwner' in engine ? 'context-manager' : 'other') : 'unknown'
-    return { ...status, owner, deadline: policy.summaryTimeoutMode === 'adaptive'
+    return { ...status, owner, emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)), execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
       ? `总限 ${policy.summaryTotalMs / 1000}s · 首输出 ${policy.summaryFirstOutputMs / 1000}s · 停滞 ${policy.summaryStallMs / 1000}s`
-      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: this.summaryOperations.recoveryStatus(sessionId) }
+      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId)) }
   }
 
   private readIdleStatus(sessionId: string): IdleStatus {

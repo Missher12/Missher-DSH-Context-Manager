@@ -987,3 +987,23 @@ test('compact panel keeps long model, failures and exact content selection reach
     assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
+
+test('manual emergency UI requires separate preview and explicit unknown-cost confirmation; zero dispatch is not unknown usage',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
+ const snapshot={revision:1,value:{policy:defaults}},calls=[]
+ const api={idleStatus:async()=>({status:'off',dueAt:null,message:'quota',emergency:{eligible:true,used:false,message:'旧调用费用未知'}}),
+  inspect:async q=>({...q,cursor:10,cutSeq:10,sampledAt:1,historical:false,pressure:null,official:null,usage:null,model:null,parts:[],rows:[],total:0,pageSize:50,activeCount:0,archivedCount:0,requests:[],requestCount:0,pressureHistory:[],compactions:[{id:'denied',kind:'compact',status:'failed',startedAt:1,endedAt:2,applied:false,modelCallStatus:'not_dispatched'}]}),
+  prepareEmergency:async()=>{calls.push('prepare');return {token:'token',expiresAt:Date.now()+120000,cycle:1,warning:'未知费用可能再次收费',model:'mock/large',deadline:'600s',estimatedInput:8000}},
+  executeEmergency:async q=>{assert.equal(q.acceptUnknownCost,true);calls.push('execute');return {granted:true}}}
+ const root=createRoot(document.getElementById('root'));const click=async text=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent===text).click())
+ try{
+  await act(async()=>root.render(React.createElement(client.ContextInspectorView,{target:'rescue',api,form:{subscribe:()=>()=>{},getSnapshot:()=>snapshot},pulse:{subscribe:()=>()=>{},getSnapshot:()=>1}})))
+  await act(async()=>new Promise(r=>setTimeout(r,230)))
+  assert.deepEqual(calls,[])
+  assert.match(document.querySelector('.cmv-compactions').textContent,/未调用模型/)
+  assert.doesNotMatch(document.querySelector('.cmv-compactions').textContent,/用量未知/)
+  await click('预检一次人工急救（不调用模型）');assert.deepEqual(calls,['prepare'])
+  assert.match(document.body.textContent,/mock\/large.*600s.*8,?000|mock\/large.*600s.*8000/)
+  await click('确认未知费用风险并额外调用一次');assert.deepEqual(calls,['prepare','execute'])
+ }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
+})

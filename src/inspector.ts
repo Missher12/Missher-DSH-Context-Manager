@@ -17,7 +17,9 @@ import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
 import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout } from './inspector-types.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type {} from './index.ts'
-import { idleQuerySchema, recoveryGrantSchema } from './inspector-wire.ts'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type ContextEngine from './engine.ts'
+import { idleQuerySchema, recoveryGrantSchema, emergencyConfirmSchema } from './inspector-wire.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextInspector: ContextInspector; contextRecovery: ContextRecovery } }
 
@@ -170,7 +172,9 @@ export class ContextInspector extends TypertRemoteService {
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
         const trigger = entry.kind === 'compact' ? triggers.get(entry.id) : undefined
-        return trigger === undefined ? entry : { ...entry, trigger }
+        const run=query.atSeq===null?this.ctx.contextManager.summaryOperations?.run(query.sessionId,entry.id):undefined
+        const modelCallStatus=run?.endedAt!==undefined?((run.actualDispatched??run.dispatched)===0?'not_dispatched' as const:'dispatched' as const):undefined
+        return { ...entry, ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}) }
       })
       const needle = query.search.trim().toLocaleLowerCase()
       const matched = index.indexed.map(item => item.row).filter(row => (query.archived || row.current)
@@ -223,8 +227,28 @@ export default ContextInspector
 
 /** Separate explicit mutation service. Inspector methods remain read only. */
 export class ContextRecovery extends TypertRemoteService {
-  static inject = ['contextManager']
+  static inject = ['contextManager', 'typert']
   constructor(ctx: Context) { super(ctx, 'contextRecovery') }
+  private async emergencyEngine(sessionId:string,signal:AbortSignal) {
+    signal.throwIfAborted()
+    // Explicit mutation only. The public Host lookup restores its normal preset
+    // and ownership; read-only status never invokes this lookup.
+    const agent=this.ctx.get('agents')?.get(SessionId(sessionId)) ?? await this.ctx.typert.lookups.get('agent')?.resolve(SessionId(sessionId)) as Agent | undefined
+    signal.throwIfAborted();if(!agent)throw new Error('当前宿主不能恢复该会话，请先打开会话')
+    const engine=this.ctx.get('agentPresets')?.serviceFor(agent,'compaction') ?? agent.ctx.get('compaction')
+    if(!engine || !('prepareEmergency' in engine) || !('executeEmergency' in engine))throw new Error('当前会话未由支持人工急救的Context接管')
+    return {agent,engine:engine as ContextEngine}
+  }
+  @Remote('prepareEmergency')
+  async prepareEmergency(input:{sessionId:string},signal:AbortSignal) {
+    const query=idleQuerySchema().parse(input),{agent,engine}=await this.emergencyEngine(query.sessionId,signal)
+    return engine.prepareEmergency(agent,signal)
+  }
+  @Remote('executeEmergency')
+  async executeEmergency(input:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<{granted:true}> {
+    const query=emergencyConfirmSchema().parse(input),{agent,engine}=await this.emergencyEngine(query.sessionId,signal)
+    await engine.executeEmergency(agent,query.token,signal);return {granted:true}
+  }
   @Remote('authorizeOnce')
   async authorizeOnce(input: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }> {
     signal.throwIfAborted()

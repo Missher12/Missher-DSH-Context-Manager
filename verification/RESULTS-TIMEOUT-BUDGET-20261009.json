@@ -1,0 +1,51 @@
+{
+  "version": "0.10.0-local.4",
+  "packageSha256": "604c1bae692640944ce5e071bc74722e309991f9b946c660854b11d6e321fa80",
+  "sourceSha256": "ed8757a1db7ab6f24ae2aa5e05b3f5256dcbd9e2cd1ee4223e2f27ed9c9c4713",
+  "r3AffectedRegression": {
+    "tests": 89,
+    "pass": 88,
+    "skip": 1
+  },
+  "r3PackagedElectronTargeted": {
+    "tests": 6,
+    "pass": 6
+  },
+  "r2HistoricalFullOnly": {
+    "pass": 341,
+    "skip": 2
+  },
+  "electronNode24": {
+    "packageSha256": "604c1bae692640944ce5e071bc74722e309991f9b946c660854b11d6e321fa80",
+    "sourceSha256": "ed8757a1db7ab6f24ae2aa5e05b3f5256dcbd9e2cd1ee4223e2f27ed9c9c4713",
+    "runtime": "Electron Node24.18.1",
+    "counts": {
+      "tests": 116,
+      "pass": 115,
+      "fail": 0,
+      "skipped": 1,
+      "cancelled": 0
+    },
+    "sourceAndLibUnchanged": true,
+    "nativeModelCalls": 0,
+    "limitations": [
+      "Synthetic providers and virtual time; no real provider or native UI acceptance"
+    ],
+    "logs": [
+      "packaged-runtime-tests.log"
+    ]
+  },
+  "host": {
+    "loader": 203,
+    "enabledActive": 175,
+    "clients": 11,
+    "settingsRpcAndRestart": true,
+    "coldLookupAndPreflight": true,
+    "modelRequests": 0
+  },
+  "limitations": [
+    "No real provider or paid recovery",
+    "No native clicks",
+    "No remote device acceptance"
+  ]
+}

@@ -7,11 +7,12 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import { Context } from '@deepseek-ai/cordis'
-import { LlmAdapter, createUserMessage, createMessage, createToolResultMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmError, createUserMessage, createMessage, createToolResultMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -40,6 +41,7 @@ class Adapter extends LlmAdapter {
     if (options.purpose === 'compaction') {
       this.order.push('summary-start'); this.summaries.push(options)
       if (this.options.pause) await this.options.pause(options.signal)
+      if (this.options.imageFailure) throw new LlmError('image offload requested','IMAGE_OFFLOAD_REQUIRED')
       if (this.options.fail) { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'summary unavailable' } } }; return }
       const text = (this.options.malformed || this.options.firstMalformed && this.summaries.length === 1) ? 'incomplete checkpoint' : JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: this.options.noShrink ? ['oversized '.repeat(5000)] : [], next: 'Continue after completed preparation', uncertainties: [] })
       yield { type: 'block-start', index: 0, blockType: 'text' }
@@ -85,12 +87,13 @@ function history(length = 31600, asSession = false) {
 
 async function fixture(options = {}, policy = {}, seed = history()) {
   const ctx = new Context()
-  const storageRoot = await mkdtemp(join(tmpdir(), 'dsh-context-loop-'))
-  ctx.effect(() => () => rm(storageRoot, { recursive: true, force: true }))
+  const storageRoot = options.storageRoot ?? await mkdtemp(join(tmpdir(), 'dsh-context-loop-'))
+  ctx.effect(() => () => options.keepStorage ? undefined : rm(storageRoot, { recursive: true, force: true }))
   await ctx.plugin(Storage)
   await ctx.plugin(StorageJson, { root: storageRoot })
   await ctx.plugin(StorageDomain, { backend: 'json' })
   await mountAgentLoopTestDependencies(ctx)
+  await ctx.plugin(TypertRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
@@ -112,7 +115,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
     meta: { delegationDepth: options.seeded ? 1 : 0, ...(options.seeded ? { isSeeded: true, parentSession: SessionId('seed') } : {}) },
     ...(options.seeded ? { inheritedEventCount: SessionLogOffset(seed.length) } : {}),
     ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
-  return { ctx, adapter, agent }
+  return { ctx, adapter, agent, storageRoot }
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
 const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed')
@@ -988,4 +991,193 @@ test('configuration upgrade preserves explicit and ambiguous legacy choices',()=
     assert.equal(Manager.Config({policy:{timeoutMs,summaryTimeoutMode:'fixed'}}).policy.get().timeoutMs,timeoutMs)
   }
   assert.equal(Manager.Config({policy:{summaryTimeoutMode:'adaptive'}}).policy.get().summaryTimeoutMode,'adaptive')
+})
+
+for (const presets of [false,true]) test(`hot policy: existing agent adopts adaptive on next transaction, presets=${presets}`,async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.now()})
+ const {ctx,adapter,agent}=await fixture({presets,progress:()=>t.mock.timers.tick(100000)}, {summaryTimeoutMode:'fixed'},history(28000))
+ try {
+  agent.followup(message());await agent.whenIdle();completed(agent)
+  changePolicy(ctx,{summaryTimeoutMode:'adaptive'})
+  agent.followup(message('long task '.repeat(500)));await agent.whenIdle();completed(agent)
+  assert.equal(adapter.summaries.length,1)
+  assert.match(ctx.contextManager.idleStatus(String(agent.id)).execution,/已完成.*总限600s/)
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('hot recovery: current policy replaces captured admission and records actual transaction limits',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.now()})
+ const {ctx,adapter,agent}=await fixture({fail:true},{summaryTimeoutMode:'fixed'})
+ try {
+  agent.followup(message());await agent.whenIdle()
+  const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
+  changePolicy(ctx,{summaryTimeoutMode:'adaptive'})
+  adapter.options.fail=false;adapter.options.progress=()=>t.mock.timers.tick(100000)
+  await ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,new AbortController().signal)
+  assert.equal(adapter.summaries.length,2)
+  assert.match(ctx.contextManager.idleStatus(String(agent.id)).execution,/已完成.*总限600s/)
+ }finally{await ctx.fiber.dispose()}
+})
+
+async function exhaustForEmergency(ctx,agent) {
+ agent.followup(message());await agent.whenIdle()
+ const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
+ await assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,new AbortController().signal))
+ assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,2)
+}
+for(const result of ['success','malformed']) test(`emergency: explicit prepare and one separate call ${result}, no turn replay`,async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ try {
+  await exhaustForEmergency(ctx,agent)
+  const {ContextRecovery}=await import('../lib/inspector.js');await ctx.plugin(ContextRecovery)
+  const original=ctx.contextManager.summaryOperations.records(String(agent.id))
+  const messages=agent.session.snapshotEvents().filter(e=>e.type==='user/message').length
+  const beforePrepare=agent.session.snapshotEvents()
+  const plan=await ctx.contextRecovery.prepareEmergency({sessionId:String(agent.id)},new AbortController().signal)
+  assert.deepEqual(agent.session.snapshotEvents(),beforePrepare,'prepare changes no history or effective surface')
+  assert.equal(adapter.summaries.length,2,'prepare never calls the model')
+  assert.deepEqual(ctx.contextManager.summaryOperations.records(String(agent.id)),original)
+  adapter.options.fail=false;adapter.options.malformed=result==='malformed'
+  const operation=ctx.contextRecovery.executeEmergency({sessionId:String(agent.id),token:plan.token,acceptUnknownCost:true},new AbortController().signal)
+  if(result==='success')await operation;else await assert.rejects(operation)
+  assert.equal(adapter.summaries.length,3,'one rescue only, no retry or format repair')
+  assert.equal(adapter.requests.length,0,'maintenance never wakes the business task')
+  assert.deepEqual(ctx.contextManager.summaryOperations.records(String(agent.id)),original)
+  const emergency=ctx.contextManager.summaryOperations.allRecords(String(agent.id)).at(-1)
+  assert.equal(emergency.phase,result==='success'?'committed':'known_failed_unapplied')
+  assert.equal(ctx.contextManager.idleStatus(String(agent.id)).emergency.used,true)
+  const evidenceEvents=agent.session.snapshotEvents().filter(e=>['compaction/start','compaction/end','turn/start','turn/end'].includes(e.type))
+  writeFileSync(new URL(`../verification/emergency-${result}.json`,import.meta.url),JSON.stringify({modelCalls:adapter.summaries.length,businessCalls:adapter.requests.length,originalAutomatic:original,finalAutomatic:ctx.contextManager.summaryOperations.records(String(agent.id)),allCalls:ctx.contextManager.summaryOperations.allRecords(String(agent.id)),events:evidenceEvents,runs:evidenceEvents.filter(e=>e.type==='compaction/end').map(e=>ctx.contextManager.summaryOperations.run(String(agent.id),String(e.data.compactionId)))},null,2))
+  await assert.rejects(ctx.contextRecovery.executeEmergency({sessionId:String(agent.id),token:plan.token,acceptUnknownCost:true},new AbortController().signal))
+  assert.equal(adapter.summaries.length,3)
+  assert.equal(agent.session.snapshotEvents().filter(e=>e.type==='user/message' && e.surfaceOp==='append').length,messages)
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('emergency: changed original source invalidates prepared authorization without dispatch',async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ try {
+  await exhaustForEmergency(ctx,agent)
+  const plan=await ctx.compaction.prepareEmergency(agent,new AbortController().signal)
+  agent.followup(message('new user intent'));await agent.whenIdle()
+  adapter.options.fail=false
+  await assert.rejects(ctx.compaction.executeEmergency(agent,plan.token,new AbortController().signal))
+  assert.equal(adapter.summaries.length,2)
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('emergency: configuration changes invalidate the precise confirmation envelope',async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ try {
+  await exhaustForEmergency(ctx,agent)
+  const plan=await ctx.compaction.prepareEmergency(agent,new AbortController().signal)
+  changePolicy(ctx,{summaryTotalMs:700000})
+  await assert.rejects(ctx.compaction.executeEmergency(agent,plan.token,new AbortController().signal))
+  assert.equal(adapter.summaries.length,2)
+  const end=agent.session.snapshotEvents().findLast(e=>e.type==='compaction/end')
+  const run=ctx.contextManager.summaryOperations.run(String(agent.id),String(end.data.compactionId))
+  assert.equal(run.dispatched,0);assert.ok(run.endedAt)
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('emergency: raw unended transport remains blocked after bounded harvesting expires',{timeout:31000},async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ let release,startedResolve;const started=new Promise(r=>startedResolve=r)
+ try {
+  agent.followup(message());await agent.whenIdle()
+  const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
+  adapter.options.pause=async()=>{startedResolve();await new Promise(r=>release=r)}
+  const abort=new AbortController()
+  const rejected=assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,abort.signal))
+  await started;abort.abort(new Error('user cancellation'));await rejected
+  await new Promise(r=>setTimeout(r,21000))
+  await assert.rejects(ctx.compaction.prepareEmergency(agent,new AbortController().signal),/未结束的摘要传输/)
+  assert.equal(adapter.summaries.length,2)
+ }finally{release?.();await immediate();await ctx.fiber.dispose()}
+})
+
+test('emergency: actual Session and domain restart reconciles only a complete committed bracket',async()=>{
+ const first=await fixture({fail:true,keepStorage:true});let second
+ try{
+  await exhaustForEmergency(first.ctx,first.agent)
+  const plan=await first.ctx.compaction.prepareEmergency(first.agent,new AbortController().signal)
+  const ops=first.ctx.contextManager.summaryOperations,settle=ops.settle.bind(ops)
+  ops.settle=async(session,id,phase,extra)=>{
+   if(phase==='committed' && !ops.records(session).some(r=>r.operationId===id))throw new Error('simulated crash before emergency terminal write')
+   return settle(session,id,phase,extra)
+  }
+  first.adapter.options.fail=false
+  await first.ctx.compaction.executeEmergency(first.agent,plan.token,new AbortController().signal)
+  assert.equal(ops.allRecords('subject').at(-1).phase,'recorded')
+  const restored=await assertPhysicalSessionRestore(first.agent.session)
+  await first.ctx.fiber.dispose()
+  second=await fixture({storageRoot:first.storageRoot,tools:true,toolOutput:'result '.repeat(4500)},{},restored.snapshotEvents())
+  assert.equal(second.ctx.contextManager.summaryOperations.emergencyStatus('subject').used,true)
+  second.agent.followup(message('Continue with genuinely new work'));await second.agent.whenIdle();completed(second.agent)
+  const emergency=second.ctx.contextManager.summaryOperations.allRecords('subject').find(r=>r.authorizationId===plan.token)
+  assert.equal(emergency.phase,'committed')
+  assert.equal(second.adapter.work,1);assert.equal(second.adapter.summaries.length,1)
+ }finally{await second?.ctx.fiber.dispose();await first.ctx.fiber.dispose();await rm(first.storageRoot,{recursive:true,force:true})}
+})
+
+for(const boundary of ['claim','ledger','bind','dispatch','policy','tools']) test(`emergency final gate: ${boundary} await cannot dispatch stale permission`,async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.now()})
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ try{
+  await exhaustForEmergency(ctx,agent)
+  const plan=await ctx.compaction.prepareEmergency(agent,new AbortController().signal)
+  const ops=ctx.contextManager.summaryOperations,ledger=ctx.contextManager.summaryLedger
+  const target=boundary==='ledger'?ledger:ops
+  const method=boundary==='claim'?'claimEmergency':boundary==='ledger'?'start':boundary==='bind'?'bind':'dispatchRun'
+  const original=target[method].bind(target)
+  target[method]=async(...args)=>{
+   const result=await original(...args);await immediate()
+   if(boundary==='policy')changePolicy(ctx,{summaryTotalMs:700000})
+   else if(boundary==='tools'){
+    const header=agent.session.requestHeader();agent.session.requestHeader=()=>({...header,tools:[...(header.tools??[]),{name:'changed-tool',description:'new schema',parameters:{}}]})
+   }else t.mock.timers.tick(120001)
+   return result
+  }
+  adapter.options.fail=false
+  await assert.rejects(ctx.compaction.executeEmergency(agent,plan.token,new AbortController().signal))
+  assert.equal(adapter.summaries.length,2,'no third stream may dispatch after the final await invalidated permission')
+  const emergency=ops.allRecords('subject').at(-1)
+  assert.equal(emergency.phase,'not_dispatched')
+  const run=ops.run('subject',emergency.compactionId)
+  assert.equal(run.actualDispatched,0)
+  assert.equal(ops.emergencyStatus('subject').used,true,'durable claim is not silently refunded')
+ }finally{await ctx.fiber.dispose()}
+})
+
+test('emergency: typed image failure never invokes public protocol recovery or rewrites original surface',async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true});let recovered=0
+ try{
+  await exhaustForEmergency(ctx,agent)
+  const plan=await ctx.compaction.prepareEmergency(agent,new AbortController().signal)
+  const original=agent.session.deriveMessages()
+  ctx.on('compaction/summary-error',(payload,next)=>{
+   if(payload.error instanceof LlmError && payload.error.code==='IMAGE_OFFLOAD_REQUIRED'){recovered++;return true}
+   return next()
+  },true)
+  adapter.options.fail=false;adapter.options.imageFailure=true
+  await assert.rejects(ctx.compaction.executeEmergency(agent,plan.token,new AbortController().signal))
+  assert.equal(recovered,0);assert.equal(adapter.summaries.length,3)
+  assert.deepEqual(agent.session.deriveMessages(),original)
+ }finally{await ctx.fiber.dispose()}
+})
+
+
+test('emergency: unloaded ID resolves through injected public Typert lookup without model dispatch',async()=>{
+ const {ctx,adapter,agent}=await fixture({fail:true})
+ try {
+  await exhaustForEmergency(ctx,agent)
+  const {ContextRecovery}=await import('../lib/inspector.js');await ctx.plugin(ContextRecovery)
+  let resolved=0
+  ctx.typert.lookups.configure('agent',async id=>{assert.equal(id,'cold-lookup');resolved++;return agent})
+  assert.equal(ctx.agents.get(SessionId('cold-lookup')),undefined)
+  const before=agent.session.snapshotEvents()
+  const plan=await ctx.contextRecovery.prepareEmergency({sessionId:'cold-lookup'},new AbortController().signal)
+  assert.equal(resolved,1);assert.ok(plan.token)
+  assert.equal(adapter.summaries.length,2);assert.deepEqual(agent.session.snapshotEvents(),before)
+ }finally{await ctx.fiber.dispose()}
 })
