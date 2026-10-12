@@ -11,7 +11,7 @@
 - FROZEN 清单 SHA256：`363fe93348af4e75bea42377a1769d4012db273a3f8e6e2e2db87b68eac4f422`。
 - 实现者与独立审查均完成 8 项定向测试；23 个包成员与冻结目录逐字节一致。旧包负例能复现模板错误，生成器往返与保留字段检查通过。
 
-当前证明包括真实 SystemPrompt 组件及手动注册的 runtime context；完整隔离 Host/Loader、真实工作目录插件接管、真实模型请求和日常安装仍由桌面负责人验收，不能由源码推送推定通过。旧 rc.2 SDK 未重新运行；本版也没有复制 alpha.2 新增的所有预设功能，详见 `COMPATIBILITY.json`。本次 Git 交付不创建 Release 附件。
+完整隔离 Host/Loader 与 Agent loop 已覆盖三个预设、真实工作目录服务、工具声明、Context 引擎及模型请求出口；旧包负例和用户后置提示词覆盖也通过。当前 Ubuntu 已安装本版，23 个包成员逐字节匹配，原 user/effective 容量策略与 55 个会话保留。正常重启后，原 Project Ops 会话已收到 DeepSeek-V4.1-Flash 的真实响应并产生工具调用和结果；这证明旧模板错误解除，不代表真实供应商长任务压缩等全部业务场景均已验证。旧 rc.2 SDK 未重新运行；本版也没有复制 alpha.2 新增的所有预设功能，详见 `COMPATIBILITY.json`。本次 Git 交付不创建 Release 附件，也不表示其他平台或设备已安装。
 
 下方 local.5 及更早说明保留为历史。
 

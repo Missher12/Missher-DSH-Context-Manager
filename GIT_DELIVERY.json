@@ -22,12 +22,15 @@
     "lib/typert.js": "a8e8bcbe8843ea92ea23ec9cb41a7252aba24ff42c6666498f6fadf4d7e5119e",
     "lib/working-set.js": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
   },
-  "validation": "最终源码与包字节接受；8项定向测试通过。真实 SystemPrompt 组件验证及旧包负例通过；完整Host/Loader、真实模型和安装另验。",
+  "validation": "最终源码与包字节接受；8项定向测试、完整隔离Host/Loader和3个preset请求准备通过。Ubuntu安装23成员匹配，原policy与55会话保留；正常重启后旧会话真实Flash响应及工具调用通过。旧rc.2 SDK、完整长任务压缩及其他机器未外推。",
   "publicExportAdjustments": "PUBLICATION.md, GIT_DELIVERY.json and README navigation only; product source and frozen runtime unchanged.",
   "gitParent": "9e669f86d9b6c547f05f6b1bfb691abdd8807791",
   "revisionKind": "overlay-only",
   "sourceManifestSha256": "228dde4fd0ac59d9eb8adced978b007af6d4f42de45d509e6acb83c3044737f3",
   "frozenManifestSha256": "363fe93348af4e75bea42377a1769d4012db273a3f8e6e2e2db87b68eac4f422",
   "sourceFileCount": 130,
-  "runtimeMatchesLocal5": true
+  "runtimeMatchesLocal5": true,
+  "installedOnCurrentUbuntu": true,
+  "existingSessionResumeVerified": true,
+  "releaseAssetsPublished": false
 }

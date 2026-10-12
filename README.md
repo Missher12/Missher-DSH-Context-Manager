@@ -1,5 +1,7 @@
 [桌面与全部插件入口](https://github.com/Missher12/Missher-DeepseekHarness-Desktop) · [当前 Git 交付、验收与限制](./PUBLICATION.md)
 
+当前源码、安装验收及剩余限制以交付说明为准；下文“未安装、未发布”描述冻结候选制作时的阶段。
+
 # 2026-10-12 local.6 新版模板兼容修订
 
 本次是 overlay-only 修订：删除三处从 rc.2 复制、在官方 0.2.1-alpha.2 未注册的 persona suffix `Your working directory is {{cwd}}.`。0.2.1-alpha.2 仅注册 provider/model；工作目录仍由 working-directory 服务以字面 working-directory:current runtime context 提供，因此删除该句不丢失目录语义，也未用自定义 prompt 放宽任何权限。生成器只在 persona suffix 中定向清理该废弃句、保留无关文本，并在任何 `{{cwd}}` 残留时 fail closed；三处 `{{model}}` 与其余 preset 字段保持原样。

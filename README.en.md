@@ -1,5 +1,7 @@
 [Desktop and all plugins](https://github.com/Missher12/Missher-DeepseekHarness-Desktop) · [Current Git delivery and verification limits](./PUBLICATION.md)
 
+The delivery notes describe current source, installation checks and limits; "not installed, not published" below records the earlier frozen-candidate stage.
+
 # local.6 template-compatibility revision (2026-10-12)
 
 This is an overlay-only revision: it removes the three persona suffixes copied from rc.2 (`Your working directory is {{cwd}}.`) that 0.2.1-alpha.2 no longer registers. That host registers only provider/model; the working-directory service still supplies the literal working-directory:current runtime context, so no directory semantics are lost and no custom prompt widens permissions. The generator strips the deprecated clause only from persona suffixes, preserves unrelated prose, and fails closed if any `{{cwd}}` reference survives; all three `{{model}}` references and every other preset field stay unchanged.
