@@ -2,9 +2,11 @@
 import { useState } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { EfficiencyReadout, FieldTotalReadout, Inspection, ReductionReadout } from './inspector-types.ts'
-import { composition, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
+import { contextWindow, composition, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
 import type { InspectorText } from './inspector-locales.ts'
-import type { Policy } from './policy.ts'
+import { capacityPercent, formatPercent, type Policy } from './policy.ts'
+
+export { contextWindow } from './chart-data.ts'
 
 export const formatTokens = (value: number | null | undefined) => value == null ? '—' : value >= 1_000_000 ? `${(value / 1_000_000).toFixed(2)}M` : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : Math.round(value).toLocaleString()
 export const formatCapacity = (value: number | null) => value === null ? '—' : value >= 1_000_000 ? `${(value / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}M` : formatTokens(value)
@@ -23,18 +25,18 @@ export function ContextComposition({ data, policy, t, onGroup }: { data: Inspect
   const chart = composition(data, policy)
   const pct = chart.window === null ? null : chart.used / chart.window * 100
   const isGroup = (id: typeof chart.slices[number]['id']): id is ContextGroup => id !== 'free' && id !== 'other' && id !== 'reserve'
-  const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatTokenK(chart.limit!)} Token` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
-  const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id)} ≈ ${exactTokens(slice.value)} Token${chart.window === null ? '' : ` · ${slice.share.toFixed(1)}%`}${hint(slice) ? ` · ${hint(slice)}` : ''}`
+  const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatPercent(chart.limit,chart.window)}` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
+  const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id)} ≈ ${formatPercent(slice.value,chart.window)}${hint(slice) ? ` · ${hint(slice)}` : ''}`
   return <article className="cmv-card cmv-composition">
     <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('current')}</h3><Tooltip label={`${t('effort')} ${data.model?.effort ?? '—'}`} portal><span tabIndex={0} className="cmv-muted cmv-model">{data.model ? `${data.model.provider} / ${data.model.model}` : t('noRequest')}</span></Tooltip></div><b>{pct === null ? '—' : `${pct.toFixed(1)}%`}</b></div>
-    <Tooltip label={`${t('used')} ≈ ${exactTokens(chart.used)} / ${t('capacity')} ${exactTokens(chart.window)} Token`} portal><div tabIndex={0} className="cmv-number"><strong>≈ {formatTokenK(chart.used)}</strong><span>/ {formatCapacity(chart.window)} Token</span></div></Tooltip>
+    <Tooltip label={`${t('used')} ≈ ${formatPercent(chart.used,chart.window)} · ${t('windowBasis')}`} portal><div tabIndex={0} className="cmv-number"><strong>≈ {formatPercent(chart.used,chart.window)}</strong><span>/ {chart.window === null ? t('unknownWindow') : '100%'}</span></div></Tooltip>
     <div className="cmv-stack cmv-capacity-stack" role="group" aria-label={t('windowBasis')} data-total={chart.total} data-capacity={chart.window}>
       {chart.window !== null && chart.slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? t('reserveTooltip') : sliceLabel(slice)} side="bottom" portal>
         {isGroup(slice.id) ? <button type="button" data-color={slice.id} style={{ width: `${slice.value / chart.total * 100}%` }} aria-label={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}/> : <span data-color={slice.id} role="img" aria-label={sliceLabel(slice)} style={{ width: `${slice.value / chart.total * 100}%` }} tabIndex={0}>{slice.share >= 12 && slice.id !== 'other' ? t(slice.id) : null}</span>}
       </Tooltip>)}
     </div>
-    <div className="cmv-legend">{chart.slices.map(slice => <button key={slice.id} type="button" className="cmv-key" disabled={!isGroup(slice.id)} data-slice={slice.id} data-value={slice.value} data-share={slice.share} title={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span><i data-color={slice.id}/>{t(slice.id)}</span><strong>{formatTokenK(slice.value)}<small>{chart.window === null ? '—' : `${slice.share.toFixed(1)}%`}</small></strong></button>)}</div>
-    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${exactTokens(chart.measured)} Token`}`} portal><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatTokens(data.model?.maxTokens)} Token</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatTokenK(chart.used - chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')} portal><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
+    <div className="cmv-legend">{chart.slices.map(slice => <button key={slice.id} type="button" className="cmv-key" disabled={!isGroup(slice.id)} data-slice={slice.id} data-value={slice.value} data-share={slice.share} title={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span><i data-color={slice.id}/>{t(slice.id)}</span><strong>{formatPercent(slice.value,chart.window)}</strong></button>)}</div>
+    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${formatPercent(chart.measured,chart.window)}`}`} portal><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatPercent(data.model?.maxTokens,chart.window)}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatPercent(chart.used - chart.window,chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')} portal><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
 
   </article>
 }
@@ -44,12 +46,12 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
   const [selected, setSelected] = useState<number | null>(null)
   const points = data.pressureHistory ?? []
   const point = points.find(item => item.seq === selected) ?? points.at(-1)
-  const maximum = Math.max(1, ...points.map(item => item.tokens ?? 0))
+  const maximum = Math.max(100, ...points.map(item => capacityPercent(item.tokens,item.window) ?? 0))
   const kind = (value: typeof points[number]) => t(value.kind === 'reply' ? 'reply' : value.kind === 'replace' ? 'replacement' : 'cut')
-  return <article className="cmv-card cmv-trend"><div className="cmv-heading"><h3>{t('trend')}</h3><Tooltip label={t('trendHint')} portal><span tabIndex={0} className="cmv-muted">Token</span></Tooltip></div>
-    {!points.some(item => item.tokens !== null) ? <div className="cmv-empty">{t('noTrend')}</div> : <><div className="cmv-bars" role="group" aria-label={t('trend')}><span className="cmv-scale">{formatTokens(maximum)}</span>{points.map(item => <Tooltip key={item.seq} portal label={`${t('record')} ${item.seq} · ${kind(item)} · ${exactTokens(item.tokens)} Token`}><button type="button" data-kind={item.kind} data-unknown={item.tokens === null} aria-pressed={point?.seq === item.seq} aria-label={`${t('record')} ${item.seq} ${kind(item)} ${exactTokens(item.tokens)} Token`} onFocus={() => setSelected(item.seq)} onMouseEnter={() => setSelected(item.seq)} onClick={() => { setSelected(item.seq); onCut(item.seq) }}><span style={{ height: item.tokens === null ? 0 : `${item.tokens / maximum * 100}%` }}/>{item.tokens === null && <small>?</small>}</button></Tooltip>)}</div>
+  return <article className="cmv-card cmv-trend"><div className="cmv-heading"><h3>{t('trend')}</h3><Tooltip label={t('trendHint')} portal><span tabIndex={0} className="cmv-muted">%</span></Tooltip></div>
+    {!points.some(item => capacityPercent(item.tokens,item.window) !== null) ? <div className="cmv-empty">{t('noTrend')}</div> : <><div className="cmv-bars" role="group" aria-label={t('trend')}><span className="cmv-scale">{maximum.toFixed(1)}%</span>{points.map(item => <Tooltip key={item.seq} portal label={`${t('record')} ${item.seq} · ${kind(item)} · ${formatPercent(item.tokens,item.window)}`}><button type="button" data-kind={item.kind} data-unknown={capacityPercent(item.tokens,item.window) === null} aria-pressed={point?.seq === item.seq} aria-label={`${t('record')} ${item.seq} ${kind(item)} ${formatPercent(item.tokens,item.window)}`} onFocus={() => setSelected(item.seq)} onMouseEnter={() => setSelected(item.seq)} onClick={() => { setSelected(item.seq); onCut(item.seq) }}><span style={{ height: capacityPercent(item.tokens,item.window) === null ? 0 : `${capacityPercent(item.tokens,item.window)! / maximum * 100}%` }}/>{capacityPercent(item.tokens,item.window) === null && <small>?</small>}</button></Tooltip>)}</div>
       <div className="cmv-between cmv-muted"><span>{formatTime(points[0]!.time)}</span><span>{formatTime(points.at(-1)!.time)}</span></div>
-      {point && <div className="cmv-caption" aria-live="polite"><span>{kind(point)}</span><strong>{formatTokens(point.tokens)}</strong><span>{formatTime(point.time)}</span></div>}
+      {point && <div className="cmv-caption" aria-live="polite"><span>{kind(point)}</span><strong>{formatPercent(point.tokens,point.window)}</strong><span>{formatTime(point.time)}</span></div>}
     </>}
   </article>
 }
@@ -63,12 +65,13 @@ function compactionSource(entry: CompactionEntry, historical: boolean) {
 export function CompactionChart({ data, t, onRecord }: { data: Inspection; t: InspectorText; onRecord: () => void }) {
   const entry = data.compactions.at(-1)
   const known = entry?.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined
-  const maximum = Math.max(1, entry?.beforeTokens ?? 0, entry?.afterTokens ?? 0)
+  const window=entry?.beforeTokens && entry.beforeTokens>0 ? entry.beforeTokens : null
+  const maximum = Math.max(window ?? 1, entry?.beforeTokens ?? 0, entry?.afterTokens ?? 0)
   const delta = known ? entry.beforeTokens! - entry.afterTokens! : null
   return <article className="cmv-card cmv-compactions"><div className="cmv-heading"><h3>{t('latestCompaction')}</h3><span className="cmv-muted">{t('segment')}</span></div>
     {!entry ? <div className="cmv-empty">{t('noCompaction')}</div> : <>
       <div className="cmv-between cmv-muted"><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span></div>
-      {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: `${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.beforeTokens)}</b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: `${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.afterTokens)}</b></div><div className="cmv-caption"><span>{delta! >= 0 ? t('reduced') : t('increased')}</span><strong>{formatTokens(Math.abs(delta!))} Token</strong><span>{entry.beforeTokens! > 0 ? `${Math.round(Math.abs(delta!) / entry.beforeTokens! * 100)}%` : '—'}</span></div></> : <p className="cmv-muted cmv-summary-usage">{entry.modelCallStatus==='not_dispatched'?'未调用模型 · 未新增模型用量':t('unknownUsage')}</p>}
+      {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: window===null?'0%':`${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatPercent(entry.beforeTokens,entry.beforeTokens)}</b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: window===null?'0%':`${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatPercent(entry.afterTokens,entry.beforeTokens)}</b></div><div className="cmv-caption"><span>{delta! >= 0 ? t('reduced') : t('increased')}</span><strong>{formatPercent(Math.abs(delta!),window)}</strong></div></> : <p className="cmv-muted cmv-summary-usage">{entry.modelCallStatus==='not_dispatched'?'未调用模型 · 未新增模型用量':t('unknownUsage')}</p>}
       {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}
       <Button size="sm" variant="ghost" onClick={onRecord}>{t('recordDetails')}</Button>
     </>}
@@ -80,8 +83,8 @@ export function CompactionRecords({ data, t, openLatest }: { data: Inspection; t
   const entries = [...data.compactions].reverse()
   return <article className="cmv-card cmv-records"><div className="cmv-heading"><h3>{t('recordList')}</h3>{entries.length > 2 && <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapse' : 'allRecords')}</Button>}</div>
     {!entries.length ? <p className="cmv-muted">{t('noCompaction')}</p> : <ol className="cmv-events">{(expanded ? entries : entries.slice(0, 2)).map((entry, index) => <li key={entry.id}><details key={`${entry.id}:${index === 0 ? openLatest : 0}`} open={index === 0 && openLatest > 0 ? true : undefined}>
-      <summary><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} → ${formatTokens(entry.afterTokens)} Token` : entry.modelCallStatus==='not_dispatched'?'未调用模型 · 未新增模型用量':t('unknownUsage')}</span></summary>
-      <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {exactTokens(Math.abs(entry.beforeTokens - entry.afterTokens))} Token · {entry.beforeTokens > 0 ? `${Math.round(Math.abs(entry.beforeTokens - entry.afterTokens) / entry.beforeTokens * 100)}%` : '—'}</p>}<p>{t('segment')} · {t('compactions')} {exactTokens(entry.beforeTokens)} → {exactTokens(entry.afterTokens)} Token</p><p>{t('input')} {exactTokens(entry.inputTokens)} · {t('output')} {exactTokens(entry.outputTokens)} Token{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
+      <summary><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatPercent(entry.beforeTokens,entry.beforeTokens)} → ${formatPercent(entry.afterTokens,entry.beforeTokens)}` : entry.modelCallStatus==='not_dispatched'?'未调用模型 · 未新增模型用量':t('unknownUsage')}</span></summary>
+      <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {formatPercent(Math.abs(entry.beforeTokens - entry.afterTokens),entry.beforeTokens)}</p>}<p>{t('segment')} · {t('compactions')} {formatPercent(entry.beforeTokens,entry.beforeTokens)} → {formatPercent(entry.afterTokens,entry.beforeTokens)}</p><p>{t('input')} {exactTokens(entry.inputTokens)} · {t('output')} {exactTokens(entry.outputTokens)} Token{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
         {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}{entry.error && <p className="cmv-error">{entry.error}</p>}{entry.execution && <p>{entry.execution}</p>}
       </div></details></li>)}</ol>}
   </article>
@@ -201,8 +204,8 @@ export function UsageDetails({ data, t, onCut }: { data: Inspection; t: Inspecto
     {recent && <p className="cmv-muted">{t('recent')} · {recent.turn} {t('turn')} · {recent.step} {t('step')}</p>}
     {!data.historical && <div className="cmv-growth cmv-muted"><span>{t('growthBasis')}</span>{(['sinceCompaction', 'lastToolResult'] as const).map(key => {
       const delta = data.contextGrowth?.[key]
-      const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${exactTokens(delta.beforeTokens)} → ${exactTokens(delta.afterTokens)} Token` : ` ${t('growthUnknownHint')}`}`
-      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta ? `≈ ${delta.deltaTokens > 0 ? '+' : delta.deltaTokens < 0 ? '-' : ''}${formatTokens(Math.abs(delta.deltaTokens))} Token` : t('growthUnknown')}</strong></span></Tooltip>
+      const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${formatPercent(delta.beforeTokens,contextWindow(data))} → ${formatPercent(delta.afterTokens,contextWindow(data))}` : ` ${t('growthUnknownHint')}`}`
+      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta ? `≈ ${delta.deltaTokens > 0 ? '+' : delta.deltaTokens < 0 ? '-' : ''}${formatPercent(Math.abs(delta.deltaTokens),contextWindow(data))}` : t('growthUnknown')}</strong></span></Tooltip>
     })}</div>}
     {data.efficiency && <EfficiencyLine efficiency={data.efficiency} t={t}/>}
     {data.reduction ? <ReductionLine reduction={data.reduction} t={t}/> : data.historical ? <p className="cmv-muted cmv-summary-usage">{t('histUnavailable')}</p> : null}

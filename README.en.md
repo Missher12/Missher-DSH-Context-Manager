@@ -1,3 +1,16 @@
+# Percentage capacity candidate (local.5, 2026-10-12)
+
+Current Git delivery: **0.10.0-local.5**. Source and frozen runtime match; see [validation and installation limits](./PUBLICATION.md). Git sync does not update installed devices.
+
+
+New installations use 10% recent verbatim content, 4% summary output and 1% format-repair output, measured against each request's actual model window. Model/selection limits and protocol caps (128000/32768/8192 tokens) still apply. Rounding is downward; summary or repair allowances below 256 tokens stop the corresponding call. Unknown windows remain unknown.
+
+Existing settings retain exact legacy token limits until an explicit percentage switch and native save. Larger model windows can increase allowances. `migrateCapacity` proposes a conservative conversion for one known window only and refuses unsupported conversions. Preserve revisions, unrelated settings, accounting and recovery permissions; do not silently change legacy fixed timeouts.
+
+Current capacity and admission use window percentages. Historical pressure points use their own windows. Compaction comparisons use the replaced segment before=100%, not the whole window. Usage, costs and request input/output retain tokens. No accounting backfill or schema migration is performed.
+
+This candidate was recovered from published commit 55fa6718f8f1d3abfc81daddbc248ee53a734377 after the original development tree disappeared. Rebuilt verification and limitations are recorded in verification/context-percent-20261012/READY.md. Desktop integration owns publication and installation; alpha.2 compatibility is not established by rc.2 checks.
+
 # Missher DSH Context Manager
 
 [中文](./README.md) | English

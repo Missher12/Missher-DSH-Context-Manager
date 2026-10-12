@@ -30,6 +30,13 @@ export function admissionBudget(data: Pick<Inspection, 'admission' | 'historical
     ? budget(policy, reading.window, reading.outputReserve) : null
 }
 
+/** One denominator for charts and content at the same immutable cut. */
+export function contextWindow(data: Pick<Inspection, 'historical' | 'admission' | 'pressure' | 'pressureHistory'>): number | null {
+  const current = data.historical ? undefined : data.admission
+  const window = current ? current.window : data.pressure?.window ?? data.pressureHistory.at(-1)?.window ?? null
+  return window !== null && Number.isSafeInteger(window) && window > 0 ? window : null
+}
+
 /** Fill the recorded window without redistributing an unclassified delta over
  * text categories. The larger of the content estimate and current meter (or
  * reference projection when unknown) supplies the conservative chart occupancy.
@@ -40,8 +47,7 @@ export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'press
   const content = slices.reduce((sum, item) => sum + item.value, 0)
   const cut = data.pressureHistory.at(-1)
   const current = data.historical ? undefined : data.admission
-  const capacity = current ? current.window : data.pressure?.window ?? cut?.window ?? null
-  const window = capacity !== null && capacity > 0 ? capacity : null
+  const window = contextWindow(data)
   const measured = current?.tokens ?? data.pressure?.projected ?? cut?.tokens ?? null
   const used = Math.max(content, measured ?? 0)
   const other = used - content
@@ -53,7 +59,7 @@ export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'press
   if (free !== null) slices.push({ id: 'free', value: free, share: 0 })
   if (reserve !== null) slices.push({ id: 'reserve', value: reserve, share: 0 })
   const total = slices.reduce((sum, item) => sum + item.value, 0)
-  const shares = percentages(slices.map(item => item.value))
+  const shares = slices.map(item => window === null ? 0 : item.value / window * 100)
   return { content, used, measured, free, reserve, limit, total, window, overflow: window !== null && used > window, slices: slices.map((item, index) => ({ ...item, share: shares[index]! })) }
 }
 

@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { setImmediate as immediate } from 'node:timers/promises'
 import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
@@ -88,6 +89,7 @@ function history(length = 31600, asSession = false) {
 async function fixture(options = {}, policy = {}, seed = history()) {
   const ctx = new Context()
   const storageRoot = options.storageRoot ?? await mkdtemp(join(tmpdir(), 'dsh-context-loop-'))
+  ctx.provide('profileContext',{dir:storageRoot,installAnchor:fileURLToPath(new URL('../package.json',import.meta.url)),patchPath:fileURLToPath(new URL('../cordis.patch.yml',import.meta.url))})
   ctx.effect(() => () => options.keepStorage ? undefined : rm(storageRoot, { recursive: true, force: true }))
   await ctx.plugin(Storage)
   await ctx.plugin(StorageJson, { root: storageRoot })
@@ -98,7 +100,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
   if (options.pruner) await ctx.plugin(ToolResultPruner, { thresholdChars: 2000, headChars: 600, tailChars: 400 })
-  await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512, ...policy } })
+  await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'legacy', summaryMaxTokens: 512, ...policy } })
   await ctx.plugin(Engine)
   if (options.presets) {
     ctx.baseUrl = new URL('../', import.meta.url).href
@@ -641,7 +643,7 @@ for (const scenario of [
     let pruneCalls = 0
     ctx.toolResultPruner.pruneSession = (...args) => { pruneCalls++; return prune(...args) }
     await agent.runMaintenance(async () => {
-      assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session)), false)
+      assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session), 10000), false)
     })
     assert.equal(pruneCalls, 0, 'the no-turn guard must run before calling the mutating pruner')
     assert.deepEqual(agent.session.snapshotEvents(), before, 'the guard must not append even a prune marker')
@@ -729,7 +731,7 @@ for (const flags of [{ error: true }, { rich: true }]) test(`protected pruning k
       if (current !== agent || checked) return
       checked = true
       assert.equal(agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end').type, 'turn/start')
-      assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session)), false)
+      assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session), 10000), false)
     })
     agent.followup(message()); await agent.whenIdle(); release()
     assert.ok(checked)
@@ -745,7 +747,7 @@ test('old hosts never receive unsafe full-surface pruning through ignored protec
     ctx.toolResultPruner.supportsProtectedSeqs = false
     let calls = 0
     ctx.toolResultPruner.pruneSession = () => { calls++; throw new Error('must not be called') }
-    assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session)), false)
+    assert.equal(ctx.compaction.pruneOlderTools(agent, ctx.tokenMeter.measure(agent.session), 10000), false)
     assert.equal(calls, 0)
   } finally { await ctx.fiber.dispose() }
 })
@@ -1179,5 +1181,16 @@ test('emergency: unloaded ID resolves through injected public Typert lookup with
   const plan=await ctx.contextRecovery.prepareEmergency({sessionId:'cold-lookup'},new AbortController().signal)
   assert.equal(resolved,1);assert.ok(plan.token)
   assert.equal(adapter.summaries.length,2);assert.deepEqual(agent.session.snapshotEvents(),before)
+ }finally{await ctx.fiber.dispose()}
+})
+
+
+test('percent: actual request summary obeys window-based output cap and continues once',async()=>{
+ const {ctx,adapter,agent}=await fixture({}, {capacityMode:'percent',recentPercent:10,summaryPercent:5,repairPercent:1})
+ try{
+  agent.followup(message());await agent.whenIdle()
+  assert.equal(adapter.summaries.length,1)
+  assert.ok(adapter.summaries[0].maxTokens<=500)
+  assert.ok(adapter.requests.length>0);completed(agent)
  }finally{await ctx.fiber.dispose()}
 })

@@ -3,7 +3,7 @@ import z from '@deepseek-ai/schemastery'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Volatile } from '@deepseek-ai/cosmokit'
 import type {} from '@deepseek-ai/dsh-settings'
-import { defaults, validatePolicy, type Policy } from './policy.ts'
+import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
 import { diagnosticsProjection } from './diagnostics.ts'
 import type { CompactPhase, IdleStatus } from './idle-types.ts'
 import { IdleStore, type IdleRecord } from './idle-store.ts'
@@ -71,6 +71,10 @@ export default class ContextManager extends Service {
   private readonly drains = new Set<() => Promise<void>>()
   static Config = z.object({
     policy: z.object({
+      capacityMode: z.union([z.const('legacy'), z.const('percent')]).default('legacy'),
+      recentPercent: z.number().min(0.1).max(50).default(defaults.recentPercent),
+      summaryPercent: z.number().min(0.1).max(10).default(defaults.summaryPercent),
+      repairPercent: z.number().min(0.1).max(10).default(defaults.repairPercent),
       enabled: z.boolean().default(defaults.enabled),
       historyMode: z.union([z.const('automatic'), z.const('custom')]).default(defaults.historyMode),
       recentTokens: z.number().min(1000).max(128000).step(1).default(defaults.recentTokens),
@@ -323,7 +327,7 @@ export default class ContextManager extends Service {
 
   /** Freeze one admission's policy; edits take effect on the next request. */
   snapshot(): Readonly<Policy> {
-    const result = { ...this.config.policy.get() }
+    const result = normalizePolicy(this.config.policy.get())
     validatePolicy(result)
     return Object.freeze(result)
   }

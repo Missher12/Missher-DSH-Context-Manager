@@ -38,7 +38,7 @@ test('larger text estimates never inflate available space; both estimates and ov
   const chart=composition({parts:[{category:'summary',tokens:200}],pressure:{window:100,projected:150},pressureHistory:[]})
   assert.equal(chart.measured,150); assert.equal(chart.used,200)
   assert.equal(chart.overflow,true); assert.equal(chart.total,200); assert.equal(chart.free,0)
-  assert.equal(chart.slices[0].value,200); assert.equal(chart.slices[0].share,100)
+  assert.equal(chart.slices[0].value,200); assert.equal(chart.slices[0].share,200)
   const partial=composition({parts:[{category:'tool',tokens:80}],pressure:{window:100,projected:70},pressureHistory:[]})
   assert.equal(partial.free,20); assert.equal(partial.slices.some(slice=>slice.id==='other'),false)
 })

@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { setImmediate as immediate } from 'node:timers/promises'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -80,6 +81,7 @@ function history(length = 31600) {
 async function fixture(options = {}, policy = {}, seed = history()) {
   const ctx = new Context()
   const storageRoot = await mkdtemp(join(tmpdir(), 'dsh-context-repair-'))
+  ctx.provide('profileContext', {dir:storageRoot,installAnchor:fileURLToPath(new URL('../package.json',import.meta.url)),patchPath:fileURLToPath(new URL('../cordis.patch.yml',import.meta.url))})
   ctx.effect(() => () => rm(storageRoot, { recursive: true, force: true }))
   await ctx.plugin(Storage)
   await ctx.plugin(StorageJson, { root: storageRoot })
@@ -88,7 +90,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
-  await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512, ...policy } })
+  await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'legacy', summaryMaxTokens: 512, ...policy } })
   await ctx.plugin(Engine)
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -301,4 +303,19 @@ test('repair: a repair response that adds facts to the broken field is rejected'
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
     assert.match(view.compactions[0].error ?? '', /格式修复与无损修复要求不一致（constraints）/u)
   } finally { await ctx.fiber.dispose() }
+})
+
+
+test('percent: insufficient repair output rejects before any repair claim or provider call',async()=>{
+ const {ctx,adapter,agent}=await fixture({typeBroken:true,repairText:repairedCheckpoint},{capacityMode:'percent',recentPercent:10,summaryPercent:5,repairPercent:1,maxPasses:1})
+ try{
+  const task=message();agent.followup(task);await agent.whenIdle()
+  assert.deepEqual(adapter.order,['summary-start','summary-start'],'existing known-failure primary reissue remains bounded')
+  assert.equal(adapter.summaries.length,2);assert.equal(adapter.requests.length,0)
+  assert.equal(ctx.contextManager.summaryOperations.records('subject').filter(row=>row.purpose==='repair').length,0)
+  assert.equal(commits(agent),0)
+  assert.ok(agent.session.deriveMessages().some(m=>m.id===task.id))
+  const ledger=stats(ctx);assert.equal(ledger.attempts,2);assert.equal(ledger.unknownAttempts,0)
+  assert.equal(ledger.input,1200);assert.equal(ledger.output,40)
+ }finally{await ctx.fiber.dispose()}
 })

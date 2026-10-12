@@ -95,7 +95,7 @@ export class SummaryOperations {
   run(sessionId:string,compactionId:string) {return this.emergencyDomain.table('runs').get(keyOf(sessionId,compactionId))}
   async startRun(sessionId:string,compactionId:string,limits:{totalMs:number;firstOutputMs:number;stallMs:number}) {
     return this.enqueue(async()=>{const key=keyOf(sessionId,compactionId);if(this.emergencyDomain.table('runs').get(key))return
-      await this.emergencyDomain.table('runs').put(key,{sessionId,compactionId,version:'0.10.0-local.4',startedAt:Date.now(),...limits,dispatched:0})})
+      await this.emergencyDomain.table('runs').put(key,{sessionId,compactionId,version:'0.10.0-local.5',startedAt:Date.now(),...limits,dispatched:0})})
   }
   async dispatchRun(sessionId:string,compactionId:string) {
     return this.enqueue(async()=>{const key=keyOf(sessionId,compactionId),row=this.emergencyDomain.table('runs').get(key)

@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { setImmediate as immediate } from 'node:timers/promises'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -17,8 +18,9 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import Manager from '../lib/index.js'
 import Engine from '../lib/engine.js'
-import { defaults, budget, validatePolicy, idleFloorTokens } from '../lib/policy.js'
+import { defaults as percentDefaults, budget, validatePolicy, idleFloorTokens } from '../lib/policy.js'
 
+const defaults={...percentDefaults,capacityMode:'legacy'}
 const ABSOLUTE = { absoluteEnabled: true, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000 }
 
 class Adapter extends LlmAdapter {
@@ -62,6 +64,7 @@ function history(length = 31600) {
 async function fixture(options = {}, policy = {}, seed = history()) {
   const ctx = new Context()
   const storageRoot = await mkdtemp(join(tmpdir(), 'dsh-context-absolute-'))
+  ctx.provide('profileContext',{dir:storageRoot,installAnchor:fileURLToPath(new URL('../package.json',import.meta.url)),patchPath:fileURLToPath(new URL('../cordis.patch.yml',import.meta.url))})
   ctx.effect(() => () => rm(storageRoot, { recursive: true, force: true }))
   await ctx.plugin(Storage)
   await ctx.plugin(StorageJson, { root: storageRoot })

@@ -1,3 +1,13 @@
+# 2026-10-12 百分比容量候选（local.5）
+
+上下文容量设置按每次请求的真实模型窗口换算。新安装默认近期原文 10%、摘要输出 4%、格式修复 1%；输出同时受模型、选区和协议安全上限限制（近期原文 128000、摘要 32768、修复 8192 Token），实际有效比例在会话页显示。小窗口向下取整；摘要或修复输出不足 256 Token 时不发起对应调用。未知窗口不猜测。
+
+旧设置继续原有 Token 额度和绝对预算，普通保存不会迁移。设置页明确显示兼容状态；点击“改用下方百分比并解除旧绝对上限”、检查比例并保存后才生效。模型窗口变大可能增大额度，不能宣称跨模型无损等价迁移。`migrateCapacity(policy, window, outputReserve)` 仅提供已知单一窗口的保守提案，超出支持范围就拒绝；不自动写设置。安装方须通过原生 revision 保存并回读，保留其他参数、账本与恢复额度；本机旧 fixed 90000ms 不得擅改 adaptive。
+
+当前组成/准入/预留用实际窗口百分比；历史压力点用各自记录窗口；压缩记录只显示本次被替换片段压缩前=100%，不是整窗；变化百分点按当前窗口折算。累计用量、费用及每次调用输入/输出继续 Token。无旧账本迁移或补写。
+
+源码从已发布 `55fa6718f8f1d3abfc81daddbc248ee53a734377` 恢复到独立恢复目录，再重放本轮保全的修改。原迁移树丢失前的测试不算恢复后的验收；最新冻结与验证见 `verification/context-percent-20261012/READY.md`。日常安装及 Git/Release 由桌面升级任务统一；本候选基于 rc.2，alpha.2 兼容需另验。
+
 # 2026-10-09 local.4 最终修订公开交付
 
 本导出绑定已接受 local.4 最终源码与运行件。额度阻断、一次人工急救、真实设置保存与冷启动预检的证据和限制见 [PUBLICATION.md](./PUBLICATION.md)。日常安装继续协调者单写；真实收费恢复由用户在产品中当次确认。下方为历史。
@@ -28,7 +38,7 @@
 
 新增context_manager_cycles v1保存同批原文跨步骤/重启许可（2主计划/4总调用，配置或checkpoint新序号不能重置），历史原文工具限定当前会话分页只读。UI继续原生组件、现有布局；准入显示改读实时TokenMeter，与投影趋势区分。保护MSE/Goal及全部日常数据；源码根lib未重建。
 
-本轮隔离构建、反例、测试绑定、包SHA及未验证项见 `/Users/missher/Documents/Deepseek-harness-Cordis/coordination/2026-10-08/context-working-set-upgrade/READY.md`。冻结候选不等于已安装；由既定协调者重新检查空闲、完整备份后安装并验收。真实Qwen与其他平台单列，不能用合成回放声称真实模型信息保真。
+本轮隔离构建、反例、测试绑定、包SHA及未验证项见 `<coordination-workspace>/coordination/2026-10-08/context-working-set-upgrade/READY.md`。冻结候选不等于已安装；由既定协调者重新检查空闲、完整备份后安装并验收。真实Qwen与其他平台单列，不能用合成回放声称真实模型信息保真。
 
 # 2026-10-08 Context 0.8.0-local.9 统一维护候选
 
@@ -134,7 +144,7 @@ local.6 的实际冻结 codec 会剥离 inspector 的 Goal 停因与 idle 的压
 
 - 用户目标：学习 Codex 的先检查、必要时先压缩、再执行；79.9% 时新任务不能先跑主模型/工具。压缩参数仅放设置页，上下文数据在对话中查看。
 - 目录独立于旁边的 `mse/`；禁止覆盖上级 MSE 的 PROJECT_CONTEXT/HANDOVER 或修改用户日常配置。
-- 已核验宿主：`/Users/missher/Documents/Deepseek- Harness-Inter`，`0.1.7-rc.2`，SHA 见 COMPATIBILITY.json。依赖链接仅用于开发；打包不含 node_modules。
+- 已核验宿主：`<desktop-source>`，`0.1.7-rc.2`，SHA 见 COMPATIBILITY.json。依赖链接仅用于开发；打包不含 node_modules。
 - `src/index.ts` 提供共享可变策略；`src/engine.ts` 派生官方 Basic，关闭自动监听，使用 llm/stream + agent/request-error 实现请求重建；0.3.0 的 `src/client.tsx` 同时注册 settings.section 和 conversation.view，并挂载自身 Remote。
 - 0.1.1 设置页复用宿主 SettingsForm/Button/Input/Switch；`src/client.css` 全部颜色、圆角采用 `--dsw-*`。ui-primitives 是 Web 平台共享模块，不是 dsh.client.inject 的插件行；不得复制第二套组件或另加鲜艳配色。
 - 0.2.0 参考 GitHub dsh-context 新增只读概览。`src/diagnostics.ts` 用公开 Session Projection 折叠现有事件；`src/overview.tsx` 读取官方 contextPressure/contextBreakdown/tokenUsage 与有界诊断。组成估算、占用、累计用量不能混算；摘要事件必须配对紧邻替换及结束标记才判定成功。

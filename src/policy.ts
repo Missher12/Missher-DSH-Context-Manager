@@ -2,6 +2,11 @@ import type { DeadlineLimits } from './summary-deadline.ts'
 
 /** Admission limits and working-history policy shared by the engine and settings preview. */
 export interface Policy {
+  /** Missing on legacy persisted policies: preserve the original Token constraints. */
+  capacityMode: 'legacy' | 'percent'
+  recentPercent: number
+  summaryPercent: number
+  repairPercent: number
   enabled: boolean
   /** Automatic planning uses a bounded recent tail; custom mode also applies the saved occupancy caps. */
   historyMode: 'automatic' | 'custom'
@@ -63,6 +68,7 @@ export interface Policy {
 }
 
 export const defaults: Policy = {
+  capacityMode: 'percent', recentPercent: 10, summaryPercent: 4, repairPercent: 1,
   enabled: true, historyMode: 'automatic', recentTokens: 20000,
   triggerPercent: 80, targetPercent: 55, earlyPercent: 1,
   safetyPercent: 2, summaryMaxTokens: 8192, maxPasses: 2, timeoutMs: 90000,
@@ -75,8 +81,14 @@ export const defaults: Policy = {
   prefixDiagnosticsEnabled: true,
 }
 
+/** Schema-independent normalization for old settings readouts; no writes or migration. */
+export function normalizePolicy(saved:Partial<Policy>):Policy {
+  return {...defaults,...saved,capacityMode:saved.capacityMode??'legacy',summaryTimeoutMode:saved.summaryTimeoutMode??'fixed'}
+}
+
 /** Validate at the settings/request boundary; invalid policy never admits work. */
 export function validatePolicy(p: Policy): void {
+  if (p.capacityMode !== undefined && p.capacityMode !== 'legacy' && p.capacityMode !== 'percent') throw new Error('容量策略必须为 legacy 或 percent')
   if (typeof p.enabled !== 'boolean') throw new Error('自动压缩开关必须是布尔值')
   if (p.historyMode !== 'automatic' && p.historyMode !== 'custom') throw new Error('历史保留策略必须为 automatic 或 custom')
   if (typeof p.idleEnabled !== 'boolean') throw new Error('闲置自动压缩开关必须是布尔值')
@@ -86,7 +98,8 @@ export function validatePolicy(p: Policy): void {
   if (p.toolResultsMode !== 'off' && p.toolResultsMode !== 'observe' && p.toolResultsMode !== 'reduce') throw new Error('工具结果精简模式必须为 off、observe 或 reduce')
   if (p.summaryTimeoutMode !== 'fixed' && p.summaryTimeoutMode !== 'adaptive') throw new Error('压缩超时模式必须为 fixed 或 adaptive')
   if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
-  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode'>, [number, number]> = {
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode' | 'capacityMode'>, [number, number]> = {
+    recentPercent: [0.1, 50], summaryPercent: [0.1, 10], repairPercent: [0.1, 10],
     recentTokens: [1000, 128000],
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],
     safetyPercent: [1, 10], summaryMaxTokens: [256, 32768], maxPasses: [1, 2], timeoutMs: [1000, 1800000],
@@ -99,10 +112,11 @@ export function validatePolicy(p: Policy): void {
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
     const value = p[key as keyof typeof ranges]
+    if (value === undefined && ['recentPercent', 'summaryPercent', 'repairPercent'].includes(key) && p.capacityMode !== 'percent') continue
     if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${key} 必须在 ${min}–${max} 之间`)
   }
   if (p.historyMode === 'custom' && p.targetPercent > p.triggerPercent - p.earlyPercent - 10) throw new Error('自定义占用上限须比实际检查阈值至少低 10 个百分点')
-  if (p.historyMode === 'custom' && p.absoluteEnabled && p.absoluteTargetTokens > Math.floor(p.absoluteTriggerTokens * 0.8)) throw new Error('绝对占用上限须比绝对软触发至少低 20%')
+  if (p.capacityMode !== 'percent' && p.historyMode === 'custom' && p.absoluteEnabled && p.absoluteTargetTokens > Math.floor(p.absoluteTriggerTokens * 0.8)) throw new Error('绝对占用上限须比绝对软触发至少低 20%')
   for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const) {
     if (!Number.isInteger(p[key])) throw new Error(`${key} 必须是整数`)
   }
@@ -137,6 +151,7 @@ export interface Budget {
  * applies the saved percentage/absolute occupancy caps and admission headroom.
  */
 export function budget(policy: Policy, window: number, outputReserve: number): Budget {
+  policy=normalizePolicy(policy)
   validatePolicy(policy)
   if (!Number.isSafeInteger(window) || window <= 0) throw new Error('当前模型未提供有效上下文窗口')
   if (!Number.isFinite(outputReserve) || outputReserve < 0) throw new Error('当前模型输出预留无效')
@@ -146,8 +161,8 @@ export function budget(policy: Policy, window: number, outputReserve: number): B
   const percentAdmission = Math.max(0, trigger - Math.ceil(window * policy.earlyPercent / 100))
   const requestedPercentTarget = Math.floor(window * policy.targetPercent / 100)
   const percentTarget = Math.min(requestedPercentTarget, Math.floor(percentAdmission * 0.8))
-  const absoluteTrigger = policy.absoluteEnabled ? policy.absoluteTriggerTokens : null
-  const absoluteTarget = policy.historyMode === 'custom' && policy.absoluteEnabled ? policy.absoluteTargetTokens : null
+  const absoluteTrigger = policy.capacityMode !== 'percent' && policy.absoluteEnabled ? policy.absoluteTriggerTokens : null
+  const absoluteTarget = policy.capacityMode !== 'percent' && policy.historyMode === 'custom' && policy.absoluteEnabled ? policy.absoluteTargetTokens : null
   const admission = Math.min(percentAdmission, hard, absoluteTrigger ?? Number.POSITIVE_INFINITY)
   const target = policy.historyMode === 'automatic' ? admission : Math.min(percentTarget, absoluteTarget ?? Number.POSITIVE_INFINITY)
   // Keep the constraint that actually shaped the value: when the hard
@@ -157,7 +172,7 @@ export function budget(policy: Policy, window: number, outputReserve: number): B
   const targetSource: Budget['targetSource'] = policy.historyMode === 'automatic' ? 'working-set'
     : absoluteTarget !== null && target === absoluteTarget ? 'absolute'
     : percentTarget < requestedPercentTarget ? 'admission' : 'percent'
-  return { historyMode: policy.historyMode, recentTokens: policy.recentTokens,
+  return { historyMode: policy.historyMode, recentTokens: capacityTokens(policy, window).recent,
     window, outputReserve, safety, hard, trigger, admission, target, admissionSource, targetSource, absoluteTrigger, absoluteTarget }
 }
 
@@ -191,4 +206,48 @@ export function deadlineLimits(policy: Readonly<Policy>): DeadlineLimits {
 /** The one visible hard bound; every entry (manual, pressure, idle, repair, recovery) shares it. */
 export function transactionTotalMs(policy: Readonly<Policy>): number {
   return deadlineLimits(policy).totalMs
+}
+
+
+/** One conversion shared by admission, selection, pruning and summary/repair calls.
+ * Legacy values remain exact. Explicit percentage mode removes those old caps;
+ * protocol output bounds remain, and floor rounding never enlarges a small window.
+ */
+export function capacityTokens(policy: Readonly<Policy>, window:number) {
+  policy=normalizePolicy(policy)
+  if(!Number.isSafeInteger(window)||window<=0)throw new Error('当前模型未提供有效上下文窗口')
+  if(policy.capacityMode!=='percent')return {recent:policy.recentTokens,summary:policy.summaryMaxTokens,repair:policy.formatRepairMaxTokens}
+  return {recent:Math.min(128000,Math.floor(window*policy.recentPercent/100)),
+    summary:Math.min(32768,Math.floor(window*policy.summaryPercent/100)),
+    repair:Math.min(8192,Math.floor(window*policy.repairPercent/100))}
+}
+
+/** Unknown or invalid denominators never become zero occupancy or a guessed percentage. */
+export function capacityPercent(tokens:number|null|undefined,window:number|null|undefined):number|null {
+  return tokens!=null&&Number.isFinite(tokens)&&window!=null&&Number.isSafeInteger(window)&&window>0?tokens/window*100:null
+}
+export function formatPercent(tokens:number|null|undefined,window:number|null|undefined):string {
+  const value=capacityPercent(tokens,window)
+  return value===null?'—':`${value.toFixed(2)}%`
+}
+
+
+/** Explicit single-window migration proposal, never called on config load.
+ * Reject if legacy caps cannot be represented by supported percentages.
+ * The caller must show the real baseline window and save through native settings.
+ */
+export function migrateCapacity(policy:Policy,window:number,outputReserve:number):Policy {
+  const previous=budget({...policy,capacityMode:'legacy'},window,outputReserve)
+  const down=(tokens:number)=>Math.floor(tokens/window*100*1e6)/1e6
+  const caps=capacityTokens({...policy,capacityMode:'legacy'},window)
+  const result:Policy={...policy,capacityMode:'percent',
+    triggerPercent:Math.min(policy.triggerPercent,down(previous.admission)+policy.earlyPercent),
+    targetPercent:policy.historyMode==='custom'?down(previous.target):policy.targetPercent,
+    recentPercent:down(Math.min(caps.recent,Math.floor(previous.hard*0.2))),
+    summaryPercent:down(Math.min(caps.summary,Math.floor(window*0.1))),
+    repairPercent:down(Math.min(caps.repair,caps.summary,Math.floor(window*0.1)))}
+  validatePolicy(result)
+  const next=budget(result,window,outputReserve),nextCaps=capacityTokens(result,window)
+  if(next.admission>previous.admission||next.target>previous.target||nextCaps.recent>caps.recent||nextCaps.summary>caps.summary||nextCaps.repair>caps.repair)throw new Error('无法保守转换旧额度，请明确选择新百分比')
+  return result
 }

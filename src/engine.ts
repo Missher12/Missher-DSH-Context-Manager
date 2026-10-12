@@ -1,3 +1,4 @@
+import { capacityTokens } from './policy.ts'
 import { startupProof } from './startup-guard.ts'
 import type { EmergencyPlan } from './summary-operations.ts'
 import { randomUUID, createHash } from 'node:crypto'
@@ -215,7 +216,7 @@ export default class ContextEngine extends BasicCompactionEngine {
       const state = engine.admissions.get(agent)
       if (!state || !state.policy.enabled || signal.aborted || state.passes >= state.policy.maxPasses) return undefined
       let measure = ctx.tokenMeter.measure(agent.session)
-      if (engine.pruneOlderTools(agent, measure)) {
+      if (engine.pruneOlderTools(agent, measure, state.budget.window)) {
         signal.throwIfAborted()
         await ctx.sessions.flush(agent.session)
         signal.throwIfAborted()
@@ -365,7 +366,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     outer.link(abort.signal)
     outer.link(this.lifetime.signal)
     if (signal) outer.link(signal)
-    const execution = `Context 0.10.0-local.4 · ${new Date().toISOString()} · ${existing ? 'idle预检' : '事务开始'} · 总限${outer.limits.totalMs / 1000}s/首输出${outer.limits.firstOutputMs / 1000}s/停滞${outer.limits.stallMs / 1000}s`
+    const execution = `Context 0.10.0-local.5 · ${new Date().toISOString()} · ${existing ? 'idle预检' : '事务开始'} · 总限${outer.limits.totalMs / 1000}s/首输出${outer.limits.firstOutputMs / 1000}s/停滞${outer.limits.stallMs / 1000}s`
     this.ctx.contextManager.reportExecution(String(agent.id), `执行中：${execution}`)
     const active = outer.signal
     const generation = agent.session.surface.replaceGeneration
@@ -406,7 +407,7 @@ export default class ContextEngine extends BasicCompactionEngine {
   }
 
   /** Existing pruner is optional; never trust protection arguments on an old host. */
-  private pruneOlderTools(agent: Agent, measurement: TokenMeasurement): boolean {
+  private pruneOlderTools(agent: Agent, measurement: TokenMeasurement, window:number): boolean {
     const pruner = this.ctx.get('toolResultPruner') as unknown as {
       supportsProtectedSeqs?: boolean
       pruneSession(session: Agent['session'], options: { protectedSeqs: ReadonlySet<SessionSeq> }): { pruned: readonly unknown[] }
@@ -416,7 +417,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     // turn; its user-message checkpoint remains valid without tool pruning.
     const turn = agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
     if (turn?.type !== 'turn/start') return false
-    const recentBudget = Math.min(this.ctx.contextManager.snapshot().recentTokens, Math.max(1000, measurement.totalTokens * 0.2))
+    const recentBudget = Math.min(capacityTokens(this.transactionPolicies.get(agent) ?? this.ctx.contextManager.snapshot(), window).recent, Math.max(1000, measurement.totalTokens * 0.2))
     let recent = 0
     const recentSeqs = new Set<SessionSeq>()
     for (let index = measurement.nodes.length - 1; index >= 0 && recent < recentBudget; index--) {
@@ -447,7 +448,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     if (!window) throw new Error('当前模型未提供上下文窗口')
     const limits = budget(policy, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
     let measure = this.ctx.tokenMeter.measure(agent.session)
-    if (!this.emergencyIntent.has(agent) && this.pruneOlderTools(agent, measure)) {
+    if (!this.emergencyIntent.has(agent) && this.pruneOlderTools(agent, measure, limits.window)) {
       this.idlePruned.get(agent)?.()
       await this.ctx.sessions.flush(agent.session)
       signal.throwIfAborted()
@@ -483,7 +484,7 @@ export default class ContextEngine extends BasicCompactionEngine {
       protected: protectedUsers.has(node.seq) || session.eventAt(node.seq)?.type === 'system/message',
       balancedBefore: toolPairingBalancedBefore(session, node.seq), balancedAfter: toolPairingBalancedAfter(session, node.seq),
     })), { total: m.totalTokens, admission: state.budget.admission, hard: state.budget.hard,
-      recentTokens: Math.min(state.policy.recentTokens, Math.floor(state.budget.hard * 0.2)), summaryTokens: summaryBudget, overflow,
+      recentTokens: Math.min(state.budget.recentTokens, Math.floor(state.budget.hard * 0.2)), summaryTokens: summaryBudget, overflow,
       ...(state.policy.historyMode === 'custom' ? { target: state.budget.target } : {}) })
     if (!plan) { this.plans.delete(agent); return }
     this.plans.set(agent, plan)
@@ -661,7 +662,7 @@ export default class ContextEngine extends BasicCompactionEngine {
   }
 
   private summaryCap(policy: Readonly<Policy>, window: number): number {
-    return Math.min(policy.summaryMaxTokens, Math.max(1, Math.floor(window * 0.1)))
+    return Math.min(capacityTokens(policy, window).summary, Math.max(1, Math.floor(window * 0.1)))
   }
 
   /** Live compaction phase for the read-only status RPC; released on disposal. */
@@ -854,6 +855,7 @@ export default class ContextEngine extends BasicCompactionEngine {
     activeSignal.throwIfAborted()
     const summaryCap = Math.min(this.summaryCap(policy, info.context.contextWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
     const maxTokens = Math.min(summaryCap, config.maxTokens ?? Infinity)
+    if(policy.capacityMode==='percent'&&maxTokens<256)throw new Error('当前窗口下摘要百分比额度不足以生成安全摘要，原文保留；未调用模型')
     const start = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/start')
     if (start?.type !== 'compaction/start' && this.emergencyIntent.get(agent)?.kind!=='prepare') throw new Error('缺少压缩操作记录')
     const sessionId = String(agent.id)
@@ -924,7 +926,8 @@ export default class ContextEngine extends BasicCompactionEngine {
         if (!expected) throw new Error(`摘要结构无效（${error.classification.reason}），格式修复不适用，摘要未应用，原始记录保留`)
         phase.phase = 'repairing'
         phase.message = '摘要格式修复中（仅重发失败输出，不重发历史）'
-        const repairMaxTokens = Math.min(policy.formatRepairMaxTokens, maxTokens)
+        const repairMaxTokens = Math.min(capacityTokens(policy, info.context.contextWindow).repair, maxTokens)
+        if (policy.capacityMode === 'percent' && repairMaxTokens < 256) throw new Error('当前窗口下格式修复百分比额度不足，原文保留；未调用修复模型')
         const repairMessage = createUserMessage({ content: [{ type: 'text', text: repairInstruction(primaryText, error.classification.reason || this.reasonOf(error)) }], source: { kind: 'user' } })
         // The complete repair request must fit the real window with its output
         // reserve and safety space; an oversized request is rejected whole,

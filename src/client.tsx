@@ -16,7 +16,7 @@ import { ContextInspectorView, type ContextViewInjected } from './inspector-view
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
 import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi } from './inspector-types.ts'
 import { TYPERT_REMOTE } from './inspector-wire.ts'
-import { defaults, budget, validatePolicy, type Policy } from './policy.ts'
+import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
 import type { IdleStatus } from './idle-types.ts'
 import css from './client.css'
 export { ContextReadout } from './overview.tsx'
@@ -91,11 +91,11 @@ export function ContextPage({ form }: { form: ConfigForm<Values> }) {
   </section>
 }
 
-const numericKeys = ['triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
+const numericKeys = ['recentPercent', 'summaryPercent', 'repairPercent', 'triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
-  const normalized = { ...defaults, ...policy, summaryTimeoutMode: policy.summaryTimeoutMode ?? 'fixed' as const }
+  const normalized = normalizePolicy(policy)
   const fields = Object.fromEntries(numericKeys.map(key => [key, String(normalized[key])])) as Record<NumericKey, string>
   return { ...normalized, ...fields }
 }
@@ -113,7 +113,6 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [failed, setFailed] = useState(false)
-  const [exampleWindow, setExampleWindow] = useState(128000)
   useEffect(() => {
     if (!dirty && accepted.value) { setDraft(toDraft(accepted.value.policy)); setRevision(accepted.revision) }
   }, [accepted, dirty])
@@ -121,7 +120,6 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
   const policy = toPolicy(draft)
   let invalid = ''
   try { validatePolicy(policy) } catch (error) { invalid = error instanceof Error ? error.message : String(error) }
-  const preview = invalid || !Number.isSafeInteger(exampleWindow) || exampleWindow <= 0 ? undefined : budget(policy, exampleWindow, Math.ceil(exampleWindow * 0.08))
   const disabled = !accepted.writable || saving || accepted.status !== 'ready'
   async function save() {
     if (disabled || !dirty || invalid) return
@@ -146,9 +144,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     <div className="cm-row"><span>{label}</span><Switch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
     <p className="cm-hint">{hint}</p>
   </div>
-  const admissionLabel = preview ? preview.admissionSource === 'absolute' ? '绝对软预算' : preview.admissionSource === 'hard' ? '硬上限' : '百分比' : ''
   const automatic = policy.historyMode === 'automatic'
-  const targetLabel = preview ? preview.targetSource === 'absolute' ? '绝对占用上限' : preview.targetSource === 'admission' ? '准入空间限制' : '百分比占用上限' : ''
   return <section aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
     <SettingsForm labels={{ unavailable: '正在读取上下文设置…', readOnly: '当前连接不支持保存设置。', saveFailed: feedback, save: '保存设置', saving: '保存中…' }}
@@ -176,11 +172,10 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           ? '保留受保护任务、有界近期原文与滚动检查点。压后总占用按实际内容计算，不使用保存的百分比或绝对占用上限；旧值仍保留。'
           : '在工作集规划上增加压后总占用上限。必要指令和当前任务不能为满足上限而被删除；无法达到时说明原因并保留任务。切回自动工作集不会删除这些设置。'}</p>
         {!automatic && numeric('targetPercent', '压后占用上限（%）', '按真实完整窗口计算；须比检查阈值至少低 10 个百分点，输出预留可能进一步降低有效上限。', !draft.enabled)}
-        {toggle('absoluteEnabled', '绝对工作历史软预算', automatic
-          ? '按会话当前实际占用 Token 设置独立的软触发，与百分比、输出预留和窗口硬约束取更保守值。自动工作集不使用保存的绝对占用上限。'
-          : '设置独立的软触发与压后占用上限，分别与百分比及窗口约束取更保守值。不修改模型窗口声明。', !draft.enabled)}
-        {numeric('absoluteTriggerTokens', '绝对软触发（Token）', '以会话当前实际占用 Token 为单位，达到后即先压缩，即使百分比门槛尚未满足。', !draft.enabled || !draft.absoluteEnabled)}
-        {!automatic && numeric('absoluteTargetTokens', '绝对占用上限（Token）', '须比绝对软触发至少低 20%，并与百分比占用上限取更保守值。', !draft.enabled || !draft.absoluteEnabled)}
+        {draft.capacityMode !== 'percent' && <div role="status"><p className="cm-hint">旧配置兼容：原近期原文、摘要、修复及已启用的绝对预算继续执行。各会话按真实模型窗口显示实际百分比；此全局设置页不假定窗口。下方百分比尚未启用。</p>
+          <Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>改用下方百分比并解除旧绝对上限</Button>
+          <p className="cm-hint">保存后生效。模型窗口变化会改变实际额度；请先检查下方百分比。原配置值保留供回退，旧费用和恢复额度不变。</p></div>}
+        {draft.capacityMode === 'percent' && <p className="cm-hint">容量按每次请求的真实模型窗口计算；不再使用旧绝对上限。输出仍受模型限制及摘要、修复的协议安全上限约束。小窗口向下取整，不扩大额度。各会话显示实际有效百分比。</p>}
         {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
         {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
         <div className="cm-native-presets" role="group" aria-label="工具结果精简模式">
@@ -191,7 +186,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
         <p className="cm-hint">工具结果精简：关闭时不介入；观察模式只按规则测算并记录，不改动宿主工具结果；安全精简在确认最终结果保留短文后发布，未确认的引用不计入成果。字符阈值是可见文本长度，不是 Token 口径。引用原文长期保留，卸载不会删除；本版没有清理动作或配额设置。</p>
         {toggle('prefixDiagnosticsEnabled', '请求前缀指纹诊断', '只读采集并比较请求前缀（系统指令、工具定义与顺序）的指纹，用于说明前缀变化；关闭只停止这项诊断，不删除任何业务用量。', !draft.enabled)}
         <details className="cm-native-advanced"><summary>高级设置</summary>
-          {numeric('recentTokens', '近期原文预算（Token）', '可设 1,000–128,000，推荐验证起点为 20,000。指令、受保护当前任务及检查点另计；这是近期原文预算，不是压后总量。', !draft.enabled)}
+          {numeric('recentPercent', '近期原文预算（%）', '按真实模型窗口计算；指令、受保护任务及检查点另计。仍受窗口安全空间和近期原文安全上限约束。', !draft.enabled || draft.capacityMode !== 'percent')}
           {numeric('idleMinPercent', '闲置压缩最低占用（%）', automatic
             ? `当前按 ${policy.idleMinPercent || '—'}% 检查，不受保存的压后占用上限影响。实际门槛不会超过请求准入线。`
             : `实际至少高于自定义占用上限 10 个百分点；当前为 ${Math.max(policy.idleMinPercent, policy.targetPercent + 10) || '—'}%，并受请求准入线限制。`)}
@@ -205,10 +200,10 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('archiveSearchLimit', '搜索原文结果上限（条）', '一次搜索最多返回多少条已存原文命中，超出部分需要收窄关键词。可设 1–8。', !draft.enabled)}
           {numeric('earlyPercent', '提前检查空间（%）', '推荐 1%。为新任务与估算误差提前留出空间。')}
           {numeric('safetyPercent', '窗口安全空间（%）', '推荐 2%，在模型输出预留之外保留。')}
-          {numeric('summaryMaxTokens', '摘要输出上限（Token）', '摘要沿用当前会话实际使用的模型和推理级别。')}
+          {numeric('summaryPercent', '摘要输出上限（%）', '按真实模型窗口计算，沿用当前模型与推理级别；实际输出上限可能更低。', draft.capacityMode !== 'percent')}
           {numeric('maxPasses', '每个请求最多压缩次数', '可设 1 或 2。闲置整理只尝试一次，没有新增任务不会重复整理。')}
           {toggle('formatRepairEnabled', '摘要格式修复', '摘要结构校验失败时，仅把失败输出与结构要求重发一次（不重发历史）。关闭后格式失败直接保留原文并终止。', !draft.enabled)}
-          {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）', '修复请求的输出上限；其输入只包含有界失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled)}
+          {numeric('repairPercent', '格式修复输出上限（%）', '按真实模型窗口计算，并且不超过本次摘要输出上限。输入仅包含失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled || draft.capacityMode !== 'percent')}
           <div role="group" aria-label="压缩时限模式">
             {(['fixed', 'adaptive'] as const).map(summaryTimeoutMode => <Button key={summaryTimeoutMode} size="sm" aria-pressed={draft.summaryTimeoutMode === summaryTimeoutMode} disabled={disabled} onClick={() => edit({ summaryTimeoutMode })}>{summaryTimeoutMode === 'fixed' ? '固定总时限' : '按输出进展等待'}</Button>)}
           </div>
@@ -218,12 +213,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
             {numeric('summaryFirstOutputMs', '首个有效输出等待（毫秒）', '每次调用重新计时；空数据和用量不算进展。')}
             {numeric('summaryStallMs', '输出停滞上限（毫秒）', '仅非空正文或思考增量续期，仍受硬总限约束。')}
           </>}
-          <div className="cm-native-example"><label htmlFor="context-manager-example">触发示例窗口（Token）</label><Input id="context-manager-example" type="number" min="1000" step="1000" value={exampleWindow} onChange={e => setExampleWindow(Number(e.target.value))}/>
-            <p className="cm-hint">{preview ? automatic
-              ? `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}）。自动工作集的近期原文预算为 ${preview.recentTokens.toLocaleString()} Token，压后总量取决于受保护内容与检查点。`
-              : `约 ${preview.admission.toLocaleString()} Token 开始检查（${admissionLabel}），有效压后占用上限约 ${preview.target.toLocaleString()} Token（${targetLabel}）。`
-              : '填写有效参数后查看示例。'} 示例假设输出预留 8%，执行按实际模型计算。</p>
-          </div>
+
         </details>
         {invalid && <p role="alert" className="cm-error">{invalid}</p>}
         <div className="cm-actions"><Button size="sm" onClick={reload}>重新载入</Button><Button size="sm" onClick={() => edit(toDraft(defaults))}>恢复全部推荐值</Button></div>

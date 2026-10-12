@@ -4,7 +4,7 @@ import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/t
 import type {} from '@deepseek-ai/dsh-token-meter/client'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ContextDiagnostics } from './diagnostics-types.ts'
-import type { Policy } from './policy.ts'
+import { formatPercent, capacityTokens, type Policy } from './policy.ts'
 
 const number = (value: number | undefined) => value === undefined ? '—' : Math.round(value).toLocaleString()
 const time = (value: number) => new Date(value).toLocaleString('zh-CN', { hour12: false })
@@ -50,32 +50,32 @@ export function ContextReadout({ values, policy }: { values: Readonly<Partial<Se
   const window = pressure?.contextWindow
   const occupancy = pressure?.projectedTokens
   const pct = occupancy !== undefined && window && window > 0 ? occupancy / window * 100 : undefined
-  const partTotal = parts ? parts.systemTokens + parts.toolsTokens + parts.messageTokens : 0
+
   const latest = diagnostic?.request
   return <>
     <div className="cm-field">
       <div className="cm-row"><span className="cm-label">上下文占用</span><strong className="cm-stat">{pct === undefined ? '—' : `${pct.toFixed(1)}%`}</strong></div>
-      <div className="cm-meter" role="meter" aria-label="上下文占用" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct === undefined ? undefined : Math.min(100, Math.max(0, pct))} aria-valuetext={pct === undefined ? '尚无用量数据' : `约 ${number(occupancy)} Token，占窗口 ${pct.toFixed(1)}%`}><span style={{ width: `${Math.min(100, Math.max(0, pct ?? 0))}%` }} /></div>
+      <div className="cm-meter" role="meter" aria-label="上下文占用" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct === undefined ? undefined : Math.min(100, Math.max(0, pct))} aria-valuetext={pct === undefined ? '尚无用量数据' : `占窗口 ${pct.toFixed(1)}%`}><span style={{ width: `${Math.min(100, Math.max(0, pct ?? 0))}%` }} /></div>
       <dl className="cm-facts">
-        <dt>当前占用（估算）</dt><dd>{occupancy === undefined ? '等待模型返回用量' : `≈ ${number(occupancy)} Token`}</dd>
-        <dt>模型上下文窗口</dt><dd>{window ? `${number(window)} Token` : '宿主尚未记录窗口'}</dd>
-        <dt>{pct !== undefined && pct > 100 ? '预计超出窗口' : '距窗口上限'}</dt><dd>{occupancy !== undefined && window ? `≈ ${number(Math.abs(window - occupancy))} Token` : '—'}</dd>
+        <dt>当前占用（估算）</dt><dd>{occupancy === undefined ? '等待模型返回用量' : `≈ ${formatPercent(occupancy,window)}`}</dd>
+        <dt>模型上下文窗口</dt><dd>{window ? '100%' : '宿主尚未记录窗口'}</dd>
+        <dt>{pct !== undefined && pct > 100 ? '预计超出窗口' : '距窗口上限'}</dt><dd>{occupancy !== undefined && window ? `≈ ${formatPercent(Math.abs(window - occupancy),window)}` : '—'}</dd>
         <dt>最近请求输入（实测）</dt><dd>{number(pressure?.pressureTokens)} Token</dd>
         <dt>最近组装的模型</dt><dd>{latest ? `${latest.provider} / ${latest.model}` : '暂无请求'}</dd>
         {latest?.effort && <><dt>推理级别</dt><dd>{latest.effort}</dd></>}
-        <dt>记录的输出预留</dt><dd>{latest?.maxTokens === undefined ? '未记录；执行时由实际路由确定' : `${number(latest.maxTokens)} Token`}</dd>
+        <dt>记录的输出预留</dt><dd>{latest?.maxTokens === undefined ? '未记录；执行时由实际路由确定' : `${formatPercent(latest.maxTokens,window)}`}</dd>
       </dl>
       <p className="cm-hint">占用读数与 DSH 使用同一数据源：最近输入实测值加上后续内容变化的估算。图像、中文与模型切换可能带来偏差；距窗口上限包含尚需预留的输出空间。</p>
-      <p className="cm-hint">{policy.enabled ? `已保存策略：${policy.triggerPercent}% 触发，提前 ${policy.earlyPercent}% 检查，${policy.historyMode === 'automatic' ? `自动工作集，近期原文偏好 ${number(policy.recentTokens)} Token` : `自定义占用上限 ${policy.targetPercent}%`}。输出预留与安全空间可能降低检查线；执行时按实际模型和完整请求确定。` : '自动压缩已关闭，超出安全窗口时暂停。'}</p>
+      <p className="cm-hint">{policy.enabled ? `已保存策略：${policy.triggerPercent}% 触发，提前 ${policy.earlyPercent}% 检查，${policy.historyMode === 'automatic' ? `自动工作集，近期原文偏好 ${window ? formatPercent(capacityTokens(policy,window).recent,window) : '—'}` : `自定义占用上限 ${policy.targetPercent}%`}。输出预留与安全空间可能降低检查线；执行时按实际模型和完整请求确定。` : '自动压缩已关闭，超出安全窗口时暂停。'}</p>
     </div>
     <div className="cm-field">
       <h3 className="cm-subtitle">上下文由什么组成</h3>
       {parts ? <div className="cm-breakdown">{([
         ['系统指令', parts.systemTokens], ['工具定义', parts.toolsTokens], ['消息与工具结果', parts.messageTokens],
-      ] as const).map(([label, tokens]) => <div key={label}><div className="cm-row"><span>{label}</span><span>≈ {number(tokens)} Token</span></div><div className="cm-meter cm-meter-small" aria-hidden="true"><span style={{ width: `${partTotal ? tokens / partTotal * 100 : 0}%` }} /></div></div>)}</div> : <p className="cm-hint">等待宿主提供组成数据。</p>}
+      ] as const).map(([label, tokens]) => <div key={label}><div className="cm-row"><span>{label}</span><span>≈ {formatPercent(tokens,window)}</span></div><div className="cm-meter cm-meter-small" aria-hidden="true"><span style={{ width: `${window ? Math.min(100,tokens / window * 100) : 0}%` }} /></div></div>)}</div> : <p className="cm-hint">等待宿主提供组成数据。</p>}
       <p className="cm-hint">这三项按文本密度估算，用于比较组成；相加不等于上面的模型用量。工具结果与历史消息均计入消息项。</p>
       {diagnostic && <details className="cm-detail"><summary>工具定义占用 · {diagnostic.tools.count} 个工具</summary>
-        {diagnostic.tools.top.length ? <ol className="cm-tool-list">{diagnostic.tools.top.map((tool, index) => <li key={`${index}:${tool.name}`}><code>{tool.name}</code><span>≈ {number(tool.tokens)}</span></li>)}</ol> : <p className="cm-hint">最近记录的请求未包含工具定义。</p>}
+        {diagnostic.tools.top.length ? <ol className="cm-tool-list">{diagnostic.tools.top.map((tool, index) => <li key={`${index}:${tool.name}`}><code>{tool.name}</code><span>≈ {formatPercent(tool.tokens,window)}</span></li>)}</ol> : <p className="cm-hint">最近记录的请求未包含工具定义。</p>}
         <p className="cm-hint">按定义长度列出最多 8 项，不包含工具执行返回的内容。可优先检查不常用或重复的工具；此页不会自动停用工具。</p>
       </details>}
     </div>
@@ -84,7 +84,7 @@ export function ContextReadout({ values, policy }: { values: Readonly<Partial<Se
       {!diagnostic ? <p className="cm-hint">等待诊断数据。若持续未显示，请确认当前 profile 已加载新版插件。</p> : !diagnostic.compactions.length ? <p className="cm-hint">这段会话还没有压缩或裁剪记录。</p> : <ol className="cm-history">{[...diagnostic.compactions].reverse().map(entry => <li key={entry.id}>
         <div className="cm-row"><span>{entry.kind === 'prune' ? '裁剪' : entry.manual ? '手动压缩' : '任务内压缩'}</span><span>{statuses[entry.status]}</span></div>
         <p className="cm-hint">{time(entry.startedAt)}{entry.endedAt === undefined ? '' : ` · ${Math.max(0, (entry.endedAt - entry.startedAt) / 1000).toFixed(1)} 秒`}</p>
-        {entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p className="cm-record-result">被替换内容：≈ {number(entry.beforeTokens)} → {number(entry.afterTokens)} Token{entry.beforeTokens > entry.afterTokens ? `，减少约 ${number(entry.beforeTokens - entry.afterTokens)}` : '，未缩减'}{entry.messages === undefined ? '' : ` · ${entry.messages} 条消息`}</p>}
+        {entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p className="cm-record-result">被替换内容：本次替换片段（压缩前=100%）：{formatPercent(entry.beforeTokens,entry.beforeTokens)} → {formatPercent(entry.afterTokens,entry.beforeTokens)}{entry.beforeTokens > entry.afterTokens ? `，减少 ${formatPercent(entry.beforeTokens-entry.afterTokens,entry.beforeTokens)}` : '，未缩减'}{entry.messages === undefined ? '' : ` · ${entry.messages} 条消息`}</p>}
         {entry.status === 'failed' && entry.applied && <p className="cm-hint">内容已替换，但后续收尾失败；不能视为已回滚。</p>}
         {entry.error && <p className="cm-record-error">{entry.error}</p>}
       </li>)}</ol>}

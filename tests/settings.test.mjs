@@ -248,7 +248,7 @@ test('read-only view hides only its own composer, restores drafts and reads only
     assert.equal(reads, 1, 'explicit expansion fetches only the selected body')
     assert.equal(document.querySelectorAll('.cmv-legend > button').length, 4)
     assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
-    assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 10 Token · 50%/)
+    assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 50.00%/)
     await click('全部记录'); assert.equal(document.querySelectorAll('.cmv-events > li').length, 4)
     assert.match(document.querySelector('.cmi-body').textContent, /read-only content/)
     await click('收起当前有效内容'); assert.equal(document.querySelector('#cmi-content-panel'), null)
@@ -509,7 +509,7 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
-test('current context shows one full 1M window and every K bucket without a basis switch', async () => {
+test('current context shows full-window percentages and keeps all original bucket measures', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
@@ -528,8 +528,8 @@ test('current context shows one full 1M window and every K bucket without a basi
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'capacity', form, api, pulse })))
     await act(async () => ready)
     const card = document.querySelector('.cmv-composition')
-    assert.equal(card.querySelector('.cmv-number strong').textContent,'≈ 320K')
-    assert.equal(card.querySelector('.cmv-number span').textContent,'/ 1M Token')
+    assert.equal(card.querySelector('.cmv-number strong').textContent,'≈ 32.00%')
+    assert.equal(card.querySelector('.cmv-number span').textContent,'/ 100%')
     assert.ok(card.querySelector('.cmv-context-title .cmv-model'))
     assert.equal(card.querySelector('.cmv-capacity-stack').dataset.capacity,'1000000')
     assert.equal(card.querySelector('[data-color="free"]').style.width,'47%')
@@ -538,10 +538,10 @@ test('current context shows one full 1M window and every K bucket without a basi
     assert.equal(card.querySelector('[data-color="other"]').style.width,'2%')
     assert.equal(card.querySelectorAll('.cmv-capacity-stack').length,1)
     assert.equal(card.querySelectorAll('[aria-pressed]').length,0,'no hidden full-window toggle')
-    assert.deepEqual([...card.querySelectorAll('.cmv-key')].map(node=>node.textContent),['记忆摘要30K3.0%','工具结果200K20.0%','对话消息50K5.0%','指令与定义20K2.0%','其他占用20K2.0%','未占用470K47.0%','压缩预留210K21.0%'])
+    assert.deepEqual([...card.querySelectorAll('.cmv-key')].map(node=>node.textContent),['记忆摘要3.00%','工具结果20.00%','对话消息5.00%','指令与定义2.00%','其他占用2.00%','未占用47.00%','压缩预留21.00%'])
     assert.equal(card.querySelector('[data-color="summary"]').style.width,'3%','retained memory keeps its actual share of the window')
     assert.match(card.querySelector('[data-slice="summary"]').title,/属于已用内容/)
-    assert.match(card.querySelector('[data-slice="reserve"]').title,/检查线 790K/)
+    assert.match(card.querySelector('[data-slice="reserve"]').title,/检查线 79\.00%/)
     assert.equal(card.querySelectorAll('.cmv-key:disabled').length,3,'unclassified usage, free space and reserve are not content filters')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
@@ -569,8 +569,8 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     await render({ ...base, admission: reading })
     assert.match(status().textContent, /预计先压缩，再执行/)
     assert.equal(status().querySelector('[data-admission-tokens]').dataset.admissionTokens, '170000')
-    assert.match(status().textContent, /检查线 158\.0K/)
-    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /100,000/)
+    assert.match(status().textContent, /检查线 79\.00%/)
+    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /50\.00%/)
     assert.match(document.querySelector('.cmv-meta').textContent, /自动工作集/)
     assert.doesNotMatch(document.querySelector('.cmv-meta').textContent, /目标 55%/)
     await render({ ...base, pressure: { ...base.pressure, projected: 190000 }, admission: { ...reading, tokens: 50000 } })
@@ -581,98 +581,50 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.match(status().textContent, /等待完整参数/)
       assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
       assert.match(status().textContent, /检查线 —/)
+      if(snapshot.admission?.window===null)assert.equal(document.querySelector('.cmv-composition .cmv-number strong').textContent,'≈ —','current unknown route cannot borrow old pressure window')
     }
-    await render({ ...base, admission: reading, historical: true })
+    await render({...base,admission:{...reading,window:1000000}})
+    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
+    await render({ ...base, pressure:null, admission: reading, historical: true, rows:[{id:'past',seq:1,title:'historical row',category:'user',current:true,source:'fixture',tokens:20000,images:0}], total:1 })
+    assert.match(document.querySelector('.cmv-content').textContent,/10\.00%/,'historical preview uses cut window, not current admission or null pressure')
     assert.match(status().textContent, /历史截面/)
     assert.match(status().textContent, /准入计量 未知/)
     assert.equal(status().querySelector('[data-admission-tokens]'), null)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
-test('settings renders the absolute soft budget and repair controls with explainable preview and validation', async () => {
-  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
-  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
-  const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
-  const root = createRoot(document.getElementById('root'))
-  try {
-    await act(async () => root.render(React.createElement(client.ContextPage, { form })))
-    const trigger = document.querySelector('#context-manager-absoluteTriggerTokens')
-    const repair = document.querySelector('#context-manager-formatRepairMaxTokens')
-    assert.ok(trigger && repair, 'trigger and repair controls render in automatic mode')
-    assert.equal(document.querySelector('#context-manager-targetPercent'), null)
-    assert.equal(document.querySelector('#context-manager-absoluteTargetTokens'), null, 'inactive saved caps are hidden')
-    assert.equal(trigger.disabled, true, 'absolute fields start blocked until the strategy is enabled')
-    const toggle = [...document.querySelectorAll('.cm-row')].find(row => row.textContent.includes('绝对工作历史软预算'))?.querySelector('button[role="switch"]')
-    assert.ok(toggle, 'absolute budget toggle renders')
-    await act(async () => toggle.click())
-    assert.equal(trigger.disabled, false)
-    // The example window must exceed the absolute trigger for it to bind.
-    await act(async () => Simulate.change(document.querySelector('#context-manager-example'), { target: { value: '1000000' } }))
-    await act(async () => Simulate.change(trigger, { target: { value: '200000' } }))
-    assert.match(document.querySelector('.cm-native-example .cm-hint').textContent, /自动工作集.*20,000/)
-    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '自定义占用上限').click())
-    const target = document.querySelector('#context-manager-absoluteTargetTokens')
-    assert.ok(target)
-    assert.equal(target.disabled, false)
-    await act(async () => Simulate.change(target, { target: { value: '100000' } }))
-    const preview = document.querySelector('.cm-native-example .cm-hint').textContent
-    assert.match(preview, /绝对软预算/)
-    assert.match(preview, /200,000/)
-    await act(async () => Simulate.change(target, { target: { value: '170000' } }))
-    assert.match(document.querySelector('.cm-error')?.textContent ?? '', /至少低 20%/)
-  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+test('percentage settings require explicit legacy migration, preserve old fields and validate percent input',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'})
+ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
+ const {capacityMode,recentPercent,summaryPercent,repairPercent,...legacy}=defaults
+ let snapshot={status:'ready',writable:true,mode:'host',revision:12,value:{policy:{...legacy,absoluteEnabled:true,absoluteTriggerTokens:200000,absoluteTargetTokens:120000}}}
+ const writes=[],listeners=new Set()
+ const form={subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)},getSnapshot:()=>snapshot,async mutate(ops,revision){writes.push({ops,revision});snapshot={...snapshot,revision:snapshot.revision+1,value:{policy:ops[0].value}};listeners.forEach(cb=>cb());return true}}
+ const root=createRoot(document.getElementById('root'))
+ const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
+ const click=async label=>act(async()=>button(label).click())
+ const edit=async(key,value)=>act(async()=>Simulate.change(document.getElementById(`context-manager-${key}`),{target:{value}}))
+ try{
+  await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
+  assert.match(document.body.textContent,/旧配置兼容/)
+  assert.equal(document.getElementById('context-manager-recentPercent').disabled,true)
+  assert.equal(document.getElementById('context-manager-example'),null,'no guessed model denominator')
+  await click('提前整理 · 70%');await click('保存设置')
+  assert.equal(writes[0].ops[0].value.capacityMode,'legacy','ordinary save never migrates')
+  assert.equal(writes[0].ops[0].value.absoluteTriggerTokens,200000)
+  await click('改用下方百分比并解除旧绝对上限')
+  assert.equal(writes.length,1,'explicit switch still requires native save')
+  assert.equal(document.getElementById('context-manager-recentPercent').disabled,false)
+  for(const value of ['', '0', '51']){await edit('recentPercent',value);assert.equal(button('保存设置').disabled,true)}
+  await edit('recentPercent','12.5');await edit('summaryPercent','3.5');await click('保存设置')
+  assert.equal(writes[1].revision,13);assert.equal(writes[1].ops[0].value.capacityMode,'percent')
+  assert.equal(writes[1].ops[0].value.recentPercent,12.5)
+  assert.equal(writes[1].ops[0].value.summaryPercent,3.5)
+  assert.equal(writes[1].ops[0].value.absoluteTriggerTokens,200000,'old fields retained but explicitly deactivated')
+  assert.equal(writes[1].ops[0].value.absoluteTargetTokens,120000)
+ }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
 })
 
-test('settings migrates a legacy draft, preserves custom caps across modes and validates the recent-history budget', async () => {
-  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
-  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const { historyMode, recentTokens, ...legacy } = defaults
-  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 12,
-    value: { policy: { ...legacy, targetPercent: 45, absoluteEnabled: true, absoluteTargetTokens: 120000 } } }
-  const listeners = new Set(); const writes = []
-  const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
-    async mutate(ops, revision) {
-      writes.push({ ops, revision }); snapshot = { ...snapshot, revision: 13, value: { policy: ops[0].value } }
-      listeners.forEach(cb => cb()); return true
-    } }
-  const root = createRoot(document.getElementById('root'))
-  const button = label => [...document.querySelectorAll('button')].find(node => node.textContent === label)
-  const click = async label => act(async () => button(label).click())
-  const edit = async (key, value) => act(async () => Simulate.change(document.getElementById(`context-manager-${key}`), { target: { value } }))
-  try {
-    await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
-    assert.equal(button('自动工作集').getAttribute('aria-pressed'), 'true')
-    assert.equal(document.getElementById('context-manager-recentTokens').value, '20000')
-    assert.equal(document.getElementById('context-manager-targetPercent'), null)
-    await click('提前整理 · 70%')
-    await click('自定义占用上限')
-    assert.equal(document.getElementById('context-manager-targetPercent').value, '45')
-    assert.equal(document.getElementById('context-manager-absoluteTargetTokens').value, '120000')
-    await edit('targetPercent', '50'); await edit('absoluteTargetTokens', '130000')
-    for (const invalid of ['999', '128001', '20000.5', '']) {
-      await edit('recentTokens', invalid)
-      assert.equal(button('保存设置').disabled, true, `invalid recent-history budget: ${invalid}`)
-      assert.ok(document.querySelector('[role="alert"]'))
-      assert.equal(writes.length, 0)
-    }
-    await edit('recentTokens', '24000')
-    await click('自动工作集')
-    assert.equal(document.getElementById('context-manager-targetPercent'), null)
-    assert.equal(document.getElementById('context-manager-absoluteTargetTokens'), null)
-    await click('保存设置')
-    assert.equal(writes.length, 1)
-    assert.equal(writes[0].revision, 12)
-    assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
-    assert.equal(writes[0].ops[0].value.recentTokens, 24000)
-    assert.equal(writes[0].ops[0].value.targetPercent, 50)
-    assert.equal(writes[0].ops[0].value.absoluteTargetTokens, 130000)
-    assert.equal(writes[0].ops[0].value.absoluteEnabled, true, 'automatic mode preserves the independent absolute trigger')
-    await click('自定义占用上限')
-    assert.equal(document.getElementById('context-manager-targetPercent').value, '50')
-    assert.equal(document.getElementById('context-manager-absoluteTargetTokens').value, '130000')
-  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
-})
 test('settings expose the tool-result mode, thresholds and prefix switch with legacy fill-in and invalid empty numbers', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
