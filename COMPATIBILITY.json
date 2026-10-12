@@ -1,7 +1,8 @@
 {
   "harnessVersion": "0.2.0-rc.2",
   "verifiedHarnessVersions": [
-    "0.2.0-rc.2"
+    "0.2.0-rc.2",
+    "0.2.1-alpha.2"
   ],
   "sourceSha": "639ed015397290b3745d163aafe02ffee4aa3f84",
   "sources": [
@@ -38,7 +39,7 @@
     "forkInheritedOriginals": "A forked session may read back only the originals granted inside its inherited prefix, bounded by boundary validity, reference count, scanned events and a total-log cap checked before the observation is materialised."
   },
   "verification": {
-    "distribution": "0.10.0-local.2 automatic compaction repair candidate. Exact evidence: verification/context-auto-20261009/codex-receiver/READY.md. Enhanced SDK, legacy SDK, native UI and real-model acceptance are separate. Not installed. Back up the new operations domain; old runtimes cannot enforce its permits.",
+    "distribution": "0.10.0-local.6 overlay-only compatibility candidate for Host 0.2.1-alpha.2.20261012.1. Exact evidence: verification/cwd-template-20261012/READY.md. Runtime libs remain the frozen local.5 bytes; only the overlay and metadata changed. Not installed, not published.",
     "platformsTested": [
       "macOS Intel (x64)"
     ],
@@ -51,5 +52,41 @@
     "realProviderCompactionTested": false,
     "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit.",
     "sdkUsedForFullRegression": "Enhanced combined SDK at /Users/missher/Documents/Deepseek-harness-Cordis/coordination/2026-10-07/context-long-task/context-receiver/combined-sdk-r1 (BINDING.json sha256 ef82a169ccd0c8ed2a77ff85a10fe481360e47c40bf6a73acb82fdc5a58901e1); the isolated legacy stage keeps the naturally linked older SDK."
-  }
+  },
+  "desktopHarnessVersion": "0.2.1-alpha.2.20261012.1",
+  "overlay": {
+    "revision": "0.10.0-local.6",
+    "scope": "Overlay-only compatibility revision. The 16 runtime lib files stay byte-identical with the frozen 0.10.0-local.5 candidate.",
+    "deprecatedPersonaSuffix": "Your working directory is {{cwd}}.",
+    "normalization": "scripts/generate-overlay.mjs strips the deprecated suffix clause from persona configs, preserves unrelated suffix prose, and fails closed if any {{cwd}} reference survives generation.",
+    "runtimeEngine": "Engine diagnostics and behavior remain the frozen local.5 build; src/engine.ts and src/summary-operations.ts are not re-versioned or changed.",
+    "cwdContext": "The working-directory service still supplies the literal working-directory:current runtime context. 0.2.1-alpha.2 registers only the provider and model prompt variables, so the removed clause could never resolve."
+  },
+  "newHost": {
+    "desktopVersion": "0.2.1-alpha.2.20261012.1",
+    "presetHostVersion": "0.2.1-alpha.2",
+    "registeredPromptVariables": [
+      "provider",
+      "model"
+    ],
+    "templateVerification": "Real @deepseek-ai/dsh-system-prompt 0.2.1-alpha.2 assembly with the shipped persona rows, no model call; old local.5 suffix reproduced unknown prompt variable {{cwd}} mapped to code UNKNOWN.",
+    "presetBaselineDelta": {
+      "hostAdds": [
+        "time-context",
+        "@deepseek-ai/dsh-tool-schedule"
+      ],
+      "hostRemoves": [
+        "tool-subagent-codex",
+        "tool-subagent-claude-code",
+        "tool-ralph"
+      ],
+      "hostChanges": [
+        "plan-mode.section",
+        "tool-subagent.config.toolFilter",
+        "tool-subagent-fork.config.toolFilter"
+      ],
+      "note": "The overlay keeps the frozen rc.2 preset snapshot except for the deprecated cwd suffix. These 0.2.1-alpha.2 preset additions, removals and edits are recorded as limitations and are intentionally not carried by this overlay-only fix."
+    }
+  },
+  "sourcesNote": "Fingerprints record the rc.2 preset-source baseline of the frozen local.5 overlay. That old SDK checkout is no longer resolvable on this host (the installed runtime is 0.2.1-alpha.2); tests/fixtures/context-local.5-cordis.patch.yml (sha256 dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69) is the frozen baseline used for the strict comparison."
 }

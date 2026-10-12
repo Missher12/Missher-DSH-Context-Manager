@@ -1,9 +1,9 @@
 {
-  "version": "0.10.0-local.5",
+  "version": "0.10.0-local.6",
   "date": "2026-10-12",
   "scope": "source and matching frozen runtime; no release or installation implied",
   "sourceBase": "55fa6718f8f1d3abfc81daddbc248ee53a734377",
-  "frozenPackageSha256": "d0fab43c0feae895044eb1a732d248d36669eb0e813ab511db42fc2d4ac158ff",
+  "frozenPackageSha256": "78184ea8d067a97ee6d791fc23fb4e0966fe1f4702e4fddf8307b773c219455e",
   "runtimeFiles": {
     "lib/archive.js": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
     "lib/chart-data.js": "3f266d31e2af0a169a5dc47dce897ec2e078282f60d1ea9f642a999f5f43dfff",
@@ -22,6 +22,12 @@
     "lib/typert.js": "a8e8bcbe8843ea92ea23ec9cb41a7252aba24ff42c6666498f6fadf4d7e5119e",
     "lib/working-set.js": "99e109cdd6a06292ee05a7a399be88efad4de34629854c5abd647bf417bbb879"
   },
-  "validation": "源码定向51项、实际SDK105项通过，冻结包通过新版Host加载与组合检查；原生设置迁移、安装及真实供应商效果另行验收。",
-  "publicExportAdjustments": "Publication docs and local path placeholders only; product source and runtime unchanged."
+  "validation": "最终源码与包字节接受；8项定向测试通过。真实 SystemPrompt 组件验证及旧包负例通过；完整Host/Loader、真实模型和安装另验。",
+  "publicExportAdjustments": "PUBLICATION.md, GIT_DELIVERY.json and README navigation only; product source and frozen runtime unchanged.",
+  "gitParent": "9e669f86d9b6c547f05f6b1bfb691abdd8807791",
+  "revisionKind": "overlay-only",
+  "sourceManifestSha256": "228dde4fd0ac59d9eb8adced978b007af6d4f42de45d509e6acb83c3044737f3",
+  "frozenManifestSha256": "363fe93348af4e75bea42377a1769d4012db273a3f8e6e2e2db87b68eac4f422",
+  "sourceFileCount": 130,
+  "runtimeMatchesLocal5": true
 }

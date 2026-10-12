@@ -1,7 +1,14 @@
+[Desktop and all plugins](https://github.com/Missher12/Missher-DeepseekHarness-Desktop) · [Current Git delivery and verification limits](./PUBLICATION.md)
+
+# local.6 template-compatibility revision (2026-10-12)
+
+This is an overlay-only revision: it removes the three persona suffixes copied from rc.2 (`Your working directory is {{cwd}}.`) that 0.2.1-alpha.2 no longer registers. That host registers only provider/model; the working-directory service still supplies the literal working-directory:current runtime context, so no directory semantics are lost and no custom prompt widens permissions. The generator strips the deprecated clause only from persona suffixes, preserves unrelated prose, and fails closed if any `{{cwd}}` reference survives; all three `{{model}}` references and every other preset field stay unchanged.
+
+The 16 runtime lib files remain byte-identical with frozen local.5 and `src/engine.ts`/`src/summary-operations.ts` are untouched; package version local.6 marks the overlay revision only and runtime engine diagnostics remain frozen local.5. This revision does not carry the alpha.2 time-context/tool-schedule additions or its plan-mode and tool-subagent toolFilter changes, so it makes no full-plugin alpha.2 compatibility claim; see COMPATIBILITY.json and `verification/cwd-template-20261012/READY.md`. Not installed, not published, no capacity migration or 90-second timeout change.
+
+The local.5 notes below are historical.
+
 # Percentage capacity candidate (local.5, 2026-10-12)
-
-Current Git delivery: **0.10.0-local.5**. Source and frozen runtime match; see [validation and installation limits](./PUBLICATION.md). Git sync does not update installed devices.
-
 
 New installations use 10% recent verbatim content, 4% summary output and 1% format-repair output, measured against each request's actual model window. Model/selection limits and protocol caps (128000/32768/8192 tokens) still apply. Rounding is downward; summary or repair allowances below 256 tokens stop the corresponding call. Unknown windows remain unknown.
 
@@ -19,7 +26,7 @@ This candidate was recovered from published commit 55fa6718f8f1d3abfc81daddbc248
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.4**, an automatic-compaction and compact-UI prerelease. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
+Package: `@missher/dsh-context-manager`. Source version: **0.10.0-local.6**, an overlay-only template-compatibility revision whose runtime engine bytes remain frozen 0.10.0-local.5. This is a Cordis Bundle, not a Codex or Claude Code implementation. It adds verified tool-result reduction with a read-only original archive, per-session usage attribution in the inspector, and the settings that drive them, on top of configurable absolute working-history budgets (disabled by default; 200k → 100k as a validation starting point), lossless wrapper normalization, at most one exact string-to-array format repair per transaction, and per-attempt usage accounting through cancellation and bounded late delivery. A valid JSON checkpoint alone does not establish semantic fidelity.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 

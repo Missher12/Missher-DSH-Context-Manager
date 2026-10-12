@@ -1,7 +1,14 @@
+[桌面与全部插件入口](https://github.com/Missher12/Missher-DeepseekHarness-Desktop) · [当前 Git 交付、验收与限制](./PUBLICATION.md)
+
+# 2026-10-12 local.6 新版模板兼容修订
+
+本次是 overlay-only 修订：删除三处从 rc.2 复制、在官方 0.2.1-alpha.2 未注册的 persona suffix `Your working directory is {{cwd}}.`。0.2.1-alpha.2 仅注册 provider/model；工作目录仍由 working-directory 服务以字面 working-directory:current runtime context 提供，因此删除该句不丢失目录语义，也未用自定义 prompt 放宽任何权限。生成器只在 persona suffix 中定向清理该废弃句、保留无关文本，并在任何 `{{cwd}}` 残留时 fail closed；三处 `{{model}}` 与其余 preset 字段保持原样。
+
+16 个运行 lib 与冻结 local.5 逐字节一致，`src/engine.ts`/`src/summary-operations.ts` 未改；包版本 local.6 只标示 overlay 修订，运行引擎诊断仍为冻结 local.5。本次不携带 alpha.2 新增的 time-context/tool-schedule，也不含其 plan-mode 文案与 tool-subagent toolFilter 调整，因此不能宣称全插件 alpha.2 全面兼容；差异清单见 COMPATIBILITY.json 与 `verification/cwd-template-20261012/READY.md`。未安装、未发布，未处理容量迁移或 90 秒时限。
+
+以下 local.5 说明为历史。
+
 # 2026-10-12 百分比容量候选（local.5）
-
-当前 Git 交付：**0.10.0-local.5**，包含匹配的源码与运行文件。[验证范围与安装说明](./PUBLICATION.md)。Git 同步不会自动更新已安装设备。
-
 
 上下文容量设置按每次请求的真实模型窗口换算。新安装默认近期原文 10%、摘要输出 4%、格式修复 1%；输出同时受模型、选区和协议安全上限限制（近期原文 128000、摘要 32768、修复 8192 Token），实际有效比例在会话页显示。小窗口向下取整；摘要或修复输出不足 256 Token 时不发起对应调用。未知窗口不猜测。
 
@@ -24,7 +31,7 @@ kind: "package-bundle"
 
 在 DeepSeek Harness 的会话中查看上下文组成、用量、压缩记录和摘要来源，并在模型请求前按阈值压缩历史。支持任务正常结束后的闲置整理；这项能力需要下文列出的宿主接口。
 
-包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.10.0-local.4**（自动压缩修复与紧凑界面预发布）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
+包名为 `@missher/dsh-context-manager`，当前源码版本为 **0.10.0-local.6**（overlay-only 新版模板兼容修订；运行引擎沿用冻结 local.5）。这是可单独安装的 Cordis Bundle，不是桌面应用，也不是 Codex 或 Claude Code 的压缩实现。
 
 本版新增：工具结果安全精简与只读原文档案；本会话用量归因与工具精简结果进入“本会话累计”，并保持未知与已知下界的区分；设置页新增精简模式、字符阈值与请求前缀诊断开关。摘要包装归一化、格式修复、绝对工作历史软预算、取消后迟到用量补记与 Goal 停因显示继续保留。
 
