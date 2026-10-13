@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "plugin-accepted-for-controlled-host-integration; not a published install release",
+  "status": "plugin and paired Host source accepted and published; install Release pending",
   "package": "@missher/dsh-context-manager",
   "packages": [
     {
@@ -25,7 +25,16 @@
     "automaticQueuedInputHandoff": "requires the paired AgentLoop Host change, absent on unpatched legacy Host",
     "hostRepository": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop",
     "hostSourceBase": "70f01a61a6cf9964b127c3c483278619df231dc0",
-    "hostIntegration": "pending complete build and package acceptance"
+    "hostIntegration": "official build,43 documentation checks,lint and normal Git hooks passed; packaging and installation pending",
+    "sameContractFingerprintMapping": {
+      "archivedCandidate": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
+      "integratedSource": "ddde6df7e436354318c26f0b3a1cd18f51ed4418124321cc66ae34e33448f396",
+      "algorithm": "sha256(concatInListedOrder(path + NUL + lowercaseFileSha256 + LF))",
+      "change": "JSDoc and arrow-parameter parentheses only in compaction-provider.ts; same interface contract",
+      "scope": "preset interface only; not full AgentLoop handoff acceptance"
+    },
+    "pairedHostCommit": "818b495a877b04b53f7d07bbaec5837a0fe07c71",
+    "plannedHostBuildVersion": "0.2.1-alpha.2.20261014.1"
   },
   "checks": {
     "narrow": {
@@ -51,7 +60,36 @@
       "passed": 1,
       "failed": 0,
       "scope": "synthetic two-compaction and JSONL-restart replay with frozen legacy runtime; no provider calls"
-    }
+    },
+    "hostOfficialBuild": {
+      "passed": true,
+      "clientArtifacts": 357,
+      "finalPackagingAccepted": false
+    },
+    "storagePortability": {
+      "runUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/38451852467",
+      "sourceCommit": "fa07d43cf7eb6948f35e874035db21db5ea57df9",
+      "attempt": 1,
+      "passedJobs": 10,
+      "cancelledJobs": 2,
+      "failedJobs": 0,
+      "overallConclusion": "failure",
+      "unverifiedJobs": [
+        "archive macOS Node 24",
+        "recovery macOS Node 24"
+      ],
+      "scope": "native filesystem storage tests only, not full desktop or model behavior"
+    },
+    "hostDocs": {
+      "passed": 43,
+      "failed": 0
+    },
+    "hostLint": {
+      "passed": true,
+      "newErrors": 0,
+      "baselineWarning": "unused disable in experimental client-ui-cot-translation"
+    },
+    "hostGitHooks": "normal pre-commit and pre-push passed"
   },
   "frozenSourceTrees": [
     {
