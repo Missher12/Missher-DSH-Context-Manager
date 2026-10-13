@@ -25,7 +25,7 @@ export { PeakIndicator } from './peak-indicator.tsx'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespaceMap {
-    contextRecovery: { prepareEmergency(query:{sessionId:string},signal:AbortSignal):Promise<RemoteResult<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>>; executeEmergency(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<RemoteResult<{granted:true}>>; authorizeOnce(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
+    contextRecovery: { prepareEmergency(query:{sessionId:string},signal:AbortSignal):Promise<RemoteResult<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>>; executeEmergency(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<RemoteResult<{granted:true}>>; authorizeOnce(query: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
     contextInspector: {
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
@@ -175,7 +175,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
         {draft.capacityMode !== 'percent' && <div role="status"><p className="cm-hint">旧配置兼容：原近期原文、摘要、修复及已启用的绝对预算继续执行。各会话按真实模型窗口显示实际百分比；此全局设置页不假定窗口。下方百分比尚未启用。</p>
           <Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>改用下方百分比并解除旧绝对上限</Button>
           <p className="cm-hint">保存后生效。模型窗口变化会改变实际额度；请先检查下方百分比。原配置值保留供回退，旧费用和恢复额度不变。</p></div>}
-        {draft.capacityMode === 'percent' && <p className="cm-hint">容量按每次请求的真实模型窗口计算；不再使用旧绝对上限。输出仍受模型限制及摘要、修复的协议安全上限约束。小窗口向下取整，不扩大额度。各会话显示实际有效百分比。</p>}
+        {draft.capacityMode === 'percent' && <p className="cm-hint">容量按每次请求的真实模型窗口计算；不再使用旧绝对上限。输出仍受模型限制及摘要的协议安全上限约束；本地结构修复不调用模型。小窗口向下取整，不扩大额度。各会话显示实际有效百分比。</p>}
         {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
         {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
         <div className="cm-native-presets" role="group" aria-label="工具结果精简模式">
@@ -202,14 +202,19 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('safetyPercent', '窗口安全空间（%）', '推荐 2%，在模型输出预留之外保留。')}
           {numeric('summaryPercent', '摘要输出上限（%）', '按真实模型窗口计算，沿用当前模型与推理级别；实际输出上限可能更低。', draft.capacityMode !== 'percent')}
           {numeric('maxPasses', '每个请求最多压缩次数', '可设 1 或 2。闲置整理只尝试一次，没有新增任务不会重复整理。')}
-          {toggle('formatRepairEnabled', '摘要格式修复', '摘要结构校验失败时，仅把失败输出与结构要求重发一次（不重发历史）。关闭后格式失败直接保留原文并终止。', !draft.enabled)}
-          {numeric('repairPercent', '格式修复输出上限（%）', '按真实模型窗口计算，并且不超过本次摘要输出上限。输入仅包含失败输出与结构要求。', !draft.enabled || !draft.formatRepairEnabled || draft.capacityMode !== 'percent')}
+          <div role="group" aria-label="摘要 checkpoint 协议">
+            {(['json', 'sections'] as const).map(protocol => <Button key={protocol} size="sm" aria-pressed={draft.checkpointFormat === protocol} disabled={disabled} onClick={() => edit({ checkpointFormat: protocol })}>{protocol === 'json' ? 'JSON 七字段' : 'Markdown 段落'}</Button>)}
+          </div>
+          <p className="cm-hint">当前协议：{draft.checkpointFormat === 'json' ? 'JSON 七字段（历史默认，兼容旧 checkpoint）' : 'Markdown 固定段落（模型输出转义负担更低）'}。切换只影响后续摘要；旧 JSON checkpoint 继续可读，不迁移或删除已保存配置。</p>
+          {toggle('formatRepairEnabled', '本地结构修复', '结构校验失败且确定属于“单字符串误写为数组”时，由程序按原值包装后提交；不再重发模型，也不产生第二次收费。关闭后此类失败直接保留原文并终止。', !draft.enabled)}
+          {numeric('repairPercent', '格式修复输出上限（%）（兼容保留）', '旧配置字段，仅为可读与回退保留；当前修复在本地完成，不使用此额度，不产生额外模型调用。', true)}
+          {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）（兼容保留）', '旧配置字段，仅为可读与回退保留；当前本地结构修复不调用模型，不使用此值。', true)}
           <div role="group" aria-label="压缩时限模式">
             {(['fixed', 'adaptive'] as const).map(summaryTimeoutMode => <Button key={summaryTimeoutMode} size="sm" aria-pressed={draft.summaryTimeoutMode === summaryTimeoutMode} disabled={disabled} onClick={() => edit({ summaryTimeoutMode })}>{summaryTimeoutMode === 'fixed' ? '固定总时限' : '按输出进展等待'}</Button>)}
           </div>
-          {numeric('timeoutMs', '原固定总时限（毫秒）', draft.summaryTimeoutMode === 'fixed' ? '整笔压缩共享此上限，包含修复；保留原配置。' : '此模式不使用该值；切回固定模式恢复。', disabled || draft.summaryTimeoutMode !== 'fixed')}
+          {numeric('timeoutMs', '原固定总时限（毫秒）', draft.summaryTimeoutMode === 'fixed' ? '整笔压缩共享此上限；本地结构修复不另发模型、不另计时。保留原配置。' : '此模式不使用该值；切回固定模式恢复。', disabled || draft.summaryTimeoutMode !== 'fixed')}
           {draft.summaryTimeoutMode === 'adaptive' && <>
-            {numeric('summaryTotalMs', '整笔压缩硬总限（毫秒）', '所有摘要、修复与提交共享；输出进展不会延长。')}
+            {numeric('summaryTotalMs', '整笔压缩硬总限（毫秒）', '所有摘要调用、本地结构检查与提交共享；输出进展不会延长。')}
             {numeric('summaryFirstOutputMs', '首个有效输出等待（毫秒）', '每次调用重新计时；空数据和用量不算进展。')}
             {numeric('summaryStallMs', '输出停滞上限（毫秒）', '仅非空正文或思考增量续期，仍受硬总限约束。')}
           </>}

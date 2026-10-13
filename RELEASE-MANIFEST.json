@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "status": "plugin-accepted-for-controlled-host-integration; not a published install release",
+  "package": "@missher/dsh-context-manager",
+  "packages": [
+    {
+      "file": "missher-dsh-context-manager-0.10.0-local.9.tgz",
+      "version": "0.10.0-local.9",
+      "sha256": "670e07978d98ceb0800bee021150487d1ce4c4776f3819de84e24a7d87d9c840",
+      "files": 23
+    },
+    {
+      "file": "missher-dsh-context-manager-0.10.0-local.9-legacy.1.tgz",
+      "version": "0.10.0-local.9-legacy.1",
+      "sha256": "7592ce7cae7e0ca9c10a6c7132fe03a2dc9c2b7b9d095a7c7567843640544ef5",
+      "files": 23
+    }
+  ],
+  "compatibility": {
+    "approach": "required capabilities plus reasonable evidenced version ranges; continued adaptation to the latest release",
+    "testedSdkBaseline": "0.2.1-alpha.2",
+    "narrowRequiredCapability": "preset-compaction-provider-patch-v1",
+    "narrowCapabilityFingerprint": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
+    "officialAlpha2IncludesCapability": false,
+    "automaticQueuedInputHandoff": "requires the paired AgentLoop Host change, absent on unpatched legacy Host",
+    "hostRepository": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop",
+    "hostSourceBase": "70f01a61a6cf9964b127c3c483278619df231dc0",
+    "hostIntegration": "pending complete build and package acceptance"
+  },
+  "checks": {
+    "narrow": {
+      "total": 396,
+      "passed": 392,
+      "failed": 0,
+      "skipped": 4
+    },
+    "legacy": {
+      "total": 396,
+      "passed": 389,
+      "failed": 0,
+      "skipped": 7
+    },
+    "hostFocusedRegression": {
+      "passed": 56,
+      "failed": 0
+    },
+    "realProviderAcceptance": false,
+    "nativeDesktopAcceptance": false,
+    "dailyInstallationAccepted": false,
+    "redactedFixtureReplay": {
+      "passed": 1,
+      "failed": 0,
+      "scope": "synthetic two-compaction and JSONL-restart replay with frozen legacy runtime; no provider calls"
+    }
+  },
+  "frozenSourceTrees": [
+    {
+      "mode": "narrow",
+      "tree": "src",
+      "files": 42,
+      "sha256": "812a7d0112d0c48615d23c3f5d508020a1d2d45e6ef2959ee4f92a2ecdcaad45"
+    },
+    {
+      "mode": "narrow",
+      "tree": "lib",
+      "files": 16,
+      "sha256": "6d1ff9d40c077776451a94f3fa7c4149bb08b6560a1e063b7b8037dd027fb375"
+    },
+    {
+      "mode": "legacy",
+      "tree": "src",
+      "files": 42,
+      "sha256": "0fd19f1f766f86d97fb5d83c08559f8c0241e92a8b3986b4e9e6c4e544cccb6a"
+    },
+    {
+      "mode": "legacy",
+      "tree": "lib",
+      "files": 16,
+      "sha256": "4572fc6dbcfcfb9199d881470ad76fddfa220091347b99b363a2c84c549d2633"
+    }
+  ],
+  "publication": {
+    "productBytes": "src and lib from frozen stages; canonical old lib is excluded",
+    "tests": {
+      "files": 33,
+      "frozenTreeSha256": "af5ff77c29e45420ee9f965933654be371b4adf379f4cca66f25439e5986da95",
+      "publicTreeSha256": "4238c40e0ba19899d88f98a257df99a8a3bc906ad000de061d4c29b52081d8d2",
+      "overlay": {
+        "file": "tests/loop.test.mjs",
+        "line": 1566,
+        "sha256": "2b927a0c06f2f5c3acf825c3f7ffab34ae95d74c2ecaa2e56c3150740b0e8c39",
+        "change": "one synthetic evidence path; assertions and product code unchanged"
+      }
+    },
+    "privateMaterialExcluded": [
+      "profiles",
+      "sessions",
+      "credentials",
+      "learning data",
+      "private review logs",
+      "coordination instructions"
+    ],
+    "frozenArchivesUnmodified": true
+  }
+}

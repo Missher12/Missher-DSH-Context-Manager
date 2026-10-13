@@ -101,10 +101,12 @@ function valueEvidence(name: string, value: unknown): { state: 'complete' } | { 
   if (value === null || typeof value !== 'object') return { state: 'refused', reason: 'the tool value has no inspectable shape' }
   const record = value as Record<string, unknown>
   if (record.kind !== 'foreground') return { state: 'refused', reason: `unrecognised shell result kind ${JSON.stringify(record.kind)}` }
+  if (typeof record.cwd !== 'string' || record.cwd.trim() === '') return { state: 'refused', reason: 'the shell result has no working directory' }
   if (typeof record.exitCode !== 'number') return { state: 'refused', reason: 'the shell result carries no exit code' }
   if (record.exitCode !== 0) return { state: 'refused', reason: `exit code ${record.exitCode} is not success` }
-  if (record.timedOut === true) return { state: 'refused', reason: 'the command timed out' }
-  if (record.signal !== null && record.signal !== undefined) return { state: 'refused', reason: `the command was killed by ${String(record.signal)}` }
+  if (record.timedOut !== false) return { state: 'refused', reason: 'timeout status is not a complete success' }
+  if (record.aborted !== false) return { state: 'refused', reason: 'the command was aborted or cancellation status is unknown' }
+  if (record.signal !== null) return { state: 'refused', reason: `the command was killed by ${String(record.signal)}` }
   for (const stream of ['stdout', 'stderr'] as const) {
     const output = record[stream]
     if (output === null || typeof output !== 'object') return { state: 'refused', reason: `the ${stream} shape is unrecognised` }

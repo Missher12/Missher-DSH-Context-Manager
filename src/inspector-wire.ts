@@ -6,7 +6,7 @@ const seq = () => z.number().int().min(-1).max(Number.MAX_SAFE_INTEGER)
 const signed = () => z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER)
 const category = () => z.enum(['summary', 'system', 'tools', 'user', 'inject', 'skill', 'assistant', 'tool'])
 const sessionId = () => z.string().min(1).max(500)
-export function recoveryGrantSchema() { return z.object({ sessionId: sessionId(), requestHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict() }
+export function recoveryGrantSchema() { return z.object({ sessionId: sessionId(), authorizationToken: z.string().regex(/^[a-f0-9]{64}$/) }).strict() }
 export function emergencyConfirmSchema(){return z.object({sessionId:sessionId(),token:z.string().uuid(),acceptUnknownCost:z.literal(true)}).strict()}
 export function emergencyPlanSchema(){return z.object({token:z.string().uuid(),expiresAt:count(),cycle:count(),warning:z.string().max(300),model:z.string().max(240),deadline:z.string().max(200),estimatedInput:count()}).strict()}
 export function recoveryResultSchema() { return z.object({ granted: z.literal(true) }).strict() }
@@ -17,8 +17,12 @@ export function idleStatusSchema() { return z.object({
   reasonCode: z.string().max(100).optional(), restored: z.boolean().optional(), windowTokens: count().optional(), minimumPercent: z.number().min(0).max(100).optional(), updatedAt: count().optional(),
   owner: z.enum(['context-manager', 'other', 'unknown']).optional(),
   minimumTokens: count().optional(), deadline: z.string().max(200).optional(), execution: z.string().max(400).optional(), emergency:z.object({eligible:z.boolean(),used:z.boolean(),message:z.string().max(300)}).strict().optional(),
-  recovery: z.object({ available: z.boolean(), message: z.string().max(300), requestHash: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict().optional(),
+  recovery: z.object({ available: z.boolean(), message: z.string().max(300), requestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    authorizationToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    riskAcceptanceRequired: z.boolean().optional() }).strict().optional(),
   compactionPhase: z.enum(['summarizing', 'repairing']).optional(),
+  capacity: z.object({ windowTokens: count(), admission: count(), upper: count(), resumeHeadroom: count(), requiredResumeHeadroom: count(),
+    resumeHeadroomLimit: count(), recentGrowth: count(), protectedTokens: count(), totalTokens: count(), incomingTokens: count() }).strict().optional(),
 }) }
 export function inspectQuerySchema() { return z.object({ sessionId: sessionId(), atSeq: seq().nullable(), offset: count(), category: z.union([category(), z.literal('all')]), group: z.enum(['summary', 'tool', 'message', 'instruction']).optional(), search: z.string().max(200), sort: z.enum(['size', 'position']), archived: z.boolean() }).strict() }
 export function contentQuerySchema() { return z.object({ sessionId: sessionId(), cutSeq: seq(), id: z.string().min(1).max(100), offset: count(), sourceOffset: count().optional() }).strict() }

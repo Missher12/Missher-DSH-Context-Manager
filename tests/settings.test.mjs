@@ -625,6 +625,27 @@ test('percentage settings require explicit legacy migration, preserve old fields
  }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
 })
 
+test('settings: checkpoint protocol selector keeps JSON default and saves sections explicitly', async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'})
+ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
+ const legacy={...defaults};delete legacy.checkpointFormat
+ const writes=[],listeners=new Set()
+ let snapshot={status:'ready',writable:true,mode:'host',revision:21,value:{policy:legacy}}
+ const form={subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)},getSnapshot:()=>snapshot,async mutate(ops,revision){writes.push({ops,revision});snapshot={...snapshot,revision:snapshot.revision+1,value:{policy:ops[0].value}};listeners.forEach(cb=>cb());return true}}
+ const root=createRoot(document.getElementById('root'))
+ const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
+ const click=async label=>act(async()=>button(label).click())
+ try{
+  await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
+  assert.equal(button('JSON 七字段').getAttribute('aria-pressed'),'true','legacy config reads as JSON default without migration')
+  assert.equal(writes.length,0)
+  await click('Markdown 段落');await click('保存设置')
+  assert.equal(writes[0].ops[0].value.checkpointFormat,'sections','the explicit UI choice is written to the policy')
+  assert.equal(writes[0].ops[0].value.repairPercent,legacy.repairPercent,'legacy repair fields stay readable, not deleted')
+  assert.equal(writes[0].ops[0].value.formatRepairMaxTokens,legacy.formatRepairMaxTokens)
+ }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
+})
+
 test('settings expose the tool-result mode, thresholds and prefix switch with legacy fill-in and invalid empty numbers', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true

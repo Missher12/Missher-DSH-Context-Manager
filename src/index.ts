@@ -95,6 +95,7 @@ export default class ContextManager extends Service {
       idleMinutes: z.number().min(1).max(1440).step(1).default(defaults.idleMinutes),
       idleMinPercent: z.number().min(10).max(95).default(defaults.idleMinPercent),
       summaryInstructions: z.string().max(2000).default(defaults.summaryInstructions),
+      checkpointFormat: z.union([z.const('json'), z.const('sections')]).default(defaults.checkpointFormat),
       formatRepairEnabled: z.boolean().default(defaults.formatRepairEnabled),
       formatRepairMaxTokens: z.number().min(256).max(8192).step(1).default(defaults.formatRepairMaxTokens),
       absoluteEnabled: z.boolean().default(defaults.absoluteEnabled),
@@ -369,11 +370,11 @@ export default class ContextManager extends Service {
     return () => { if (this.recoveries.get(sessionId) === run) this.recoveries.delete(sessionId) }
   }
 
-  async authorizeRecovery(sessionId: string, requestHash: string, signal: AbortSignal): Promise<void> {
+  async authorizeRecovery(sessionId: string, authorizationToken: string, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted()
     const run = this.recoveries.get(sessionId)
     if (!run) throw new Error('该会话没有可恢复的原压缩计划，请重新检查上下文状态')
-    await this.summaryOperations.grant(sessionId, requestHash)
+    await this.summaryOperations.grant(sessionId, authorizationToken)
     signal.throwIfAborted()
     await run(signal)
   }
@@ -393,14 +394,19 @@ export default class ContextManager extends Service {
     const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
     const engine = agent && (this.ctx.get('agentPresets')?.serviceFor(agent, 'compaction') ?? agent.ctx.get('compaction'))
     const owner: IdleStatus['owner'] = engine ? ('contextManagerOwner' in engine ? 'context-manager' : 'other') : 'unknown'
+    const recovery = this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId))
+    const executableRecovery = recovery.available && !this.recoveries.has(sessionId)
+      ? { ...recovery, available: false, message: '记录显示存在可恢复风险，但当前没有匹配的原计划执行器；保留原文，未提供收费授权。' }
+      : recovery
     return { ...status, owner, emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)), execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
       ? `总限 ${policy.summaryTotalMs / 1000}s · 首输出 ${policy.summaryFirstOutputMs / 1000}s · 停滞 ${policy.summaryStallMs / 1000}s`
-      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId)) }
+      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: executableRecovery }
   }
 
   private readIdleStatus(sessionId: string): IdleStatus {
     const compact = this.compactReaders.get(sessionId)?.()
-    if (compact) return { status: 'compacting', dueAt: null, message: compact.message, compactionPhase: compact.phase }
+    if (compact) return { status: 'compacting', dueAt: null, message: compact.message, compactionPhase: compact.phase,
+      ...(compact.capacity === undefined ? {} : { capacity: compact.capacity }) }
     const policy = this.snapshot()
     if (!policy.enabled || !policy.idleEnabled) return { status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }
     const live = this.idleReaders.get(sessionId)?.()

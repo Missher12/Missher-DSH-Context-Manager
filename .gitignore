@@ -15,7 +15,12 @@ dist/
 preview/
 releases/
 verification/*
-!verification/RESULTS*.md
-!verification/RESULTS*.json
 
 harness-sdk
+
+# Coordination and private acceptance material do not belong in public exports.
+AGENTS.md
+PROJECT_CONTEXT.md
+HANDOVER.md
+GIT_DELIVERY.json
+research/

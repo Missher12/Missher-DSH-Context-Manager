@@ -143,7 +143,7 @@ export interface ContentPage { sessionId: string; cutSeq: number; id: string; te
 export interface InspectorApi {
   prepareEmergency?(query:{sessionId:string},signal:AbortSignal):Promise<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>
   executeEmergency?(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<{granted:true}>
-  authorizeOnce?(query: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }>
+  authorizeOnce?(query: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<{ granted: true }>
   idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus>
   inspect(query: InspectQuery, signal: AbortSignal): Promise<Inspection>
   content(query: ContentQuery, signal: AbortSignal): Promise<ContentPage>

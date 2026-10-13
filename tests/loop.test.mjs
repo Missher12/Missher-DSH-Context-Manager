@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { build } from 'esbuild'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
@@ -15,6 +16,7 @@ import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmAdapter, LlmError, createUserMessage, createMessage, createToolResultMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -32,6 +34,13 @@ import { pressureHistory } from '../lib/inspector.js'
 import { defaults, budget, validatePolicy } from '../lib/policy.js'
 import { diagnosticsProjection } from '../lib/diagnostics.js'
 
+const checkpointBuild = await build({ entryPoints: [fileURLToPath(new URL('../src/checkpoint.ts', import.meta.url))],
+  bundle: true, write: false, platform: 'node', format: 'esm', target: 'es2022',
+  plugins: [{ name: 'installed-public-api', setup(builder) {
+    builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
+  } }] })
+const { parseCheckpoint } = await import(`data:text/javascript;base64,${Buffer.from(checkpointBuild.outputFiles[0].text).toString('base64')}`)
+
 class Adapter extends LlmAdapter {
   order = []; requests = []; summaries = []; work = 0
   constructor(options = {}) { super(); this.options = options }
@@ -44,13 +53,19 @@ class Adapter extends LlmAdapter {
       if (this.options.pause) await this.options.pause(options.signal)
       if (this.options.imageFailure) throw new LlmError('image offload requested','IMAGE_OFFLOAD_REQUIRED')
       if (this.options.fail) { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'summary unavailable' } } }; return }
-      const text = (this.options.malformed || this.options.firstMalformed && this.summaries.length === 1) ? 'incomplete checkpoint' : JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: this.options.noShrink ? ['oversized '.repeat(5000)] : [], next: 'Continue after completed preparation', uncertainties: [] })
+      const checkpointResponse = this.options.checkpointText
+      const text = (typeof checkpointResponse === 'function'
+        ? checkpointResponse(options, this.summaries.length)
+        : checkpointResponse) ?? (this.options.sectionsText
+        ? '## 当前目标\n继续当前任务\n\n## 约束与纠正\n- 保持唯一写入者与授权边界\n\n## 已完成\n- 完成准备\n\n## 待完成\n- 继续当前任务\n\n## 证据与引用\n- 原始日志保留\n\n## 下一步\n继续执行\n\n## 尚未核实\n无'
+        : (this.options.malformed || this.options.firstMalformed && this.summaries.length === 1) ? 'incomplete checkpoint' : JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: this.options.noShrink ? ['oversized '.repeat(5000)] : [], next: 'Continue after completed preparation', uncertainties: [] }))
       yield { type: 'block-start', index: 0, blockType: 'text' }
       if (this.options.progress) {
         for (let step=0;step<3;step++) { this.options.progress(); yield { type: 'text-delta', index: 0, text: text.slice(Math.floor(step*text.length/3),Math.floor((step+1)*text.length/3)) } }
       }
       yield { type: 'block-end', index: 0, block: { type: 'text', text } }
-      yield { type: 'usage', usage: { inputTokens: 500, cacheReadTokens: 250, outputTokens: 20 } }
+      const snapshots = this.options.summaryUsageSnapshots ?? [{ inputTokens: 500, cacheReadTokens: 250, outputTokens: 20 }]
+      for (const usage of snapshots) yield { type: 'usage', usage }
       this.order.push('summary-finish')
       yield { type: 'finish', reason: { kind: 'stop' } }; return
     }
@@ -72,14 +87,15 @@ class Adapter extends LlmAdapter {
   }
 }
 
-function history(length = 31600, asSession = false) {
+function history(length = 31600, asSession = false, seedPrefix = '') {
   const session = Session.create(SessionId('seed'))
   session.append('turn/start', { turn: 1 })
   session.append('step/start', { turn: 1, step: 1 })
   // Real sessions reserve surface node zero for the system prompt. Omitting
   // that head can pass in-memory replay but fails the persisted V4 decoder.
   session.append('system/message', { turn: 1, step: 1, message: createMessage({ role: 'system', content: [], source: { kind: 'system-prompt' } }) }, { surfaceOp: 'append' })
-  session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'h'.repeat(length) }], source: { kind: 'user' } }), { surfaceOp: 'append' })
+  const historyText = `${seedPrefix}${seedPrefix ? '\n' : ''}${'h'.repeat(length)}`
+  session.append('user/message', createUserMessage({ content: [{ type: 'text', text: historyText }], source: { kind: 'user' } }), { surfaceOp: 'append' })
   session.append('assistant/message', { stream: [], turn: 1, step: 1, message: createMessage({ role: 'assistant', content: [{ type: 'text', text: 'previous work done' }], source: { kind: 'model', provider: 'mock', model: 'large' } }) }, { surfaceOp: 'append' })
   session.append('step/end', { turn: 1, step: 1 })
   session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
@@ -96,6 +112,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(StorageDomain, { backend: 'json' })
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(TypertRegistry)
+  if (options.persistSession) await ctx.plugin(JsonlSessionPersistence, { root: join(storageRoot, 'sessions'), compression: 'none' })
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
@@ -113,14 +130,14 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
   ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; adapter.order.push('tool'); return [{ type: 'text', text: options.toolOutputs?.[adapter.work - 1] ?? options.toolOutput ?? 'tool complete' }] } }))
-  const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' },
+  const { agent } = options.skipCreate ? {} : await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' },
     meta: { delegationDepth: options.seeded ? 1 : 0, ...(options.seeded ? { isSeeded: true, parentSession: SessionId('seed') } : {}) },
     ...(options.seeded ? { inheritedEventCount: SessionLogOffset(seed.length) } : {}),
     ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
   return { ctx, adapter, agent, storageRoot }
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
-const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed')
+const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed', JSON.stringify(agent.session.snapshotEvents().at(-1).data.reason))
 
 // A valid in-memory surface does not establish that the persisted event log can
 // be opened. Exercise the physical V4 encoder, a complete Zstandard frame on
@@ -209,7 +226,7 @@ test('idle: short context skips; background busy past 90 seconds retains eligibi
     let busy = background, checks = 0
     if (background) ctx.on('workspace/session-activity', async () => { checks++; return busy ? [{ kind: 'background', label: 'fixture work' }] : [] })
     try {
-      agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off'].includes(idleState(ctx, agent).status)); t.mock.timers.tick(900000)
+      agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off', 'skipped'].includes(idleState(ctx, agent).status)); t.mock.timers.tick(900000)
       if (background) {
         for (const delay of [30000,60000,120000,240000]) {
           await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
@@ -225,7 +242,12 @@ test('idle: short context skips; background busy past 90 seconds retains eligibi
         await drainUntil(() => idleState(ctx, agent).status === 'skipped')
         assert.equal(adapter.summaries.length,0)
       }
-    } finally { await ctx.fiber.dispose() }
+    } finally {
+      await ctx.fiber.dispose()
+      // Keep startupProof's wall clock and monotonic time aligned when the
+      // second fixture is mounted after the first fake-clock interval.
+      if (!background) { t.mock.timers.reset(); clock(t) }
+    }
   }
 })
 
@@ -241,7 +263,10 @@ test('idle: failed and cancelled tasks never arm a timer', { timeout: 8000 }, as
       if (cancel) { await entered; agent.cancel({ kind: 'user' }) }
       await agent.whenIdle(); assert.notEqual(idleState(ctx, agent).status, 'scheduled')
       t.mock.timers.tick(900000); await immediate(); assert.equal(adapter.summaries.length, 0)
-    } finally { await ctx.fiber.dispose() }
+    } finally {
+      await ctx.fiber.dispose()
+      if (!cancel) { t.mock.timers.reset(); clock(t) }
+    }
   }
 })
 
@@ -299,9 +324,9 @@ for (const kind of ['fail', 'noShrink', 'malformed']) test(`idle: ${kind} keeps 
     agent.followup(message()); await agent.whenIdle(); await drainUntil(() => ['scheduled', 'off'].includes(idleState(ctx, agent).status)); const before = agent.session.deriveMessages()
     t.mock.timers.tick(900000); await drainUntil(() => idleState(ctx, agent).status === 'failed')
     assert.deepEqual(agent.session.deriveMessages(), before)
-    // Malformed, physically settled output permits one exact reissue; it is
-    // not a format-repair request. Other failures stay conservative.
-    t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length, kind === 'malformed' ? 2 : 1)
+    // Every physically settled failure is recorded as known-unapplied with its
+    // usage; the same large history is never replayed automatically.
+    t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length, 1)
     assert.equal(adapter.requests.length, 1)
   } finally { await ctx.fiber.dispose() }
 })
@@ -369,12 +394,29 @@ test('real loop: summary settles before the first main call and tool; current ta
   } finally { await ctx.fiber.dispose() }
 })
 
+test('real loop: later provider usage totals update known fields without adding the repeated input total', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ summaryUsageSnapshots: [
+    { inputTokens: 100, outputTokens: 0, cacheReadTokens: 5 },
+    { inputTokens: 100, outputTokens: 40 },
+  ] }, { idleEnabled: false }, history(31600))
+  try {
+    agent.followup(message()); await agent.whenIdle()
+    assert.equal(adapter.summaries.length, 1)
+    const usage = ctx.contextManager.summaryLedger.stats(String(agent.id))
+    assert.equal(usage.attempts, 1)
+    assert.equal(usage.input, 105, 'repeated provider totals are snapshots, not increments')
+    assert.equal(usage.output, 40, 'a later snapshot can update a field that was previously zero')
+    assert.equal(usage.cacheRead, 5, 'an omitted later field retains its last known snapshot value')
+    assert.equal(usage.unknownAttempts, 0)
+  } finally { await ctx.fiber.dispose() }
+})
+
 for (const kind of ['fail', 'noShrink', 'malformed']) test(`real loop: ${kind} pauses without business calls or unbounded retry`, { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture({ [kind]: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    // One bounded exact reissue is allowed only for a settled local format failure.
-    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(adapter.summaries.length, kind === 'malformed' ? 2 : 1)
+    // No automatic replay of the same large history for any failure class.
+    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(adapter.summaries.length, 1)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     assert.equal(agent.session.snapshotEvents().filter(e => e.type === 'compaction/summary').length, 0)
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
@@ -391,6 +433,45 @@ test('real loop: cancelling the summary keeps the new task and never starts work
     assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0)
     agent.cancel({ kind: 'user' }); await agent.whenIdle()
     assert.equal(adapter.requests.length, 0); assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('active pressure compaction aborts on every queued source and fails closed on hosts without handoff', { timeout: 8000 }, async () => {
+  let entered; const started = new Promise(resolve => { entered = resolve })
+  const { ctx, adapter, agent } = await fixture({ pause: signal => new Promise((resolve, reject) => {
+    entered()
+    if (signal.aborted) reject(signal.reason)
+    else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+  }) }, { idleEnabled: false }, history(31600))
+  try {
+    // Exercise the older Host contract even when this suite is linked to the
+    // candidate Host, whose agents advertise the opt-in handoff capability.
+    Object.defineProperty(agent, 'supportsRequestErrorHandoff', { configurable: true, value: false })
+    const activeTask = message('当前任务保持原样')
+    agent.followup(activeTask)
+    await started
+    assert.equal(adapter.summaries.length, 1)
+
+    // A bridge/steer message may carry an attachment and does not have to use
+    // source.kind === 'user'. The event is a queue mutation, not a human-origin
+    // classifier.
+    const attachment = { type: 'image', attachment: { attachmentId: `sha256:${'a'.repeat(64)}`, mediaType: 'image/png', bytes: 128, width: 16, height: 16 } }
+    const queuedStep = createUserMessage({ content: [{ type: 'text', text: '桥接补充' }, attachment], source: { kind: 'cordis-host-runner' } })
+    const queuedTurn = createUserMessage({ content: [{ type: 'text', text: '后续任务' }], source: { kind: 'user' } })
+    agent.inject(queuedStep)
+    agent.followup(queuedTurn)
+    await agent.whenIdle()
+
+    assert.equal(adapter.requests.length, 0, 'the cancelled summary must not authorize the original provider request')
+    assert.equal(adapter.summaries.length, 1)
+    assert.equal(adapter.summaries[0].signal.aborted, true)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 0, 'the obsolete checkpoint never commits')
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.id === activeTask.id).length, 1)
+    assert.deepEqual(agent.inbox.nextStep.map(item => item.id), [queuedStep.id], 'unsupported Hosts keep the bridge input queued without admitting it')
+    assert.deepEqual(agent.inbox.nextTurn.map(item => item.id), [queuedTurn.id], 'unsupported Hosts keep the next task queued without admitting it')
+    const end = agent.session.snapshotEvents().findLast(event => event.type === 'turn/end')
+    assert.equal(end?.data.reason.kind, 'error', 'unsupported handoff must stop the turn instead of dispatching work')
+    assert.ok(end.data.reason.error?.message)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -431,7 +512,7 @@ test('real preset scopes: two simultaneous sessions each compact exactly once, w
 })
 
 test('real loop: tool growth is checked again before the next model request', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ tools: true, toolOutput: 'result '.repeat(4500) }, {}, history(1000))
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 20000, tools: true, toolOutput: 'result '.repeat(2500) }, {}, history(50000))
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
     assert.equal(adapter.requests.length, 2)
@@ -442,15 +523,15 @@ test('real loop: tool growth is checked again before the next model request', { 
   } finally { await ctx.fiber.dispose() }
 })
 
-test('real loop: source growth permits an older large region after compacting the later tool region', { timeout: 12000 }, async () => {
-  // At 200K, admission is 158K. The initial 80K history + protected 40K
-  // task fits. Exactly two tool calls add 100K, then 45K: the first pressure
-  // selects the later 100K group, the second selects the older 80K region.
-  const seed = history(320000)
+test('real loop: source growth compacts older history while preserving the active tool result', { timeout: 12000 }, async () => {
+  // At 200K, admission is about 158K. The 150K old history fits on its own;
+  // the 20K current tool result crosses the threshold but still leaves enough
+  // measured continuation headroom to compact the old region safely.
+  const seed = history(600000)
   const oldUser = seed.find(event => event.type === 'user/message')
   assert.ok(oldUser)
   const { ctx, adapter, agent } = await fixture({ contextWindow: 200000,
-    toolOutputs: ['FIRST-TOOL-OUTPUT\n' + 'a'.repeat(400000), 'SECOND-TOOL-OUTPUT\n' + 'b'.repeat(180000)] },
+    tools: true, toolOutput: 'ACTIVE-TOOL-OUTPUT\n' + 'a'.repeat(80000) },
   { historyMode: 'automatic', recentTokens: 20000, idleEnabled: false }, seed)
   const permits = []
   ctx.on('llm/stream', async function* (options, next) {
@@ -458,42 +539,36 @@ test('real loop: source growth permits an older large region after compacting th
     yield* next()
   }, true)
   try {
-    const task = message('CURRENT-TASK-MUST-STAY-VERBATIM\n' + 't'.repeat(160000))
+    const task = message('CURRENT-TASK-MUST-STAY-VERBATIM')
     agent.followup(task)
     await agent.whenIdle()
     completed(agent)
-    assert.equal(adapter.work, 2, 'the finite fixture executes exactly two tools')
-    assert.equal(adapter.requests.length, 3, 'the third business response finishes without another tool')
-    assert.equal(adapter.summaries.length, 2, 'each of the two distinct pressured regions needs one summary')
-    assert.deepEqual(adapter.order, ['main', 'tool', 'summary-start', 'summary-finish',
-      'main', 'tool', 'summary-start', 'summary-finish', 'main'])
+    assert.equal(adapter.work, 1, 'the finite fixture executes one tool')
+    assert.equal(adapter.requests.length, 2, 'the business request resumes after one safe summary')
+    assert.equal(adapter.summaries.length, 1)
+    assert.deepEqual(adapter.order, ['main', 'tool', 'summary-start', 'summary-finish', 'main'])
 
     const events = agent.session.snapshotEvents()
     const taskEvent = events.find(event => event.type === 'user/message' && event.data.id === task.id)
     const results = events.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append')
     const summaries = events.filter(event => event.type === 'compaction/summary')
     assert.ok(taskEvent)
-    assert.equal(results.length, 2)
-    assert.equal(summaries.length, 2, 'both paid results commit; no stale-source refusal')
-    assert.ok(summaries[0].data.shadowedSeqs.includes(results[0].seq))
-    assert.ok(summaries[0].data.shadowedSeqs.every(seq => seq > taskEvent.seq), 'first plan is after the protected task')
-    assert.ok(summaries[1].data.shadowedSeqs.includes(oldUser.seq))
-    assert.ok(summaries[1].data.shadowedSeqs.every(seq => seq < taskEvent.seq), 'second plan returns to the older region')
-    assert.ok(!summaries[1].data.shadowedSeqs.includes(results[1].seq), 'new tool output is not falsely counted as the selected old region')
+    assert.equal(results.length, 1)
+    assert.equal(summaries.length, 1, 'the older source commits without touching the active task or tool result')
+    assert.ok(summaries[0].data.shadowedSeqs.includes(oldUser.seq))
+    assert.ok(summaries[0].data.shadowedSeqs.every(seq => seq < taskEvent.seq), 'the selected region is older than the protected task')
+    assert.ok(!summaries[0].data.shadowedSeqs.includes(results[0].seq), 'the active tool result remains intact')
     const retained = agent.session.deriveMessages().filter(item => item.id === task.id)
     assert.equal(retained.length, 1)
     assert.deepEqual(retained[0].content, task.content)
 
-    assert.equal(permits.length, 2)
+    assert.equal(permits.length, 1)
     assert.equal(permits[0].cycle, 1)
     assert.equal(permits[0].sourceWatermark, results[0].seq)
-    assert.equal(permits[1].cycle, 2, 'the newly added 45K satisfies the new-content requirement')
-    assert.equal(permits[1].sourceWatermark, results[1].seq, 'cycle watermarks follow the whole session, not selection order')
-    assert.equal(permits[1].ordinal, 1)
     const usage = ctx.contextManager.summaryLedger.stats(String(agent.id))
-    assert.equal(usage.attempts, 2)
-    assert.equal(usage.input, 1500, 'two 500 input + 250 cache-read attempts are counted exactly once')
-    assert.equal(usage.output, 40)
+    assert.equal(usage.attempts, 1)
+    assert.equal(usage.input, 750, 'one 500 input + 250 cache-read attempt is counted exactly once')
+    assert.equal(usage.output, 20)
     assert.ok(ctx.tokenMeter.measure(agent.session).totalTokens < budget(ctx.contextManager.snapshot(), 200000, 0).admission)
   } finally { await ctx.fiber.dispose() }
 })
@@ -509,7 +584,7 @@ test('real loop: exactly 79.9% before new input compacts before any business cal
 })
 
 test('real loop: new image pricing participates in admission and its reference survives compaction', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({}, {}, history(6000))
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 20000 }, {}, history(45000))
   try {
     const image = { type: 'image', attachment: { attachmentId: 'sha256:12345678', mediaType: 'image/png', bytes: 2048, width: 800, height: 800, name: 'diagram.png' } }
     const task = createUserMessage({ content: [{ type: 'text', text: '分析图片，并继续原任务' }, image], source: { kind: 'user' } })
@@ -525,6 +600,50 @@ test('real loop: provider-confirmed overflow below the estimate uses bounded rec
   try {
     agent.followup(message()); await agent.whenIdle()
     assert.deepEqual(adapter.order, ['main', 'summary-start', 'summary-finish', 'main']); completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('host handoff: queued input is admitted once after summary interruption without unknown-cost replay', { timeout: 8000 }, async t => {
+  let enterSummary
+  const entered = new Promise(resolve => { enterSummary = resolve })
+  let summaryCount = 0
+  const { ctx, adapter, agent } = await fixture({ pause: signal => {
+    summaryCount++
+    if (summaryCount > 1) return Promise.resolve()
+    enterSummary()
+    return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+  } }, {}, history((7990 - 21) * 4))
+  try {
+    if (agent.supportsRequestErrorHandoff !== true) {
+      t.skip('requires the opt-in Host request-error handoff capability')
+      return
+    }
+    const original = message('先提交的任务；首次上下文重建期间新输入到达')
+    agent.followup(original)
+    await entered
+    assert.equal(adapter.summaries.length, 1)
+
+    const queued = message('新输入应接管下一次模型请求')
+    agent.steer(queued)
+    await agent.whenIdle()
+
+    const events = agent.session.snapshotEvents()
+    assert.deepEqual(adapter.order, ['summary-start'])
+    assert.equal(adapter.requests.length, 0, 'the gated business request and interrupted summary are not replayed')
+    assert.equal(adapter.summaries.length, 1)
+    assert.equal(adapter.work, 0)
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === original.id).length, 1)
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === queued.id).length, 1)
+    const liveTurn = events.filter(event => event.type === 'turn/start').at(-1).data.turn
+    assert.equal(events.filter(event => event.type === 'step/start' && event.data.turn === liveTurn).length, 2, 'handoff continues within the reserved turn')
+    assert.equal(agent.inbox.nextStep.length + agent.inbox.nextTurn.length, 0)
+    const end = events.filter(event => event.type === 'turn/end').at(-1)
+    assert.equal(end.data.reason.kind, 'error')
+    assert.equal(end.data.reason.error.code, 'CONTEXT_MANAGER_BLOCKED')
+    const [operation] = ctx.contextManager.summaryOperations.records(String(agent.id))
+    assert.equal(operation.phase, 'unknown_interrupted')
+    assert.equal(operation.reasonCode, 'queued_input')
+    assert.equal(events.filter(event => event.type === 'compaction/summary').length, 0)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -596,6 +715,52 @@ test('real loop: an adapter ignoring cancellation cannot hold the summary mainte
   } finally { release(); await ctx.fiber.dispose() }
 })
 
+test('real llm/stream iterator: return.done cannot release the gate while next is still pending', { timeout: 8000 }, async t => {
+  let started, resolvePending, returnCalls = 0, streamCalls = 0, nextCalls = 0
+  const entered = new Promise(resolve => { started = resolve })
+  const pendingNext = new Promise(resolve => { resolvePending = resolve })
+  const iterator = {
+    [Symbol.asyncIterator]() { return this },
+    next() {
+      nextCalls++
+      if (nextCalls === 1) return Promise.resolve({ done: false, value: { type: 'usage', usage: { inputTokens: 100, outputTokens: 20 } } })
+      if (nextCalls === 2) { started(); return pendingNext }
+      return Promise.resolve({ done: true, value: undefined })
+    },
+    return() { returnCalls++; return Promise.resolve({ done: true, value: undefined }) },
+  }
+  const { ctx, agent, adapter } = await fixture({ contextWindow: 10000 }, { idleEnabled: false }, history(31600))
+  const originalTimeout = AbortSignal.timeout
+  try {
+    ctx.on('llm/stream', (options, next) => {
+      if (options.purpose === 'compaction' && streamCalls++ === 0) return iterator
+      return next()
+    }, true)
+    const task = message('受控工具流测试')
+    agent.followup(task)
+    await entered
+    // Make the physical harvester's bounded window expire immediately. The
+    // iterator deliberately reports return.done while its second next remains
+    // unresolved, matching a public custom-adapter implementation.
+    AbortSignal.timeout = () => AbortSignal.abort()
+    agent.cancel({ kind: 'user' })
+    await agent.whenIdle()
+    await drainUntil(() => returnCalls === 1)
+    AbortSignal.timeout = originalTimeout
+    const nextTask = message('传输仍未结束时不应发起重叠请求')
+    agent.followup(nextTask); await agent.whenIdle()
+    assert.equal(adapter.requests.length, 0, 'the overlap gate blocks the next business provider request')
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.id === nextTask.id).length, 1)
+    assert.equal(streamCalls, 1, 'the second provider call is rejected before the public llm/stream hook')
+    assert.equal(nextCalls, 2, 'the underlying next remains in flight when return resolves')
+  } finally {
+    AbortSignal.timeout = originalTimeout
+    resolvePending?.({ done: true, value: undefined })
+    await immediate()
+    await ctx.fiber.dispose()
+  }
+})
+
 
 function toolHistory({ error = false, rich = false, baseSize = 1000 } = {}) {
   const session = history(baseSize, true)
@@ -664,7 +829,7 @@ for (const scenario of [
     assert.equal(added.filter(event => event.type === 'compaction/start').length, 1)
     assert.equal(added.filter(event => event.type === 'compaction/end').length, 1, 'failed/cancelled maintenance closes its bracket')
     assert.equal(added.filter(event => event.type === 'compaction/summary').length, scenario.outcome === 'success' ? 1 : 0)
-    assert.equal(adapter.summaries.length, scenario.outcome === 'malformed' ? 2 : 1)
+    assert.equal(adapter.summaries.length, 1)
     if (scenario.outcome !== 'success') assert.deepEqual(agent.session.deriveMessages(), surface)
     const reopened = await assertPhysicalSessionRestore(agent.session)
     assert.equal(reopened.header.isSeeded, scenario.seeded)
@@ -809,16 +974,16 @@ test('layered failure preserves original history when pruning committed before a
     assert.equal(events.filter(event => event.type === 'compaction/prune').length, 1)
     assert.equal(events.filter(event => event.type === 'compaction/summary').length, 0)
     assert.equal(adapter.requests.length, 0)
-    // Prose is not a value-level type mismatch, so the narrow repair never
-    // runs; both bounded primary attempts keep the original history.
-    assert.equal(adapter.summaries.length, 2)
+    // Prose is not a value-level type mismatch, so no local repair applies and
+    // the same history is never replayed; the original history stays intact.
+    assert.equal(adapter.summaries.length, 1)
     assert.ok(events.some(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'text' && block.text === 'original evidence '.repeat(2200))))
     const current = agent.session.deriveMessages()
     assert.deepEqual(current.find(item => item.id === task.id).content, task.content)
     assert.ok(current.filter(item => item.role === 'tool').every(item => item.content.every(block => block.type !== 'text' || block.text.length <= 2000)))
     const summary = ctx.contextManager.summaryLedger.stats(String(agent.id))
-    assert.equal(summary.attempts, 2); assert.equal(summary.unknownAttempts, 0)
-    assert.equal(summary.input, 1500); assert.equal(summary.output, 40)
+    assert.equal(summary.attempts, 1); assert.equal(summary.unknownAttempts, 0)
+    assert.equal(summary.input, 750); assert.equal(summary.output, 20)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -856,19 +1021,26 @@ test('a model selection after completion cancels the old idle qualification befo
 
 // These use the real AgentLoop, storage domains and automatic request-error hook.
 // The deterministic adapter makes no network call and is not real-model acceptance.
-test('automatic recovery: first settled invalid result retries once and continues the same task without /compact', async () => {
+test('automatic recovery: the same request stays blocked after failure until an explicit grant', async () => {
   const {ctx,adapter,agent}=await fixture({firstMalformed:true})
   try {
     const task=message(); agent.followup(task);await agent.whenIdle()
-    assert.equal(adapter.summaries.length,2);assert.ok(adapter.requests.length>0)
-    assert.deepEqual(adapter.order.slice(0,5),['summary-start','summary-finish','summary-start','summary-finish','main'])
-    assert.equal(agent.session.deriveMessages().filter(m=>m.id===task.id).length,1)
+    assert.equal(adapter.summaries.length,1,'the same large history is never replayed automatically')
+    assert.equal(adapter.requests.length,0)
+    const first=ctx.contextManager.summaryOperations.records(String(agent.id))
+    assert.deepEqual(first.map(r=>r.phase),['known_failed_unapplied'])
+    assert.equal(first[0].reasonCode,'invalid_structure')
+    assert.equal(agent.session.deriveMessages().filter(m=>m.id===task.id).length,1,'the task stays verbatim')
+    assert.equal(ctx.contextManager.idleStatus(String(agent.id)).recovery.available,true)
+    // A later ordinary input must not silently re-dispatch the same request.
+    agent.followup(message('继续'));await agent.whenIdle()
+    assert.equal(adapter.summaries.length,1,'same requestHash after failure requires authorization')
+    assert.equal(adapter.requests.length,0)
+    const end=agent.session.snapshotEvents().filter(e=>e.type==='turn/end').at(-1)
+    assert.match(end?.data?.reason?.error?.message ?? '', /恢复|授权|来源|上限|operation_state/)
     const rows=ctx.contextManager.summaryOperations.records(String(agent.id))
-    assert.deepEqual(rows.map(r=>r.phase),['known_failed_unapplied','committed'])
-    assert.equal(new Set(rows.map(r=>r.attemptId)).size,2)
-    assert.equal(new Set(rows.map(r=>r.compactionId)).size,1)
-    assert.equal(ctx.contextManager.summaryLedger.stats(String(agent.id)).attempts,2)
-    assert.equal(ctx.contextManager.compactionCycles.records(String(agent.id)).length,0,'new permits never double-write legacy table')
+    assert.deepEqual(rows.map(r=>r.phase),['known_failed_unapplied'])
+    assert.equal(ctx.contextManager.compactionCycles.records(String(agent.id)).length,0)
   } finally {await ctx.fiber.dispose()}
 })
 
@@ -884,13 +1056,14 @@ test('explicit recovery: real mutation grants one bound maintenance call; inspec
     assert.deepEqual(ctx.contextManager.summaryOperations.records(String(agent.id)),before)
     const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
     adapter.options.fail=false
-    await ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal)
+    await ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),authorizationToken:recovery.authorizationToken},new AbortController().signal)
     assert.equal(adapter.summaries.length,2)
     const rows=ctx.contextManager.summaryOperations.records(String(agent.id))
-    assert.equal(rows[0].phase,'unknown_interrupted')
+    assert.equal(rows[0].phase,'known_failed_unapplied')
+    assert.equal(rows[0].usageComplete,false,'billed usage stayed unknown, so authorization was required')
     assert.equal(rows[1].phase,'committed');assert.ok(rows[1].authorizationId)
     assert.equal(new Set(rows.map(row=>row.attemptId)).size,2)
-    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal))
+    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),authorizationToken:recovery.authorizationToken},new AbortController().signal))
     assert.equal(adapter.summaries.length,2)
   } finally {await ctx.fiber.dispose()}
 })
@@ -904,8 +1077,58 @@ test('explicit recovery: changed source cannot use prior authorization or start 
     assert.equal(adapter.summaries.length,1,'ordinary continue is not authorization')
     const {ContextRecovery}=await import('../lib/inspector.js');await ctx.plugin(ContextRecovery)
     adapter.options.fail=false
-    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),requestHash:recovery.requestHash},new AbortController().signal))
+    await assert.rejects(ctx.contextRecovery.authorizeOnce({sessionId:String(agent.id),authorizationToken:recovery.authorizationToken},new AbortController().signal))
     assert.equal(adapter.summaries.length,1)
+  } finally {await ctx.fiber.dispose()}
+})
+
+test('explicit recovery: cancelled task A plus task B requires one exact A+B recovery', { timeout: 12000 }, async () => {
+  let enter; const entered = new Promise(resolve => { enter = resolve })
+  const {ctx,adapter,agent}=await fixture({pause: signal => new Promise((_resolve,reject) => {
+    enter()
+    if (signal.aborted) reject(signal.reason)
+    else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })}, {}, history(31600))
+  try {
+    const id=String(agent.id)
+    const taskA=message('任务 A：保留原始校验记录，等待压缩完成。')
+    agent.followup(taskA); await entered
+    assert.equal(adapter.summaries.length,1)
+    agent.cancel({kind:'user'}); await agent.whenIdle()
+    const origin=ctx.contextManager.summaryOperations.records(id)[0]
+    assert.ok(['known_failed_unapplied','unknown_interrupted'].includes(origin.phase))
+    assert.equal(origin.usageComplete,false,'an aborted attempt without usage stays an unresolved cost')
+
+    adapter.options.pause=undefined
+    const taskB=message('任务 B：接续任务 A，并保留这条更新后的授权边界。')
+    agent.followup(taskB); await agent.whenIdle()
+    assert.equal(adapter.summaries.length,1,'changed source must not trigger another paid attempt automatically')
+    assert.equal(adapter.requests.length,0,'task B stays paused behind the unresolved A attempt')
+    assert.equal(agent.session.snapshotEvents().filter(event=>event.type==='user/message' && event.data.id===taskB.id).length,1)
+    const recovery=ctx.contextManager.idleStatus(id).recovery
+    assert.equal(recovery.available,true,JSON.stringify({recovery,origin,operations:ctx.contextManager.summaryOperations.records(id)}))
+    assert.equal(recovery.riskAcceptanceRequired,undefined,'the immutable original prefix proves ancestry without accepting unverifiable risk')
+
+    const {ContextRecovery}=await import('../lib/inspector.js')
+    await ctx.plugin(ContextRecovery)
+    await ctx.contextRecovery.authorizeOnce({sessionId:id,authorizationToken:recovery.authorizationToken},new AbortController().signal)
+    const rows=ctx.contextManager.summaryOperations.records(id)
+    assert.equal(adapter.summaries.length,2,'one user-authorized recovery call')
+    assert.equal(rows.length,2)
+    assert.equal(rows[0].operationId,origin.operationId)
+    assert.equal(rows[0].phase,origin.phase,'the canceled A record remains immutable')
+    assert.equal(rows[1].phase,'committed')
+    assert.equal(rows[1].recoveryFor,origin.operationId,'the committed A+B range proves and resolves the exact A origin')
+    assert.notEqual(rows[1].sourceHash,origin.sourceHash,'the successful recovery is bound to the changed A+B source')
+    assert.ok(rows[1].sourceWatermark>origin.sourceWatermark)
+    const messages=agent.session.deriveMessages()
+    assert.deepEqual(messages.find(item=>item.id===taskA.id)?.content,taskA.content,'canceled task A remains verbatim after recovery')
+    assert.deepEqual(messages.find(item=>item.id===taskB.id)?.content,taskB.content,'blocked task B remains verbatim after recovery')
+    assert.equal(agent.session.snapshotEvents().filter(event=>event.type==='user/message' && event.data.id===taskA.id).length,1)
+    assert.equal(agent.session.snapshotEvents().filter(event=>event.type==='user/message' && event.data.id===taskB.id).length,1)
+    assert.ok(agent.session.snapshotEvents().filter(event=>event.type==='compaction/summary').length>=1)
+    assert.equal(adapter.requests.length,0,'explicit recovery compacts context without silently replaying either business task')
+    assert.equal(adapter.work,0)
   } finally {await ctx.fiber.dispose()}
 })
 
@@ -958,14 +1181,18 @@ for (const mode of ['default', 'fixed', 'total', 'stall']) test(`automatic long 
   let chunks=0
   const policy=mode==='fixed'?{summaryTimeoutMode:'fixed'}:mode==='total'?{summaryTotalMs:250000}:{}
   const {ctx,adapter,agent}=await fixture({contextWindow:191931,tools:true,
-    toolOutput:'result '.repeat(88000),progress:()=>t.mock.timers.tick(mode==='stall' && chunks++>0?180001:100000)},
-    {...policy,idleEnabled:false},history(1000))
+    // Keep the completed tool output large enough to force the same-turn
+    // continuation summary while remaining inside the computed next-step
+    // reserve. An intrinsically infeasible single result is covered by the
+    // separate pre-dispatch block path.
+    toolOutput:'result '.repeat(25000),progress:()=>t.mock.timers.tick(mode==='stall' && chunks++>0?180001:100000)},
+    {...policy,idleEnabled:false},history(470000))
   try {
     const task=message();agent.followup(task);await agent.whenIdle()
     const events=agent.session.snapshotEvents()
     assert.equal(adapter.work,1,'completed side effect must never replay')
     assert.equal(events.filter(e=>e.type==='user/message' && e.data.id===task.id).length,1)
-    assert.equal(adapter.summaries.length,1,'no hidden second paid attempt')
+    assert.equal(adapter.summaries.length,1,'one paid summary; no hidden retry')
     const row=ctx.contextManager.summaryOperations.records(String(agent.id))[0]
     writeFileSync(new URL(`../verification/continuation-${mode}.json`,import.meta.url),JSON.stringify({mode,policy:ctx.contextManager.snapshot(),work:adapter.work,order:adapter.order,operation:row,events:events.filter(e=>['turn/start','turn/end','step/start','step/end','compaction/start','compaction/end'].includes(e.type))},null,2))
     if(mode==='default') {
@@ -1015,7 +1242,7 @@ test('hot recovery: current policy replaces captured admission and records actua
   const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
   changePolicy(ctx,{summaryTimeoutMode:'adaptive'})
   adapter.options.fail=false;adapter.options.progress=()=>t.mock.timers.tick(100000)
-  await ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,new AbortController().signal)
+  await ctx.contextManager.authorizeRecovery(String(agent.id),recovery.authorizationToken,new AbortController().signal)
   assert.equal(adapter.summaries.length,2)
   assert.match(ctx.contextManager.idleStatus(String(agent.id)).execution,/已完成.*总限600s/)
  }finally{await ctx.fiber.dispose()}
@@ -1023,8 +1250,16 @@ test('hot recovery: current policy replaces captured admission and records actua
 
 async function exhaustForEmergency(ctx,agent) {
  agent.followup(message());await agent.whenIdle()
+ assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,1)
  const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
- await assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,new AbortController().signal))
+ assert.equal(recovery.available,true,'unknown cost needs one explicit authorization')
+ // One explicit recovery consumes the second primary (this fixture keeps failing);
+ // the third attempt is refused by the shared budget.
+ await assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.authorizationToken,new AbortController().signal),
+   /闲置压缩未完成|未知|上限|压缩/)
+ assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,2)
+ const blocked=ctx.contextManager.idleStatus(String(agent.id)).recovery
+ await assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),blocked.authorizationToken,new AbortController().signal))
  assert.equal(ctx.contextManager.summaryOperations.records(String(agent.id)).length,2)
 }
 for(const result of ['success','malformed']) test(`emergency: explicit prepare and one separate call ${result}, no turn replay`,async()=>{
@@ -1090,7 +1325,7 @@ test('emergency: raw unended transport remains blocked after bounded harvesting 
   const recovery=ctx.contextManager.idleStatus(String(agent.id)).recovery
   adapter.options.pause=async()=>{startedResolve();await new Promise(r=>release=r)}
   const abort=new AbortController()
-  const rejected=assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.requestHash,abort.signal))
+  const rejected=assert.rejects(ctx.contextManager.authorizeRecovery(String(agent.id),recovery.authorizationToken,abort.signal))
   await started;abort.abort(new Error('user cancellation'));await rejected
   await new Promise(r=>setTimeout(r,21000))
   await assert.rejects(ctx.compaction.prepareEmergency(agent,new AbortController().signal),/未结束的摘要传输/)
@@ -1113,12 +1348,17 @@ test('emergency: actual Session and domain restart reconciles only a complete co
   assert.equal(ops.allRecords('subject').at(-1).phase,'recorded')
   const restored=await assertPhysicalSessionRestore(first.agent.session)
   await first.ctx.fiber.dispose()
-  second=await fixture({storageRoot:first.storageRoot,tools:true,toolOutput:'result '.repeat(4500)},{},restored.snapshotEvents())
+  second=await fixture({storageRoot:first.storageRoot,contextWindow:20000},{},restored.snapshotEvents())
   assert.equal(second.ctx.contextManager.summaryOperations.emergencyStatus('subject').used,true)
-  second.agent.followup(message('Continue with genuinely new work'));await second.agent.whenIdle();completed(second.agent)
+  second.agent.followup(message('Warm up new source '.repeat(2200)));await second.agent.whenIdle()
+  const newTask=message('Continue with genuinely new work. '.repeat(1400))
+  second.agent.followup(newTask);await second.agent.whenIdle();completed(second.agent)
+  assert.equal(second.adapter.summaries.length,1,'the new request drives reconciliation through the real summary claim path')
+  assert.ok(second.agent.session.deriveMessages().some(item=>item.id===newTask.id))
   const emergency=second.ctx.contextManager.summaryOperations.allRecords('subject').find(r=>r.authorizationId===plan.token)
   assert.equal(emergency.phase,'committed')
-  assert.equal(second.adapter.work,1);assert.equal(second.adapter.summaries.length,1)
+  assert.equal(second.adapter.requests.length,2,'both genuinely new tasks complete once')
+  assert.equal(second.adapter.work,0)
  }finally{await second?.ctx.fiber.dispose();await first.ctx.fiber.dispose();await rm(first.storageRoot,{recursive:true,force:true})}
 })
 
@@ -1185,6 +1425,259 @@ test('emergency: unloaded ID resolves through injected public Typert lookup with
 })
 
 
+test('checkpoint format: a policy without the field reads the JSON default', { timeout: 8000 }, async () => {
+  const { ctx, agent, adapter } = await fixture()
+  try {
+    assert.equal(ctx.contextManager.snapshot().checkpointFormat, 'json')
+    agent.followup(message()); await agent.whenIdle()
+    const instruction = adapter.summaries[0].messages.at(-1).content.filter(block => block.type === 'text').map(block => block.text).join('')
+    assert.match(instruction, /Return exactly one JSON object/)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('section checkpoint: opt-in protocol requests sections, commits and keeps the versioned marker', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ sectionsText: true }, { checkpointFormat: 'sections' })
+  try {
+    const task = message(); agent.followup(task); await agent.whenIdle()
+    assert.equal(ctx.contextManager.snapshot().checkpointFormat, 'sections', 'the saved policy choice reaches the engine')
+    assert.equal(adapter.summaries.length, 1)
+    const instruction = adapter.summaries[0].messages.at(-1).content.filter(block => block.type === 'text').map(block => block.text).join('')
+    assert.match(instruction, /## 当前目标/)
+    assert.ok(!instruction.includes('Return exactly one JSON object'), 'section protocol must not ask for JSON')
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1)
+    const checkpoint = agent.session.snapshotEvents().find(event => event.type === 'compaction/summary').data.summary.map(block => block.text).join('')
+    assert.match(checkpoint, /Checkpoint schema: context-manager\/3/)
+    assert.match(checkpoint, /保持唯一写入者与授权边界/)
+    assert.deepEqual(adapter.requests[0].messages.find(item => item.id === task.id).content, task.content)
+    completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real loop checkpoint replay: long task commits exact facts, survives JSONL restart, then continues once', { timeout: 30000 }, async () => {
+  const checkpoint = {
+    goal: '完成长任务并保持验收证据',
+    constraints: [
+      '最新纠正：不要覆盖用户已有修改',
+      '唯一写入者：当前 Context 开发会话',
+      '这是一条多行约束\n第二行仍属于同一个事实',
+    ],
+    completed: ['已运行唯一一次外部副作用工具，原结果仍在日志中'],
+    pending: ['修复失败的 acceptance A-17，再按原命令复验'],
+    evidence: ['/workspace/Deepseek Harness/插件/verify.mjs:42\n$ node verify.mjs --mode "strict"'],
+    next: '先恢复 A-17，再执行精确引用的命令并记录结果',
+    uncertainties: ['远端真实模型对语义压缩的保真度尚未测量'],
+  }
+  const seedFacts = [
+    ...checkpoint.constraints, ...checkpoint.completed, ...checkpoint.pending, ...checkpoint.evidence,
+    checkpoint.goal, checkpoint.next, ...checkpoint.uncertainties,
+  ].join('\n')
+  const first = await fixture({
+    persistSession: true, keepStorage: true, tools: true, checkpointText: JSON.stringify(checkpoint),
+  }, { idleEnabled: false }, history(31600, false, seedFacts))
+  let second
+  const original = first.agent
+  try {
+    const taskText = [
+      '完成长任务。', checkpoint.constraints[0], checkpoint.constraints[1], checkpoint.pending[0],
+      checkpoint.evidence[0], '失败验收：A-17 仍然失败。',
+    ].join('\n')
+    const task = message(taskText)
+    original.followup(task)
+    await original.whenIdle()
+    assert.equal(original.session.snapshotEvents().at(-1)?.data?.reason?.kind, 'completed', JSON.stringify({
+      order: first.adapter.order, operations: first.ctx.contextManager.summaryOperations.records(String(original.id)),
+      reason: original.session.snapshotEvents().at(-1)?.data?.reason,
+    }))
+    assert.deepEqual(first.adapter.order, ['summary-start', 'summary-finish', 'main', 'tool', 'main'])
+    assert.equal(first.adapter.work, 1, 'the side effect is executed once')
+    assert.equal(first.adapter.summaries.length, 1, 'one successful compaction, no repair call')
+    assert.equal(original.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+    assert.deepEqual(first.adapter.requests.at(-1).messages.find(item => item.id === task.id)?.content, task.content)
+
+    const events = original.session.snapshotEvents()
+    const commits = events.filter(event => event.type === 'compaction/summary')
+    const results = events.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append')
+    assert.equal(commits.length, 1)
+    assert.equal(results.length, 1)
+    assert.ok(!commits[0].data.shadowedSeqs.includes(results[0].seq), 'the tool result generated after compaction stays as a separate one-time event')
+    const summaryText = commits[0].data.summary.filter(block => block.type === 'text').map(block => block.text).join('\n')
+    assert.deepEqual(parseCheckpoint(summaryText), checkpoint, 'the committed checkpoint round-trips every exact fact')
+    for (const fact of [checkpoint.constraints[0], checkpoint.constraints[1], checkpoint.completed[0], checkpoint.pending[0], checkpoint.next, checkpoint.uncertainties[0]]) {
+      assert.ok(summaryText.includes(fact), `committed checkpoint keeps ${fact}`)
+    }
+    assert.ok(summaryText.includes('- >这是一条多行约束\n  >第二行仍属于同一个事实'))
+    assert.ok(summaryText.includes('- >/workspace/Deepseek Harness/插件/verify.mjs:42\n  >$ node verify.mjs --mode "strict"'))
+    const compactedMessage = events[commits[0].seq + 1]
+    assert.equal(compactedMessage.type, 'user/message')
+    assert.ok(commits[0].data.shadowedSeqs.every(seq => compactedMessage.sourceEventSeqs.includes(seq)), 'the replacement retains all summarized source-event lineage')
+    const taskEvent = events.find(event => event.type === 'user/message' && event.data.id === task.id)
+    assert.ok(taskEvent && !commits[0].data.shadowedSeqs.includes(taskEvent.seq), 'the active task stays verbatim outside the summary range')
+    const summaryInput = first.adapter.summaries[0].messages.map(item => (item.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('')).join('\n')
+    for (const fact of [checkpoint.constraints[0], checkpoint.constraints[1], checkpoint.pending[0], ...checkpoint.evidence[0].split('\n')]) {
+      assert.ok(summaryInput.includes(fact), `the real loop supplied ${fact} to the summarizer`)
+    }
+
+    assert.equal(await first.ctx.sessions.flush(original.session), true, 'the production JSONL persistence layer acknowledges the committed log')
+    await assertPhysicalSessionRestore(original.session)
+    await first.ctx.fiber.dispose()
+
+    second = await fixture({ storageRoot: first.storageRoot, keepStorage: true, persistSession: true, skipCreate: true }, { idleEnabled: false })
+    const { agent: resumed } = await second.ctx.agents.resume({
+      resumeSessionId: SessionId('subject'), agentOptions: { provider: 'mock', model: 'large' },
+    })
+    assert.notEqual(resumed.session, original.session, 'restart reads a new Session from persisted JSONL')
+    const reopenedEvents = resumed.session.snapshotEvents()
+    const reopenedCommit = reopenedEvents.find(event => event.type === 'compaction/summary')
+    assert.ok(reopenedCommit)
+    const reopenedText = reopenedCommit.data.summary.filter(block => block.type === 'text').map(block => block.text).join('\n')
+    assert.deepEqual(parseCheckpoint(reopenedText), checkpoint, 'the stored event log restores the complete checkpoint')
+    assert.equal(reopenedEvents.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append').length, 1)
+    assert.equal(reopenedEvents.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+    assert.equal(second.adapter.requests.length, 0, 'resume never replays the finished task or tool call')
+
+    const followup = message('继续 A-17；保留唯一写入者与原始验收路径。')
+    resumed.followup(followup)
+    await resumed.whenIdle()
+    completed(resumed)
+    assert.equal(second.adapter.work, 0, 'the restored tool result is not executed again')
+    assert.equal(second.adapter.summaries.length, 0, 'the completed summary is not generated again')
+    assert.equal(second.adapter.requests.length, 1)
+    const continuedInput = second.adapter.requests[0].messages.map(item => (item.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('')).join('\n')
+    for (const fact of [checkpoint.constraints[0], checkpoint.constraints[1], checkpoint.pending[0], ...checkpoint.evidence[0].split('\n')]) {
+      assert.ok(continuedInput.includes(fact), `the restored task continues with ${fact}`)
+    }
+    assert.equal(resumed.session.snapshotEvents().filter(event => event.type === 'tool/result' && event.surfaceOp === 'append').length, 1)
+  } finally {
+    await second?.ctx.fiber.dispose()
+    await first.ctx.fiber.dispose()
+    await rm(first.storageRoot, { recursive: true, force: true })
+  }
+})
+
+test('real loop semantic replay: two compactions preserve prior facts and the latest checkpoint survives JSONL restart', { timeout: 45000 }, async () => {
+  const firstCheckpoint = {
+    goal: '完成风险恢复回归并保留可审查证据',
+    constraints: [
+      '最新纠正：只有 committed 风险接受才持久生效，not_dispatched 必须允许新授权',
+      '唯一写入者：当前 Context 开发会话',
+    ],
+    completed: ['原风险调用费用仍未知，绝不可自动再次收费'],
+    pending: ['失败验收：RISK-17 需在 not_dispatched 重启后获得新的显式授权并成功 claim'],
+    evidence: ['/workspace/context/tests/risk-accepted-not-dispatched-retry.test.mjs:1'],
+    next: '完成第二轮摘要后恢复 session，继续核对提交状态',
+    uncertainties: ['真实模型的语义保真度尚未验证'],
+  }
+  const secondCheckpoint = {
+    ...firstCheckpoint,
+    completed: [...firstCheckpoint.completed, '第二轮压缩也保留了首轮 checkpoint 的授权、失败验收和证据路径'],
+    pending: [
+      '失败验收仍未完成：RISK-17 需在 not_dispatched 重启后获得新的显式授权并成功 claim',
+      '重启后继续读取 RISK-17 的恢复状态，不重放旧摘要调用',
+    ],
+    next: '重启后读取 RISK-17 恢复状态；若验收仍未完成，重新取得显式授权并完成一次 claim',
+  }
+  const initialFacts = [
+    ...firstCheckpoint.constraints, ...firstCheckpoint.completed, ...firstCheckpoint.pending,
+    ...firstCheckpoint.evidence, firstCheckpoint.goal, firstCheckpoint.next, ...firstCheckpoint.uncertainties,
+  ]
+  const checkpointFacts = [
+    ...firstCheckpoint.constraints, ...firstCheckpoint.completed, ...firstCheckpoint.pending,
+    ...firstCheckpoint.evidence, firstCheckpoint.goal, firstCheckpoint.next, ...firstCheckpoint.uncertainties,
+  ]
+  const checkpointText = (options, round) => {
+    const inputText = options.messages.map(item => (item.content ?? []).filter(block => block.type === 'text')
+      .map(block => block.text).join('')).join('\n')
+    assert.ok(round === 1 || round === 2, `unexpected compaction round ${round}`)
+    const required = round === 1 ? initialFacts : checkpointFacts
+    for (const fact of required) assert.ok(inputText.includes(fact), `round ${round} input must contain ${fact}`)
+    return JSON.stringify(round === 1 ? firstCheckpoint : secondCheckpoint)
+  }
+  const seedFacts = initialFacts.join('\n')
+  const first = await fixture({ persistSession: true, keepStorage: true, tools: true,
+    toolOutput: 'one-shot side effect result: keep this exact result in the durable session', checkpointText,
+  }, { idleEnabled: false }, history(31600, false, seedFacts))
+  let second
+  const original = first.agent
+  const extraTasks = []
+  try {
+    const task = message([
+      '完成两轮语义压缩回归。', ...firstCheckpoint.constraints, ...firstCheckpoint.pending,
+      ...firstCheckpoint.evidence, '原始工具结果不得重放。',
+    ].join('\n'))
+    original.followup(task)
+    await original.whenIdle()
+    completed(original)
+    assert.equal(first.adapter.summaries.length, 1)
+    assert.equal(first.adapter.work, 1, 'the side effect runs once before the checkpoint is committed')
+
+    for (let index = 0; index < 120 && first.adapter.summaries.length < 2; index++) {
+      const extra = message(`续跑阶段 ${index + 1}：${'核对当前进展并保留原验收状态。'.repeat(18)}`)
+      extraTasks.push(extra)
+      original.followup(extra)
+      await original.whenIdle()
+      completed(original)
+    }
+
+    const events = original.session.snapshotEvents()
+    const commits = events.filter(event => event.type === 'compaction/summary')
+    const results = events.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append')
+    assert.equal(commits.length, 2, 'accumulated follow-up work drives a second real loop compaction')
+    assert.equal(first.adapter.summaries.length, 2)
+    assert.equal(first.adapter.work, 1, 'the one-shot side effect is not replayed across either compaction')
+    assert.equal(results.length, 1)
+    for (const [index, expected] of [[0, firstCheckpoint], [1, secondCheckpoint]]) {
+      const text = commits[index].data.summary.filter(block => block.type === 'text').map(block => block.text).join('\n')
+      assert.deepEqual(parseCheckpoint(text), expected)
+    }
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+    for (const extra of extraTasks) {
+      assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === extra.id).length, 1,
+        'each accumulated continuation is admitted once')
+    }
+    const priorCheckpoint = events[commits[0].seq + 1]
+    assert.equal(priorCheckpoint.type, 'user/message')
+    assert.ok(commits[1].data.shadowedSeqs.includes(priorCheckpoint.seq),
+      'the second selected span includes the earlier checkpoint, so its summary may merge those facts')
+
+    assert.equal(await first.ctx.sessions.flush(original.session), true)
+    await assertPhysicalSessionRestore(original.session)
+    await first.ctx.fiber.dispose()
+
+    second = await fixture({ storageRoot: first.storageRoot, keepStorage: true, persistSession: true, skipCreate: true }, { idleEnabled: false })
+    const { agent: resumed } = await second.ctx.agents.resume({
+      resumeSessionId: SessionId('subject'), agentOptions: { provider: 'mock', model: 'large' },
+    })
+    const restored = resumed.session.snapshotEvents()
+    assert.equal(restored.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+    assert.equal(restored.filter(event => event.type === 'compaction/summary').length, 2)
+    const restoredLast = restored.filter(event => event.type === 'compaction/summary').at(-1)
+    const restoredText = restoredLast.data.summary.filter(block => block.type === 'text').map(block => block.text).join('\n')
+    assert.deepEqual(parseCheckpoint(restoredText), secondCheckpoint)
+    assert.equal(restored.filter(event => event.type === 'tool/result' && event.surfaceOp === 'append').length, 1)
+    assert.equal(second.adapter.summaries.length, 0, 'restart does not regenerate either checkpoint')
+    assert.equal(second.adapter.requests.length, 0, 'restart does not replay the completed user task')
+
+    resumed.followup(message('继续按第二轮 checkpoint 核对 RISK-17。'))
+    await resumed.whenIdle()
+    completed(resumed)
+    assert.equal(second.adapter.work, 0)
+    assert.equal(second.adapter.summaries.length, 0)
+    const continued = second.adapter.requests[0].messages.map(item => (item.content ?? []).filter(block => block.type === 'text')
+      .map(block => block.text).join('')).join('\n')
+    const resumedFacts = [
+      ...firstCheckpoint.constraints, ...firstCheckpoint.completed, ...secondCheckpoint.pending,
+      ...secondCheckpoint.evidence, secondCheckpoint.goal, secondCheckpoint.next, ...secondCheckpoint.uncertainties,
+    ]
+    for (const fact of resumedFacts) assert.ok(continued.includes(fact), `resumed request retains ${fact}`)
+    assert.ok(continued.includes(secondCheckpoint.completed.at(-1)))
+    assert.equal(resumed.session.snapshotEvents().filter(event => event.type === 'tool/result' && event.surfaceOp === 'append').length, 1)
+  } finally {
+    await second?.ctx.fiber.dispose()
+    await first.ctx.fiber.dispose()
+    await rm(first.storageRoot, { recursive: true, force: true })
+  }
+})
+
 test('percent: actual request summary obeys window-based output cap and continues once',async()=>{
  const {ctx,adapter,agent}=await fixture({}, {capacityMode:'percent',recentPercent:10,summaryPercent:5,repairPercent:1})
  try{
@@ -1193,4 +1686,53 @@ test('percent: actual request summary obeys window-based output cap and continue
   assert.ok(adapter.summaries[0].maxTokens<=500)
   assert.ok(adapter.requests.length>0);completed(agent)
  }finally{await ctx.fiber.dispose()}
+})
+
+for (const target of ['steer', 'followup']) test(`pre-dispatch ${target} handoff settles summary usage without a false unknown`, { timeout: 12000 }, async t => {
+  const { ctx, adapter, agent } = await fixture({}, {}, history((7990 - 21) * 4))
+  try {
+    if (agent.supportsRequestErrorHandoff !== true) {
+      t.skip('requires the opt-in Host AgentLoop request-error handoff capability')
+      return
+    }
+  const original = message(`original pressure task for ${target}`)
+  const queued = message(`new ${target} task must continue automatically`)
+  const ledger = ctx.contextManager.summaryLedger
+  const originalStart = ledger.start.bind(ledger)
+  let injected = false
+  let compactionStreams = 0
+  ledger.start = async (...args) => {
+    const attempt = await originalStart(...args)
+    if (!injected) {
+      injected = true
+      if (target === 'steer') agent.steer(queued)
+      else agent.followup(queued)
+    }
+    return attempt
+  }
+  ctx.on('llm/stream', async function* (options, next) {
+    if (options.purpose === 'compaction') compactionStreams++
+    yield* next()
+  }, true)
+    agent.followup(original)
+    await agent.whenIdle()
+
+    const id = String(agent.id)
+    const operationRuns = ctx.contextManager.summaryOperations.records(id).map(row => ({
+      phase: row.phase, run: ctx.contextManager.summaryOperations.run(id, row.compactionId),
+    }))
+    const stats = ledger.stats(id)
+    assert.ok(operationRuns.some(item => item.phase === 'not_dispatched' && item.run?.actualDispatched === 0))
+    assert.ok(operationRuns.some(item => item.phase === 'committed'))
+    assert.equal(compactionStreams, 1, 'only the replacement summary reaches llm/stream')
+    assert.equal(adapter.summaries.length, 1)
+    assert.equal(adapter.requests.length, 1, 'the queued task completes without a second user message')
+    assert.deepEqual(adapter.order, ['summary-start', 'summary-finish', 'main'])
+    assert.equal(stats.unknownAttempts, 0)
+    assert.ok(stats.recent.some(item => item.status === 'not_dispatched' && item.input === null && item.output === null))
+    assert.deepEqual(agent.inbox.nextStep, [])
+    assert.deepEqual(agent.inbox.nextTurn, [])
+    assert.ok(adapter.requests[0].messages.some(item => item.id === queued.id))
+    completed(agent)
+  } finally { await ctx.fiber.dispose() }
 })

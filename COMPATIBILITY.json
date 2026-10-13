@@ -1,92 +1,64 @@
 {
-  "harnessVersion": "0.2.0-rc.2",
+  "harnessVersion": "0.2.1-alpha.2",
   "verifiedHarnessVersions": [
-    "0.2.0-rc.2",
     "0.2.1-alpha.2"
   ],
-  "sourceSha": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "sourceSha": null,
+  "sourceShaMeaning": "Target directory has no Git metadata; the opt-in Host capability is identified by its source fingerprint below.",
+  "presetMode": "registry-compaction-provider",
+  "hostCapabilityRequirement": {
+    "id": "preset-compaction-provider-patch-v1",
+    "status": "candidate-only",
+    "hostPackageVersion": "0.2.1-alpha.2",
+    "sourceFiles": [
+      "vendor/include/src/index.ts",
+      "packages/preset/agent-preset/src/index.ts",
+      "packages/preset/agent-preset-registry/src/index.ts",
+      "packages/preset/agent-preset-registry/src/compaction-provider.ts"
+    ],
+    "fingerprintSha256": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
+    "officialVersionClaim": false
+  },
+  "legacyFallback": {
+    "available": true,
+    "artifactVersion": "0.10.0-local.9-legacy.1",
+    "presetMode": "legacy-full-preset-override",
+    "hashRecordedIn": "verification/automatic-compaction-20261014/ARTIFACTS.json"
+  },
+  "priorRollback": {
+    "artifactVersion": "0.10.0-local.8",
+    "artifactPath": "verification/automatic-compaction-20261013/missher-dsh-context-manager-0.10.0-local.8.tgz",
+    "artifactSha256": "70d18d1536f014a60d3938626e6b2203c261ef81fad39cee346d9614b0f3c051",
+    "role": "rollback-only; predates this round and does not contain the local.9 fixes"
+  },
   "sources": [
     {
       "path": "packages/bundle/web-app/presets/standard.patch.yml",
-      "sha256": "6cd2f197737fc94a45e487d0bb57869461dd6f392d45f6429b576e75d973eda8",
-      "replacedBackends": 1
+      "sha256": "6462f63e24ea865d3931f992584bbc79aa152adf697e861af0b2e4dd7a4d622f",
+      "presetMode": "registry-compaction-provider",
+      "basicProviders": 1,
+      "replacedBackends": 0,
+      "compactionProvider": "@missher/dsh-context-manager/engine",
+      "normalizedDeprecatedPersonaSuffixes": 0
     },
     {
       "path": "packages/bundle/web-app/presets/ptc.patch.yml",
-      "sha256": "8fcf6b04dce7c2c76fab925129f6ac9b05ebb546840508e6cde72aa2da991832",
-      "replacedBackends": 1
+      "sha256": "162d1e57cc0ca48a2b54f4659e920264f46c87b3027a73e81429d345d584c566",
+      "presetMode": "registry-compaction-provider",
+      "basicProviders": 1,
+      "replacedBackends": 0,
+      "compactionProvider": "@missher/dsh-context-manager/engine",
+      "normalizedDeprecatedPersonaSuffixes": 0
     },
     {
       "path": "packages/bundle/web-app/presets/cordis.patch.yml",
-      "sha256": "b74d71901b692f11111d02d20072735b2fe94b74744ee7e3bfdc5d972f1a3aa5",
-      "replacedBackends": 1
+      "sha256": "0b12c30161ac570face5e310f14f4c2177df20c0ca1c4e5a45ef959a37152434",
+      "presetMode": "registry-compaction-provider",
+      "basicProviders": 1,
+      "replacedBackends": 0,
+      "compactionProvider": "@missher/dsh-context-manager/engine",
+      "normalizedDeprecatedPersonaSuffixes": 0
     }
   ],
-  "customPresets": "Replace the compaction-basic provider with @missher/dsh-context-manager/engine explicitly. Saved preset overrides take precedence.",
-  "runtimeCapabilities": {
-    "idleMaintenanceSelection": "Plugin-owned selection inside Agent.runMaintenance; no Basic selection hook required",
-    "protectedToolPruning": "toolResultPruner.supportsProtectedSeqs === true and an open turn in the session log; idle/manual maintenance skips tool-result pruning and retains checkpoint summaries",
-    "durableMetadata": "Existing storageDomain schemas plus a plugin-owned pending metadata journal; no session/learning migration",
-    "summaryAbortCommit": "Plugin-owned transaction checks AbortSignal immediately before synchronous Session replacement",
-    "storageShutdownDrain": "Writable profileContext.dir/.context-manager-recovery journal; Host registerDrain used when available. Custom embedding without profile path requires Host drain.",
-    "journalDurability": "Mandatory regular-file fsync on every platform; POSIX directory fsync, Windows published-file O_RDWR fsync after rename. Failure refuses writes; no power-loss or network-filesystem guarantee. Windows ACL inherited from profile.",
-    "workingSet": "Automatic recent-history preference plus bounded checkpoint, with whole tool groups, protected instructions and complete pressure validation; custom total caps optional.",
-    "cycleAccounting": "Legacy context_manager_cycles v1 is read only. New context_manager_operations atomically consumes the unified 2-primary/4-total budget and optional exact one-shot authorization; back up both. Manual calls also consume permits. Unknown remains blocked across restart. Older runtimes cannot enforce the new domain; disable automatic compaction before a coordinated downgrade.",
-    "historyRead": "Optional tools/sessionQuery/sessions: bounded read-only original text lookup in the executing agent session; no vectors or network.",
-    "toolResultReduction": "Reduction runs through the Host's final tool-result seam and publishes only a verified short value; the reducer never rewrites another plugin's bytes. A reference counts as confirmed only when the final Host result still carries the short text; pending/reverted stay separate and character deltas are not billing.",
-    "originalArchive": "Profile-local .context-manager-archive with durable outcome rows, cross-restart rebuild and physical quota reconciliation; every read path is read-only. Retention is unconditional: no purge action, no retention switch, and uninstalling never deletes it.",
-    "usageAttribution": "attributeSession folds the current immutable cut and keeps the Host tokenUsage projection authoritative when present; the four buckets stay mutually exclusive. Partial samples yield a labelled known lower bound, all-unknown yields unknown, and the summary ledger stays one undivided figure because it has no durable purpose field.",
-    "forkInheritedOriginals": "A forked session may read back only the originals granted inside its inherited prefix, bounded by boundary validity, reference count, scanned events and a total-log cap checked before the observation is materialised."
-  },
-  "verification": {
-    "distribution": "0.10.0-local.6 overlay-only compatibility candidate for Host 0.2.1-alpha.2.20261012.1. Exact evidence: verification/cwd-template-20261012/READY.md. Runtime libs remain the frozen local.5 bytes; only the overlay and metadata changed. Not installed, not published.",
-    "platformsTested": [
-      "macOS Intel (x64)"
-    ],
-    "platformsNotVerified": [
-      "macOS Apple Silicon",
-      "Windows",
-      "Linux"
-    ],
-    "officialHarnessOnly": "Full plugin acceptance on unmodified official rc.2 was not performed. Missing optional capabilities follow runtimeCapabilities.",
-    "realProviderCompactionTested": false,
-    "presetSourceShaMeaning": "sourceSha identifies the preset-source baseline, not an assertion of full compatibility with that commit.",
-    "sdkUsedForFullRegression": "Enhanced combined SDK at /Users/missher/Documents/Deepseek-harness-Cordis/coordination/2026-10-07/context-long-task/context-receiver/combined-sdk-r1 (BINDING.json sha256 ef82a169ccd0c8ed2a77ff85a10fe481360e47c40bf6a73acb82fdc5a58901e1); the isolated legacy stage keeps the naturally linked older SDK."
-  },
-  "desktopHarnessVersion": "0.2.1-alpha.2.20261012.1",
-  "overlay": {
-    "revision": "0.10.0-local.6",
-    "scope": "Overlay-only compatibility revision. The 16 runtime lib files stay byte-identical with the frozen 0.10.0-local.5 candidate.",
-    "deprecatedPersonaSuffix": "Your working directory is {{cwd}}.",
-    "normalization": "scripts/generate-overlay.mjs strips the deprecated suffix clause from persona configs, preserves unrelated suffix prose, and fails closed if any {{cwd}} reference survives generation.",
-    "runtimeEngine": "Engine diagnostics and behavior remain the frozen local.5 build; src/engine.ts and src/summary-operations.ts are not re-versioned or changed.",
-    "cwdContext": "The working-directory service still supplies the literal working-directory:current runtime context. 0.2.1-alpha.2 registers only the provider and model prompt variables, so the removed clause could never resolve."
-  },
-  "newHost": {
-    "desktopVersion": "0.2.1-alpha.2.20261012.1",
-    "presetHostVersion": "0.2.1-alpha.2",
-    "registeredPromptVariables": [
-      "provider",
-      "model"
-    ],
-    "templateVerification": "Real @deepseek-ai/dsh-system-prompt 0.2.1-alpha.2 assembly with the shipped persona rows, no model call; old local.5 suffix reproduced unknown prompt variable {{cwd}} mapped to code UNKNOWN.",
-    "presetBaselineDelta": {
-      "hostAdds": [
-        "time-context",
-        "@deepseek-ai/dsh-tool-schedule"
-      ],
-      "hostRemoves": [
-        "tool-subagent-codex",
-        "tool-subagent-claude-code",
-        "tool-ralph"
-      ],
-      "hostChanges": [
-        "plan-mode.section",
-        "tool-subagent.config.toolFilter",
-        "tool-subagent-fork.config.toolFilter"
-      ],
-      "note": "The overlay keeps the frozen rc.2 preset snapshot except for the deprecated cwd suffix. These 0.2.1-alpha.2 preset additions, removals and edits are recorded as limitations and are intentionally not carried by this overlay-only fix."
-    }
-  },
-  "sourcesNote": "Fingerprints record the rc.2 preset-source baseline of the frozen local.5 overlay. That old SDK checkout is no longer resolvable on this host (the installed runtime is 0.2.1-alpha.2); tests/fixtures/context-local.5-cordis.patch.yml (sha256 dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69) is the frozen baseline used for the strict comparison."
+  "customPresets": "Requires the opt-in Host source capability recorded below. Official Host packages labelled 0.2.1-alpha.2 do not gain this capability from this candidate; install only with a Host that contains the recorded narrow patch contract."
 }

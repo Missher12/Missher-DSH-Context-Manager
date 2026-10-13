@@ -1,5 +1,6 @@
 /** Pin copied preset definitions instead of monkey-patching Loader or private engine state. */
 import { readFile, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
@@ -11,11 +12,60 @@ import { load, dump, DEFAULT_SCHEMA, Type } from 'js-yaml'
  * `{{cwd}}` is not a prompt variable; the working-directory service supplies
  * the current directory as literal runtime context instead.
  */
-export const VERIFIED_HARNESS_VERSIONS = ['0.2.0-rc.2', '0.2.1-alpha.2']
+export const VERIFIED_HARNESS_VERSIONS = ['0.2.1-alpha.2']
 /** Persona suffix copied from the rc.2 presets; it must never reach the overlay. */
 export const DEPRECATED_CWD_CLAUSE = 'Your working directory is {{cwd}}.'
 const PRESETS = ['standard', 'ptc', 'cordis']
+const BASIC_PROVIDER = '@deepseek-ai/dsh-compaction-basic'
+const CONTEXT_PROVIDER = '@missher/dsh-context-manager/engine'
+const HOST_CAPABILITY_FILES = [
+  'vendor/include/src/index.ts',
+  'packages/preset/agent-preset/src/index.ts',
+  'packages/preset/agent-preset-registry/src/index.ts',
+  'packages/preset/agent-preset-registry/src/compaction-provider.ts',
+]
 const schema = DEFAULT_SCHEMA.extend([new Type('tag:yaml.org,2002:js', { kind: 'scalar', construct: text => ({ __jsExpr: text }) })])
+
+async function hostCapabilityFingerprint(root) {
+  const files = await Promise.all(HOST_CAPABILITY_FILES.map(async path => ({
+    path,
+    sha256: createHash('sha256').update(await readFile(resolve(root, path))).digest('hex'),
+  })))
+  const aggregate = createHash('sha256')
+  for (const file of files) aggregate.update(`${file.path}\0${file.sha256}\n`)
+  return aggregate.digest('hex')
+}
+
+/**
+ * Detect the opt-in Host contract from both the preset schema and its actual
+ * activation path. A version string alone cannot prove that a local Host
+ * contains the narrow provider replacement hook.
+ * @param root - Harness source root.
+ * @returns whether preset registration accepts and applies compactionProvider.
+ */
+export async function hasCompactionProviderCapability(root) {
+  let preset, registry, helper, include
+  try {
+    [preset, registry, helper, include] = await Promise.all([
+      readFile(resolve(root, 'packages/preset/agent-preset/src/index.ts'), 'utf8'),
+      readFile(resolve(root, 'packages/preset/agent-preset-registry/src/index.ts'), 'utf8'),
+      readFile(resolve(root, 'packages/preset/agent-preset-registry/src/compaction-provider.ts'), 'utf8'),
+      readFile(resolve(root, 'vendor/include/src/index.ts'), 'utf8'),
+    ])
+  } catch (error) {
+    if (error.code === 'ENOENT') return false
+    throw error
+  }
+  if (!/compactionProvider\s*:\s*z\.string\(\)/u.test(preset)) return false
+  if (!include.includes('function applyPresetCompactionProviderPatch')
+    || !include.includes("target.name !== '@deepseek-ai/dsh-agent-preset'")
+    || !include.includes('target.config = { ...target.config, compactionProvider }')) return false
+  if (!helper.includes('export function replaceCompactionProvider')) return false
+  const validation = registry.indexOf('entryListProblem(record.config.plugins)')
+  const substitution = registry.indexOf('replaceCompactionProvider(record.config.plugins', validation)
+  const mount = registry.indexOf('await mountPreset(context', substitution)
+  return validation >= 0 && substitution > validation && mount > substitution
+}
 
 /**
  * Remove the deprecated cwd clause from a persona suffix while preserving the
@@ -56,9 +106,12 @@ export async function renderOverlay(root) {
   const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
   const expected = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).devDependencies['@deepseek-ai/dsh-agent']
   if (pkg.version !== expected) throw new Error(`Expected Harness ${expected}, got ${pkg.version}`)
-  const patches = [{ id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic', disabled: true }, {
-    insert: [{ id: 'context-manager', name: '@missher/dsh-context-manager' }, { id: 'context-manager-engine', name: '@missher/dsh-context-manager/engine' }, { id: 'context-manager-inspector', name: '@missher/dsh-context-manager/inspector' }],
-  }]
+  const narrowProvider = await hasCompactionProviderCapability(root)
+  const presetMode = narrowProvider ? 'registry-compaction-provider' : 'legacy-full-preset-override'
+  const patches = [
+    { id: 'compaction-basic', name: BASIC_PROVIDER, disabled: true },
+    { insert: [{ id: 'context-manager', name: '@missher/dsh-context-manager' }, { id: 'context-manager-engine', name: CONTEXT_PROVIDER }, { id: 'context-manager-inspector', name: '@missher/dsh-context-manager/inspector' }] },
+  ]
   const sources = []
   for (const preset of PRESETS) {
     const path = `packages/bundle/web-app/presets/${preset}.patch.yml`
@@ -67,33 +120,78 @@ export async function renderOverlay(root) {
     const row = rows.find(r => r.id === `preset-${preset}`)
     if (!row) throw new Error('Missing expected preset: ' + preset)
     let changes = 0
+    let basicProviders = 0
     let normalized = 0
     const visit = entries => { for (const entry of entries) {
-      if (entry.name === '@deepseek-ai/dsh-compaction-basic') { entry.name = '@missher/dsh-context-manager/engine'; changes++ }
+      if (entry.name === BASIC_PROVIDER) {
+        basicProviders++
+        if (!narrowProvider) { entry.name = CONTEXT_PROVIDER; changes++ }
+      }
       if (entry.name === '@deepseek-ai/dsh-persona' && normalizePersonaSuffix(entry.config)) normalized++
       if (entry.group && Array.isArray(entry.config)) visit(entry.config)
     } }
     visit(row.config.plugins)
-    if (changes !== 1) throw new Error('Expected one compaction backend in ' + preset)
-    patches.push({ id: row.id, name: row.name, config: row.config })
+    if (basicProviders !== 1) throw new Error(`Expected one ${BASIC_PROVIDER} in ${preset}, got ${basicProviders}`)
+    if (!narrowProvider && changes !== 1) throw new Error('Expected one compaction backend in ' + preset)
+    if (narrowProvider) row.config.compactionProvider = CONTEXT_PROVIDER
+    patches.push(narrowProvider
+      ? { id: row.id, name: row.name, compactionProvider: CONTEXT_PROVIDER }
+      : { id: row.id, name: row.name, config: row.config })
     sources.push({
       path,
       sha256: createHash('sha256').update(raw).digest('hex'),
+      presetMode,
+      basicProviders,
       replacedBackends: changes,
+      compactionProvider: narrowProvider ? CONTEXT_PROVIDER : null,
       normalizedDeprecatedPersonaSuffixes: normalized,
     })
   }
   const leftover = findDeprecatedReference(patches)
   if (leftover.length > 0) throw new Error('Deprecated {{cwd}} reference survived overlay generation: ' + leftover.join(', '))
-  return { patches, sources }
+  return { patches, sources, presetMode }
 }
 
 const invoked = process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 if (invoked) {
   const root = resolve(process.argv[2] ?? '')
-  const { patches, sources } = await renderOverlay(root)
+  const { patches, sources, presetMode } = await renderOverlay(root)
   const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
   await writeFile('cordis.patch.yml', `# Generated for Harness ${pkg.version}; profile/user overrides remain later layers.\n` + dump(patches, { lineWidth: -1, noRefs: true }))
-  const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
-  await writeFile('COMPATIBILITY.json', JSON.stringify({ harnessVersion: pkg.version, verifiedHarnessVersions: VERIFIED_HARNESS_VERSIONS, sourceSha, sources, customPresets: 'Replace the compaction-basic provider with @missher/dsh-context-manager/engine explicitly. Saved preset overrides take precedence.' }, null, 2) + '\n')
+  const sourceSha = existsSync(resolve(root, '.git'))
+    ? execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+    : null
+  const customPresets = presetMode === 'registry-compaction-provider'
+    ? 'Requires the opt-in Host source capability recorded below. Official Host packages labelled 0.2.1-alpha.2 do not gain this capability from this candidate; install only with a Host that contains the recorded narrow patch contract.'
+    : 'Legacy full-preset fallback for Hosts without the narrow provider patch capability. Its complete preset snapshots intentionally use the historical compatibility path.'
+  const hostCapabilityRequirement = presetMode === 'registry-compaction-provider' ? {
+    id: 'preset-compaction-provider-patch-v1',
+    status: 'candidate-only',
+    hostPackageVersion: pkg.version,
+    sourceFiles: HOST_CAPABILITY_FILES,
+    fingerprintSha256: await hostCapabilityFingerprint(root),
+    officialVersionClaim: false,
+  } : null
+  await writeFile('COMPATIBILITY.json', JSON.stringify({
+    harnessVersion: pkg.version,
+    verifiedHarnessVersions: VERIFIED_HARNESS_VERSIONS,
+    sourceSha,
+    sourceShaMeaning: sourceSha === null
+      ? 'Target directory has no Git metadata; the opt-in Host capability is identified by its source fingerprint below.'
+      : 'Git HEAD of the exact Host source used to generate this profile overlay.',
+    presetMode,
+    hostCapabilityRequirement,
+    legacyFallback: presetMode === 'registry-compaction-provider'
+      ? { available: true, artifactVersion: '0.10.0-local.9-legacy.1', presetMode: 'legacy-full-preset-override', hashRecordedIn: 'verification/automatic-compaction-20261014/ARTIFACTS.json' }
+      : { available: true, artifactVersion: '0.10.0-local.9-legacy.1', presetMode: 'legacy-full-preset-override', generatedForThisHostSource: true,
+        pairedNarrowArtifactVersion: '0.10.0-local.9', hashRecordedIn: 'verification/automatic-compaction-20261014/ARTIFACTS.json' },
+    priorRollback: {
+      artifactVersion: '0.10.0-local.8',
+      artifactPath: 'verification/automatic-compaction-20261013/missher-dsh-context-manager-0.10.0-local.8.tgz',
+      artifactSha256: '70d18d1536f014a60d3938626e6b2203c261ef81fad39cee346d9614b0f3c051',
+      role: 'rollback-only; predates this round and does not contain the local.9 fixes',
+    },
+    sources,
+    customPresets,
+  }, null, 2) + '\n')
 }

@@ -114,6 +114,20 @@ test('summary ledger: absent or incomplete usage remains explicitly unknown, inc
   assert.equal(ledger.stats(sessionId).unknownAttempts, 3, 'one known field cannot imply that all usage is known')
 })
 
+test('summary ledger: a proven pre-dispatch handoff is not unknown provider usage', async t => {
+  const { boot, stop } = await harness(t)
+  const first = await boot()
+  const id = await first.ledger.start(sessionId, 'pre-dispatch-handoff', 'pressure')
+  await first.ledger.finish(sessionId, id, 'not_dispatched')
+  assert.deepEqual(counters(first.ledger.stats(sessionId)), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
+  assert.equal(first.ledger.stats(sessionId).recent[0].status, 'not_dispatched')
+  await stop(first)
+
+  const reopened = await boot()
+  assert.deepEqual(counters(reopened.ledger.stats(sessionId)), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
+  assert.equal(reopened.ledger.stats(sessionId).recent[0].status, 'not_dispatched')
+})
+
 test('summary ledger: repeated and concurrent finish notifications never add usage twice', async t => {
   const { boot } = await harness(t)
   const { ledger } = await boot()
@@ -253,7 +267,8 @@ test('summary ledger: partial late usage fills field by field, repeats never dou
   assert.equal(stats.recent[0].status, 'cancelled')
   await ledger.recordUsage(sessionId, id, { inputTokens: 500, cacheReadTokens: 100, outputTokens: 40 })
   await ledger.recordUsage(sessionId, id, { outputTokens: 999 })
-  assert.deepEqual(counters(ledger.stats(sessionId)), { input: 600, output: 40, cacheRead: 100, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
+  assert.deepEqual(counters(ledger.stats(sessionId)), { input: 600, output: 999, cacheRead: 100, cacheWrite: 0, attempts: 1, unknownAttempts: 0 },
+    'a later totals snapshot updates its reported output field')
 })
 
 test('summary ledger: usage recorded before finish survives the settle, in either notification order', async t => {
@@ -268,10 +283,28 @@ test('summary ledger: usage recorded before finish survives the settle, in eithe
     const row = stats.recent.find(item => item.id === id)
     assert.equal(row.status, 'cancelled')
     assert.equal(row.input, 600); assert.equal(row.output, 40)
-    assert.equal(row.cacheRead, 100, 'cache components come from the first notification that establishes input')
+    assert.equal(row.cacheRead, 100, 'cache components remain known across partial snapshots')
   }
   const stats = ledger.stats(sessionId)
   assert.deepEqual(counters(stats), { input: 1200, output: 80, cacheRead: 200, cacheWrite: 0, attempts: 2, unknownAttempts: 0 })
+})
+
+test('summary ledger: later total snapshots update known fields without double-counting repeated totals', async t => {
+  const { boot } = await harness(t)
+  const { ledger } = await boot()
+  const id = await ledger.start(sessionId, 'compaction-latest-snapshot', 'pressure')
+  await ledger.recordUsage(sessionId, id, { inputTokens: 100, outputTokens: 0 })
+  await ledger.recordUsage(sessionId, id, { inputTokens: 100, outputTokens: 40 })
+  await ledger.recordUsage(sessionId, id, { cacheReadTokens: 30 })
+  let row = ledger.stats(sessionId).recent.find(item => item.id === id)
+  assert.equal(row.input, 130)
+  assert.equal(row.output, 40)
+  assert.equal(row.cacheRead, 30)
+  await ledger.finish(sessionId, id, 'generated', { inputTokens: 100, outputTokens: 40 })
+  row = ledger.stats(sessionId).recent.find(item => item.id === id)
+  assert.equal(row.input, 130, 'finish omitting cache retains the cache known by a later snapshot')
+  assert.equal(row.output, 40)
+  assert.deepEqual(counters(ledger.stats(sessionId)), { input: 130, output: 40, cacheRead: 30, cacheWrite: 0, attempts: 1, unknownAttempts: 0 })
 })
 
 test('summary ledger: cache components arriving before or after the billed input complete it exactly once', async t => {
@@ -292,9 +325,9 @@ test('summary ledger: cache components arriving before or after the billed input
   assert.equal(row.input, 600, 'cache arriving later must adjust the billed input exactly once')
   assert.equal(row.output, 40); assert.equal(row.cacheRead, 100)
   await ledger.recordUsage(sessionId, inputFirst, { cacheReadTokens: 200 })
-  assert.equal(ledger.stats(sessionId).recent.find(item => item.id === inputFirst).input, 600, 'a repeated cache notification never double-counts')
+  assert.equal(ledger.stats(sessionId).recent.find(item => item.id === inputFirst).input, 700, 'a newer cache total adjusts billed input by its delta')
   const stats = ledger.stats(sessionId)
-  assert.deepEqual(counters(stats), { input: 1200, output: 40, cacheRead: 200, cacheWrite: 0, attempts: 2, unknownAttempts: 1 }, 'the cache-first attempt never delivered output, so its usage stays partially unknown')
+  assert.deepEqual(counters(stats), { input: 1300, output: 40, cacheRead: 300, cacheWrite: 0, attempts: 2, unknownAttempts: 1 }, 'the cache-first attempt never delivered output, so its usage stays partially unknown')
 })
 
 test('summary ledger: a settled attempt awaiting late usage is never archived and stays fillable', async t => {

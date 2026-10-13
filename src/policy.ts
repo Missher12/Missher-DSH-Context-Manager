@@ -39,9 +39,23 @@ export interface Policy {
   idleMinutes: number
   idleMinPercent: number
   summaryInstructions: string
-  /** Bounded single repair of a structurally failed summary inside the same compaction transaction. */
+  /**
+   * Checkpoint protocol requested from the summary model.
+   * `json` is the historical seven-field JSON contract (unchanged default).
+   * `sections` asks for the versioned, low-escape-burden Markdown sections;
+   * both formats stay readable, so old checkpoints survive a switch.
+   */
+  checkpointFormat: 'json' | 'sections'
+  /**
+   * Gates the deterministic local structure repair: a repairable
+   * single-string array field is wrapped value-for-value and committed without
+   * any second provider call. The key is kept for saved-config compatibility.
+   */
   formatRepairEnabled: boolean
-  /** Output cap for the repair call; its input carries only the failed response and format requirements. */
+  /**
+   * Legacy output cap kept readable for old configurations. The local repair
+   * never calls a provider, so this value is not spent and is not sent.
+   */
   formatRepairMaxTokens: number
   /** Absolute soft budget on the measured session occupancy, independent of window percentages. */
   absoluteEnabled: boolean
@@ -74,6 +88,7 @@ export const defaults: Policy = {
   safetyPercent: 2, summaryMaxTokens: 8192, maxPasses: 2, timeoutMs: 90000,
   summaryTimeoutMode: 'adaptive', summaryTotalMs: 600000, summaryFirstOutputMs: 120000, summaryStallMs: 180000,
   idleEnabled: true, idleMinutes: 15, idleMinPercent: 65, summaryInstructions: '',
+  checkpointFormat: 'json',
   formatRepairEnabled: true, formatRepairMaxTokens: 2048,
   absoluteEnabled: false, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000,
   toolResultsMode: 'observe', toolResultsMaxChars: 200000, toolResultsMinSavings: 400,
@@ -92,13 +107,14 @@ export function validatePolicy(p: Policy): void {
   if (typeof p.enabled !== 'boolean') throw new Error('自动压缩开关必须是布尔值')
   if (p.historyMode !== 'automatic' && p.historyMode !== 'custom') throw new Error('历史保留策略必须为 automatic 或 custom')
   if (typeof p.idleEnabled !== 'boolean') throw new Error('闲置自动压缩开关必须是布尔值')
-  if (typeof p.formatRepairEnabled !== 'boolean') throw new Error('摘要格式修复开关必须是布尔值')
+  if (typeof p.formatRepairEnabled !== 'boolean') throw new Error('本地结构修复开关必须是布尔值')
   if (typeof p.absoluteEnabled !== 'boolean') throw new Error('绝对工作历史软预算开关必须是布尔值')
   if (typeof p.prefixDiagnosticsEnabled !== 'boolean') throw new Error('请求前缀指纹诊断开关必须是布尔值')
   if (p.toolResultsMode !== 'off' && p.toolResultsMode !== 'observe' && p.toolResultsMode !== 'reduce') throw new Error('工具结果精简模式必须为 off、observe 或 reduce')
   if (p.summaryTimeoutMode !== 'fixed' && p.summaryTimeoutMode !== 'adaptive') throw new Error('压缩超时模式必须为 fixed 或 adaptive')
+  if (p.checkpointFormat !== 'json' && p.checkpointFormat !== 'sections') throw new Error('摘要 checkpoint 协议必须为 json 或 sections')
   if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
-  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode' | 'capacityMode'>, [number, number]> = {
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode' | 'capacityMode' | 'checkpointFormat'>, [number, number]> = {
     recentPercent: [0.1, 50], summaryPercent: [0.1, 10], repairPercent: [0.1, 10],
     recentTokens: [1000, 128000],
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],

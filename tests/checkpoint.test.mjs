@@ -11,7 +11,7 @@ const compiled = await build({
     builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
   } }],
 })
-const { formatCheckpoint, classifyCheckpoint, expectedRepair, repairDeviations, CheckpointFormatError } = await import(`data:text/javascript;base64,${Buffer.from(`${compiled.outputFiles[0].text}\n//# sourceURL=checkpoint-test.js`).toString('base64')}`)
+const { formatCheckpoint, parseCheckpoint, parseCheckpointSections, classifyCheckpoint, expectedRepair, repairDeviations, CheckpointFormatError } = await import(`data:text/javascript;base64,${Buffer.from(`${compiled.outputFiles[0].text}\n//# sourceURL=checkpoint-test.js`).toString('base64')}`)
 
 const source = { sessionId: 'session-fixture', compactionId: 'compaction-fixture' }
 const checkpoint = () => ({
@@ -29,7 +29,7 @@ test('checkpoint: valid Chinese seven-field JSON becomes readable Markdown with 
   const formatted = formatCheckpoint(JSON.stringify(value), source)
   assert.deepEqual([...formatted.matchAll(/^## (.+)$/gm)].map(match => match[1]), ['当前目标', '约束与纠正', '已完成', '待完成', '证据与引用', '下一步', '尚未核实'])
   for (const item of Object.values(value).flat()) assert.ok(formatted.includes(item), `checkpoint must preserve ${item}`)
-  assert.ok(formatted.includes('- 不写日常 profile'))
+  assert.ok(formatted.includes('- >不写日常 profile'))
   assert.ok(formatted.includes('原文保留在会话日志；需要细节时使用已有会话查询工具按引用找回。'))
   assert.ok(formatted.endsWith('Session: session-fixture\nCompaction: compaction-fixture'))
 })
@@ -124,6 +124,14 @@ test('checkpoint: only a single-string array field qualifies for the determinist
   }
 })
 
+test('checkpoint: deterministic array wrapping preserves source whitespace byte-for-byte', () => {
+  const original = '  原文两侧空格\t'
+  const broken = JSON.stringify({ ...checkpoint(), constraints: original })
+  const repaired = expectedRepair(broken)
+  assert.equal(repaired.constraints[0], original)
+  assert.deepEqual(repairDeviations(broken, repaired), [])
+})
+
 test('checkpoint: parse failures carry their repair classification for the engine gate', () => {
   const broken = JSON.stringify({ ...checkpoint(), constraints: '必须是数组' })
   try { formatCheckpoint(broken, source); assert.fail('type-broken value must fail the strict schema') }
@@ -131,4 +139,85 @@ test('checkpoint: parse failures carry their repair classification for the engin
     assert.ok(error instanceof CheckpointFormatError)
     assert.equal(error.classification.repairable, true)
   }
+})
+
+const SECTIONS_ZH = `## 当前目标
+完成 Context 自动压缩升级
+
+## 约束与纠正
+- 唯一写入者：DSH 原生执行会话
+- 不得改变用户保存策略
+
+## 已完成
+- 官方压缩研究已复核
+
+## 待完成
+- 长任务语义回放
+
+## 证据与引用
+- verification/automatic-compaction-20261013/PLAN.md
+
+## 下一步
+继续实现并验证
+
+## 尚未核实
+无`
+
+test('checkpoint sections: versioned Markdown parses and renders without JSON escaping', () => {
+  const value = parseCheckpointSections(SECTIONS_ZH)
+  assert.equal(value.goal, '完成 Context 自动压缩升级')
+  assert.deepEqual(value.constraints, ['唯一写入者：DSH 原生执行会话', '不得改变用户保存策略'])
+  assert.deepEqual(value.uncertainties, [])
+  const rendered = formatCheckpoint(SECTIONS_ZH, { sessionId: 's', compactionId: 'c' })
+  assert.match(rendered, /Checkpoint schema: context-manager\/3/)
+  assert.deepEqual(parseCheckpoint(rendered), value)
+})
+
+test('checkpoint sections: missing, duplicate, out-of-order and damaged sections fail closed', () => {
+  for (const broken of [
+    SECTIONS_ZH.replace('## 尚未核实\n无', ''),
+    SECTIONS_ZH.replace('## 待完成', '## 已完成'),
+    SECTIONS_ZH.replace('## 已完成', '## 待完成'),
+    SECTIONS_ZH.replace('## 下一步\n继续实现并验证', '## 下一步\n```json\n{\"next\":\"x\"}\n```'),
+    SECTIONS_ZH.replace('- 唯一写入者：DSH 原生执行会话', '唯一写入者：DSH 原生执行会话'),
+    SECTIONS_ZH + '\n## 额外内容\n- x',
+  ]) assert.throws(() => parseCheckpointSections(broken), /摘要结构无效/)
+})
+
+test('checkpoint sections: prose is never a Markdown escape hatch', () => {
+  assert.throws(() => parseCheckpoint('ordinary prose summary'), /摘要结构无效/)
+  assert.throws(() => parseCheckpoint('{broken'), /摘要结构无效/)
+})
+
+test('checkpoint sections: schema trailer accepts only exact generated metadata', () => {
+  const rendered = formatCheckpoint(SECTIONS_ZH, source)
+  assert.deepEqual(parseCheckpoint(rendered), parseCheckpointSections(SECTIONS_ZH))
+  for (const suffix of [
+    '\n未记录的新事实',
+    '\nSession: forged\nSession: duplicate',
+    '\nCompaction: forged',
+    '\n## 尚未核实\n- 被吞掉的尾部事实',
+  ]) {
+    assert.throws(() => parseCheckpoint(rendered + suffix), /摘要结构无效/)
+  }
+})
+
+test('checkpoint formatter preserves multiline facts, headings, CR and whitespace exactly', () => {
+  const value = parseCheckpointSections(SECTIONS_ZH)
+  for (const input of [
+    { ...value, constraints: ['合法事实\n- 伪造的第二条事实'] },
+    { ...value, evidence: ['合法引用\n## 尚未核实'] },
+    { ...value, goal: '合法目标\n## 待完成' },
+    { ...value, next: '保留 CR\r、反斜线\\r 与尾部空格  ' },
+  ]) {
+    const formatted = formatCheckpoint(JSON.stringify(input), source)
+    assert.deepEqual(parseCheckpoint(formatted), input, 'every accepted value survives exact render/parse roundtrip')
+  }
+})
+
+test('checkpoint JSON values are validated without trimming and survive the v3 formatter exactly', () => {
+  const value = { ...checkpoint(), goal: '  ## 待完成\n下一行  ', evidence: [' cmd ', 'path\r\nline\\literal'] }
+  const parsed = parseCheckpoint(JSON.stringify(value))
+  assert.deepEqual(parsed, value)
+  assert.deepEqual(parseCheckpoint(formatCheckpoint(JSON.stringify(value), source)), value)
 })

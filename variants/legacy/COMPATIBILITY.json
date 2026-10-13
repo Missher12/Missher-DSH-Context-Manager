@@ -1,0 +1,54 @@
+{
+  "harnessVersion": "0.2.1-alpha.2",
+  "verifiedHarnessVersions": [
+    "0.2.1-alpha.2"
+  ],
+  "sourceSha": "70f01a61a6cf9964b127c3c483278619df231dc0",
+  "sourceShaMeaning": "Git HEAD of the exact Host source used to generate this profile overlay.",
+  "presetMode": "legacy-full-preset-override",
+  "hostCapabilityRequirement": null,
+  "legacyFallback": {
+    "available": true,
+    "artifactVersion": "0.10.0-local.9-legacy.1",
+    "presetMode": "legacy-full-preset-override",
+    "generatedForThisHostSource": true,
+    "pairedNarrowArtifactVersion": "0.10.0-local.9",
+    "hashRecordedIn": "verification/automatic-compaction-20261014/ARTIFACTS.json"
+  },
+  "priorRollback": {
+    "artifactVersion": "0.10.0-local.8",
+    "artifactPath": "verification/automatic-compaction-20261013/missher-dsh-context-manager-0.10.0-local.8.tgz",
+    "artifactSha256": "70d18d1536f014a60d3938626e6b2203c261ef81fad39cee346d9614b0f3c051",
+    "role": "rollback-only; predates this round and does not contain the local.9 fixes"
+  },
+  "sources": [
+    {
+      "path": "packages/bundle/web-app/presets/standard.patch.yml",
+      "sha256": "6462f63e24ea865d3931f992584bbc79aa152adf697e861af0b2e4dd7a4d622f",
+      "presetMode": "legacy-full-preset-override",
+      "basicProviders": 1,
+      "replacedBackends": 1,
+      "compactionProvider": null,
+      "normalizedDeprecatedPersonaSuffixes": 0
+    },
+    {
+      "path": "packages/bundle/web-app/presets/ptc.patch.yml",
+      "sha256": "162d1e57cc0ca48a2b54f4659e920264f46c87b3027a73e81429d345d584c566",
+      "presetMode": "legacy-full-preset-override",
+      "basicProviders": 1,
+      "replacedBackends": 1,
+      "compactionProvider": null,
+      "normalizedDeprecatedPersonaSuffixes": 0
+    },
+    {
+      "path": "packages/bundle/web-app/presets/cordis.patch.yml",
+      "sha256": "0b12c30161ac570face5e310f14f4c2177df20c0ca1c4e5a45ef959a37152434",
+      "presetMode": "legacy-full-preset-override",
+      "basicProviders": 1,
+      "replacedBackends": 1,
+      "compactionProvider": null,
+      "normalizedDeprecatedPersonaSuffixes": 0
+    }
+  ],
+  "customPresets": "Legacy full-preset fallback for Hosts without the narrow provider patch capability. Its complete preset snapshots intentionally use the historical compatibility path."
+}

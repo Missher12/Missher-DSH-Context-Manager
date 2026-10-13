@@ -16,4 +16,8 @@ await build({ entryPoints: ['src/index.ts', 'src/engine.ts', 'src/policy.ts', 's
 const result = await build({ entryPoints: ['src/client.tsx'], outfile: join(outdir, 'client.js'), platform: 'browser', format: 'cjs', bundle: true, external: ['react', 'react/*', 'react-dom', 'react-dom/*', '@deepseek-ai/dsh-client-ui-primitives'], jsx: 'automatic', target: 'es2022', metafile: true, loader: { '.css': 'text' },
   banner: { js: 'window.__ModuleLoader__.load({id:"@missher/dsh-context-manager",factory:(require)=>{var module={exports:{}};var exports=module.exports;' }, footer: { js: 'return module.exports;}});' } })
 await mkdir('verification', { recursive: true })
-await writeFile('verification/client-build.json', JSON.stringify({ outdir, imports: result.metafile.outputs[join(outdir, 'client.js')].imports }, null, 2) + '\n')
+// esbuild records output keys relative to its working directory, so an absolute
+// DSH_CONTEXT_BUILD_OUT cannot be used as a literal key. Match the client output.
+const clientOutput = Object.keys(result.metafile.outputs).find(key => key === join(outdir, 'client.js') || key.endsWith('/client.js') || key === 'client.js')
+if (!clientOutput) throw new Error('client bundle output missing from esbuild metafile')
+await writeFile('verification/client-build.json', JSON.stringify({ outdir, imports: result.metafile.outputs[clientOutput].imports }, null, 2) + '\n')

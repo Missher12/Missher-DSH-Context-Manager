@@ -1,73 +1,7 @@
-# 上下文管理与 Session Bridge 的边界
+# Plugin responsibilities
 
-**2026-09-28 实施轮更新：**根 IMPLEMENTATION_PLAN 已授权 REQ-03 开发。详情默认展开在本目录最小实现并于隔离副本验证；下文前两轮“暂不实施”属于历史。峰谷提示仍按 RC-01 保管，不随 REQ-03 迁移；未修改 Bridge、其他插件或宿主代码。实施回执为 `../coordination/2026-09-28/implementation/context-manager.md`。
+Context Manager owns pre-request and idle compaction, bounded same-session original-text lookup, its archive and accounting, and the conversation Context view. Shared UI and session services come from the Host.
 
-**2026-09-28 第二轮 RC-01 补充：**接受上级 `RECLASSIFICATION.md` 的最新逻辑分类，官方模型峰谷提示归「模型选择、能力与服务信息」。既有用户授权功能继续保留，迁移前的 peak-indicator、period、样式、测试及注册仍由 context-manager 单一保管，接收方不能并行修改这些文件。下文及第一轮文档的「授权例外」描述历史实现归属，不反对本次逻辑重新分类，也不授权立即迁移或删除功能。本轮仅静态移交清单，不重跑回归、不核价、不构建或部署；清单与后续单注册/回滚约定见 `../coordination/2026-09-28/reclassification/context-handoff.md`。
+The package does not contain or depend on Session Bridge, mutate another plugin, or use installation lifecycle hooks to patch a Host. Narrow-preset and new-input continuation support must be supplied by the paired Host release; see [compatibility and validation](PUBLICATION.md).
 
-2026-09-28 协调审查补充：本轮只确认职责并复跑隔离回归，不实施 REQ-03、不搬迁峰谷提示、不修改业务代码。下文 2026-09-27 的对齐和验收为历史记录，不代表本轮重新运行了原生安装器或多插件生命周期测试。
-
-2026-09-27。用户明确要求两个任务对齐、切割维护范围。此文件只由上下文任务维护；桥接任务在自己的报告中确认对应边界。
-
-| 范围 | 上下文管理任务 | 【DSH】Session-brigde |
-| --- | --- | --- |
-| 源码及构建 | 本目录的 src、lib、构建脚本和测试 | `/Users/missher/Documents/Projects/04-Harness-Plugins/dsh-session-bridge/` 全部文件 |
-| 产品职责 | 请求前检查、压缩策略、只读 Token/压缩概览 | 会话标识、跨会话读写与投递、临时工作区、bridge HTTP 接口 |
-| UI | `conversation.view` 中位于“轨迹”后的独立“上下文”视图；`settings.section` 仅放压缩参数 | 会话标识、谱系及工作区选择入口 |
-| 样式 | `dsh-context-manager` owner；`.dsh-context-settings` | `dsh-session-bridge` owner；桥接自身前缀 |
-| 配置 | context-manager 三行服务、官方 compaction/preset 覆盖 | session-bridge 插件行及自己的配置 |
-| 交付 | 仅上下文插件 tgz | 仅桥接插件；已开展的宿主元数据修复另交付 upstream patch |
-
-DSH 官方 Session 服务是宿主能力。上下文插件需要读取会话投影，并通过官方压缩事务写入摘要及历史替换；这不赋予它操作 Session Bridge 的源码、消息投递工具、界面或配置的职责。桥接插件也不应设置压缩阈值、切换压缩引擎或保存上下文管理策略。
-
-2026-09-27 用户进一步澄清“在轨迹后面增加一个上下文的界面选择”。上表 UI 行按此要求更新；用户随后授权正式实现，0.3.0 已注册独立 `conversation.view`（order 20），由宿主统一生成“对话 / 轨迹 / 上下文”的页签；不操作头部 DOM、会话标识、统计条或 Bridge 菜单。旧 0.2.1 原包仍保持原来的设置页布局和字节。
-
-2026-09-27 后续 UI 调整：0.3.3 将上下文详情收为紧凑摘要与同页展开；选中上下文时只在当前会话视图内暂时隐藏发送区，切走恢复原状态与草稿。最初把官方 DeepSeek 峰谷提示放在 `conversation.composer.dock`。
-
-2026-09-28 用户纠正：只要选择官方模型就显示峰谷，与“15%”及上下文用量无关。0.3.4 将提示放到模型旁 `conversation.input.right`，共享原生模型选择目录，新会话默认官方模型及尚未发送消息时同样显示；非官方模型隐藏。主上下文数据仍只在上下文页签；不读取或改动 Bridge 界面。
-
-## 本次归属移交
-
-- 本任务曾给桥接 installStyles 增加两行样式归属标记，且在其 HANDOVER 记录原因；这些修改现在归桥接任务维护、测试和交付。本任务不再写入该项目。
-- 0.2.1 对齐时的两处 React style 节点带上下文 owner，由本任务维护；当前全部声明数量及验证范围见末尾补充。
-- DSH 现有 claimStyles 扫描全页面未归属样式，是宿主的一般性风险。当前两插件各自声明归属；通用加载器治理不能以修改其他插件为上下文包的安装副作用。
-- 旧桥接快照包已移出交付目录，仅留作旧故障复现证据。不得为安装上下文插件要求用户替换整个桥接插件，尤其不能覆盖桥接任务的新 HTTP 改动。
-- 桥接任务已获用户授权做的宿主修改由该任务单独审阅、记录和交付；上下文插件既不内嵌这些补丁，也不把它们标记为已经部署到原生应用。
-
-## 独立性验收
-
-1. 上下文 tgz 不含 bridge 代码、依赖、安装钩子、测试副本或本地 profile；配置覆盖不得出现 bridge 行。
-2. 只装任意一个插件时可以独立工作。上下文现有真实 AgentLoop 和设置测试不需要 Bridge；桥接的独立验收由其负责人维护。
-3. 两者共存时，更新、停用、卸载某一个，只释放其自己的样式、UI 和服务。彼此的业务入口应继续存在；测试用 host/UI stubs 与真实原生 UI 分开报告。
-4. 修改对方项目或共享宿主文件前，先协调唯一写入者；不凭“兼容修复”扩大文件所有权。共同测试只使用隔离 profile 或只读快照。
-
-0.3.4 交付时包审计：`verification/package-boundary-0.3.4.json`；本轮隔离复审见 `verification/RESULTS-BOUNDARY-AUDIT-20260928.json`。历史真实 Desktop 加载器生命周期回归与 Web 热安装证据在 `verification/style-ownership/`；原生当前窗口仍不算已通过点击验收。
-
-已交付上下文 0.2.1 保持原文件和 SHA-256：`973ec48c218a44fde04de4589ac669d28d4647a09dd6195422ebdcb8400684d2`。此次边界对齐不重打包、不改压缩行为。
-
-## 对齐状态
-
-2026-09-27 已收到任务 `01a0e136-a8b3-7cb1-b322-aa0813ec29d9` 的原生协调回复，明确接受：上下文由本任务单独维护；对方只维护 Bridge 与其独立上游补丁，不修改、打包或发布上下文项目。对方现查确认样式标记已在源码与其 plugin-source.patch 中，当前 Bridge client 构建 SHA 为 `4bd40b71bfea0f0d00efaf5da59d1091dc5b92e32f796bdf67703d02b7a85e1d`。
-
-桥接任务接管样式的常规回归和实际 ASAR/Cordis 生命周期回归，使用无关插件夹具，不依赖或打包上下文源码；本轮不扩大宿主修改、不碰日常 profile 或重启应用。接收记录见 `verification/coordination-20260927.json`。其新回归结果由该任务单独报告，接收确认不等于原生验收通过。
-
-最终回执已收并只读核验桥接项目的三份 verification JSON：31 条常规测试通过；真实已装 ASAR + Cordis Loader/Entry 的双向隔离回归通过，负对照能复现误删。无关插件重载、移除、重新加入时保留 Bridge 样式；Bridge 自己的重载、移除、重新加入也保留对方样式。此测试没有上下文实现依赖。桥接独立候选包边界检查通过，不含上下文代码/依赖、验证快照、上游补丁或安装钩子；其交付由桥接任务负责。本任务再次校验上下文 0.2.1 SHA 未变。
-
-最终状态：双方归属已确认、样式修复已接管、包边界与独立 DOM 生命周期回归已完成；原生 Electron 点击、生产安装器及宿主重新打包仍未完成，不提升为已通过。
-
-## 与 Ui-usage、模型设置和输入链路的区别
-
-| 数据或行为 | 本插件 | 其他职责 |
-| --- | --- | --- |
-| 上下文窗口占用与有效内容组成 | 当前 Session 的官方投影与有效内容估算，分别展示 | 不归跨会话统计 |
-| 本会话累计用量 | 读取该 Session 的 `tokenUsage` 投影；输入含非缓存、缓存读取及缓存写入；历史截面累计返回未知，不虚构 | Ui-usage 通过 sessionPersistence 聚合多个本地会话，去重派生前缀，写自己的可重建缓存 |
-| 逐次变化 | 当前 Session 的回复记录，最多保留 200 条，图表显示最近 40 条；不等同全局累计或账单 | 不复制 Ui-usage 的跨会话活动图、排行或缓存 |
-| 峰谷提示 | 用户已授权例外；订阅模型目录，仅显示当前官方时段，不选择模型或修改模型能力 | 模型设置任务仍负责提供方配置和能力真值，不重复注册或擅自搬迁此提示 |
-| 上下文只读视图 | 只观察指定会话，释放读租约；挂载期间隐藏当前视图所属发送区并恢复原状态与草稿 | 输入链路仍拥有编辑器和发送；Bridge 拥有会话身份及跨会话投递 |
-
-只读约束针对 inspector 查看路径，不否定压缩引擎按原授权通过宿主事务替换上下文的职责。两个累计区的范围、投影规则及更新时间不同，数值不要求相同；不得把本会话投影复制成第二个跨会话缓存。
-
-失败尝试与重试不能一概从累计中排除：实际读取的宿主 `tokenUsage` 接受 `assistant/message` 和 `assistant/attempt` 的已记录有效用量；`llm/retry-started` 使下一尝试在原累计上增加，没有用量样本的事件不补造计数。本插件直接读取该投影；逐次回复图只折叠 `assistant/message` 的 append 记录，范围小于累计。README 原「不包含失败重试」是文档错误，本轮已纠正；实现和现有包不改。
-
-样式当前共有四处 JSX style 声明（设置页及其表单、上下文页、峰谷提示），均带 `data-plugin="dsh-context-manager"`。此前「两处」仅描述 0.2.1 阶段的修复，不代表 0.3.4 的声明数量；CSS 仍限定在 `.dsh-context-settings`。本轮已有 JSDOM 回归覆盖归属标记、当前发送区恢复与另一会话不受影响，未重放真实多插件热卸载。
-
-REQ-03 已登记为未来开发：仅外层「详细内容与记录」默认展开，保持单页、手动收起、旧请求取消与按需分页；本轮不修改初始值或切换会话后的重置值，也不让全部历史正文一次加载。
+The runtime tarball contains the declared 23 product files. Development profiles, private review records, credentials and personal conversations are excluded. Removal retains existing session history, archives and accounting unless the user separately manages that data.

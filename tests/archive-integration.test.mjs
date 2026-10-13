@@ -46,7 +46,7 @@ BashTool.apply({
 assert.equal(realBash?.name, 'bash', 'the real SDK bash definition must be capturable')
 
 const repetitive = () => Array.from({ length: 40 }, () => 'progress line without any protected word').join('\n')
-const shellResult = text => ({ kind: 'foreground', exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
+const shellResult = text => ({ kind: 'foreground', cwd: process.cwd(), exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
   stdout: { text, truncated: false }, stderr: { text: '', truncated: false } })
 
 /**

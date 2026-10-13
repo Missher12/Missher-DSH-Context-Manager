@@ -8,7 +8,7 @@ import { categories, defaultQuery, type Category, type ContentPage, type Content
 import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, PressureTrend, UsageComposition, contextWindow, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
 import { inspectorText, type InspectorText } from './inspector-locales.ts'
 import { useReadonlyView } from './readonly-view.ts'
-import type { IdleStatus } from './idle-types.ts'
+import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
 import css from './inspector.css'
 
@@ -22,7 +22,7 @@ export interface ContextViewInjected {
 const errorText = (error: unknown, t: InspectorText) => error instanceof Error ? error.message : t('error')
 function Loading() { return <div className="cmv-empty"><StateDot state="ongoing"/></div> }
 
-function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText }) {
+function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void }) {
   const [state, setState] = useState<{ target: string; value: IdleStatus } | null>(null)
   const [error, setError] = useState(false)
   const [recovering, setRecovering] = useState(false)
@@ -48,15 +48,16 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: {
     return () => { abort.abort(); clearTimeout(timer) }
   }, [target, api, revision, settingsRevision, retry])
   const value = state?.target === target ? state.value : null
+  useEffect(() => { onCapacity(value?.capacity ?? null) }, [onCapacity, value])
   const message = value?.status === 'scheduled' && value.dueAt !== null && !/background|busy/u.test(value.reasonCode ?? '')
     ? `${value.restored ? `${t('restored')} · ` : ''}${Math.max(0, Math.ceil((value.dueAt - Date.now()) / 60000))} ${t('minutes')}` : value?.message
   const recover = async () => {
-    if (!value?.recovery?.requestHash || !api.authorizeOnce || recovering) return
+    if (!value?.recovery?.authorizationToken || !api.authorizeOnce || recovering) return
     const controller = new AbortController(); action.current = controller
     setRecovering(true); setRecoveryResult('')
     try {
-      await api.authorizeOnce({ sessionId: target, requestHash: value.recovery.requestHash }, controller.signal)
-      if (!controller.signal.aborted) setRecoveryResult('恢复压缩完成，可继续原任务')
+      await api.authorizeOnce({ sessionId: target, authorizationToken: value.recovery.authorizationToken }, controller.signal)
+      if (!controller.signal.aborted) setRecoveryResult(t('recoveryDone'))
     } catch (reason) { if (!controller.signal.aborted) setRecoveryResult(errorText(reason, t)) }
     finally { if (!controller.signal.aborted) setRecovering(false) }
   }
@@ -79,8 +80,9 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t }: {
     {value?.owner === 'other' && <> · 当前压缩由其他引擎接管，本插件未接管自动调用</>}
     {value?.deadline && <> · 当前设置：{value.deadline}</>}
     {value?.execution && <> · {value.execution}</>}
+    {value?.capacity && <> · {t('gate')} {formatPercent(value.capacity.admission, value.capacity.windowTokens)} · {t('planUpper')} {formatPercent(value.capacity.upper, value.capacity.windowTokens)} · {t('continuationReserve')} {formatPercent(value.capacity.resumeHeadroom, value.capacity.windowTokens)}</>}
     {value?.recovery?.message && <> · {value.recovery.message}</>}
-    {value?.recovery?.available && api.authorizeOnce && <Button size="sm" disabled={recovering} onClick={() => { void recover() }}>授权额外收费并恢复一次</Button>}
+    {value?.recovery?.available && api.authorizeOnce && <><span> · {t('recoveryStrategy')}</span><Button size="sm" disabled={recovering} onClick={() => { void recover() }}>{value.recovery.riskAcceptanceRequired ? t('riskRecoveryButton') : t('recoveryButton')}</Button></>}
     {value?.emergency?.message && <> · {value.emergency.message}</>}
     {value?.emergency?.eligible && api.prepareEmergency && !emergencyPlan && <Button size="sm" disabled={recovering} onClick={()=>{void emergency(false)}}>预检一次人工急救（不调用模型）</Button>}
     {emergencyPlan && <><span> · 第{emergencyPlan.cycle}批 · {emergencyPlan.model} · {emergencyPlan.deadline} · 预计输入{emergencyPlan.estimatedInput} Token · {emergencyPlan.warning} 授权两分钟内有效。</span><Button size="sm" disabled={recovering || emergencyPlan.expiresAt<=Date.now()} onClick={()=>{void emergency(true)}}>确认未知费用风险并额外调用一次</Button><Button size="sm" disabled={recovering} onClick={()=>setEmergencyPlan(null)}>取消</Button></>}
@@ -158,8 +160,9 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [expanded, setExpanded] = useState(false)
   const [selectedContent, setSelectedContent] = useState('')
   const [openLatest, setOpenLatest] = useState(0)
+  const [idleCapacity, setIdleCapacity] = useState<CompactCapacity | null>(null)
   const recordsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0) }, [target])
+  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null) }, [target])
   const scrollToContent = useRef(false)
   const [query, setQuery] = useState<InspectQuery>({ sessionId: target, ...defaultQuery })
   const [data, setData] = useState<{ value: Inspection; key: string } | null>(null)
@@ -191,7 +194,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
     <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span></div><Tooltip label={t('settingsHint')} portal><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(retry + 1)}>{t('refresh')}</Button></header>
-      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
+      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
       {safeData?.goal?.blockedReason && !safeData.historical && <div className="cmv-notice"><span role="status">{t('goalStop')}：{safeData.goal.blockedReason.code} · {safeData.goal.blockedReason.message} · {safeData.goal.roundsStarted}/{safeData.goal.maxGoalRounds} {t('goalRounds')}。{t('goalIndependent')}</span></div>}
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')} portal><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div>}
@@ -203,7 +206,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
           {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatPercent(row.tokens,contextWindow(safeData))}</b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
           {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
         </div>
-        <UsageDetails data={safeData} t={t} onCut={showCut}/>
+        <UsageDetails data={safeData} t={t} onCut={showCut} capacity={idleCapacity}/>
         <footer className="cmv-footer"><span>{t('updated')} {formatTime(safeData.sampledAt)}</span><span>{t('readonly')} · {t('record')} {safeData.cutSeq}</span></footer>
       </>}
     </div>

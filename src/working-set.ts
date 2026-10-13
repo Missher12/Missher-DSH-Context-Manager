@@ -11,12 +11,73 @@ export interface WorkingPlan {
   before: number; remaining: number; estimatedAfter: number
   /** retainedTokens counts only discretionary recent groups, excluding protected groups. */
   summaryTokens: number; upper: number; retainedTokens: number
+  /** Reserve below the effective admission kept free for the next work steps. */
+  resumeHeadroom: number; admission: number
 }
 export interface WorkingLimits {
   total: number; admission: number; hard: number; recentTokens: number
   summaryTokens: number; target?: number
   /** Provider-confirmed overflow drops the recency preference, never protected content. */
   overflow?: boolean
+  /**
+   * Tokens that must stay free below the admission line so a compacted task can
+   * continue for the next steps instead of re-triggering immediately. Planning
+   * is infeasible when protected content leaves no room for this reserve.
+   */
+  resumeHeadroom?: number
+}
+
+export interface HeadroomInput {
+  window: number; admission: number
+  /** Net tokens added by the last completed business step, excluding incoming input. */
+  recentGrowth: number
+  /** Tokens of the current new input/attachments already in the measurement. */
+  incomingTokens: number
+}
+
+export interface ContinuationHeadroom {
+  /** Reserve actually used by the planner, never silently below required. */
+  tokens: number
+  /** One observed step of growth plus input and a 25% estimation margin. */
+  required: number
+  /** Largest reserve that still leaves the plan below its effective admission line. */
+  limit: number
+  /** Full observed growth used for projection. */
+  projectedGrowth: number
+  /** Kept for wire compatibility; observed growth is never capped. */
+  projectionCapped: boolean
+  /** Bounded uncertainty allowance for the already-counted current input. */
+  inputMargin: number
+  sufficient: boolean
+}
+
+/**
+ * Conservative reserve for one more business step. Uses all observed recent
+ * net growth plus a bounded error margin for input already present in pressure.
+ * The reserve is never clipped to a convenient percentage: callers stop when
+ * it cannot fit below the real admission line.
+ */
+export function continuationHeadroom(input: HeadroomInput): ContinuationHeadroom {
+  const { window, admission } = input
+  if (!Number.isFinite(window) || !Number.isFinite(admission) || window <= 0 || admission <= 0) {
+    return { tokens: 0, required: 0, limit: 0, projectedGrowth: 0, projectionCapped: false, inputMargin: 0, sufficient: false }
+  }
+  const growth = Math.max(0, Number.isFinite(input.recentGrowth) ? input.recentGrowth : 0)
+  const incoming = Math.max(0, Math.min(Number.isFinite(input.incomingTokens) ? input.incomingTokens : 0, window))
+  const projectedGrowth = growth
+  const projectionCapped = false
+  const typical = growth > 0 ? growth : Math.max(1024, Math.floor(window * 0.005))
+  // A one-off new task is already present in `total` and is kept protected.
+  // Include only a bounded 5% measurement-error margin from its size; never
+  // project the whole attachment as though it repeats on every next step.
+  const inputMargin = Math.min(Math.ceil(incoming * 0.05), Math.floor(window * 0.02))
+  const need = Math.ceil((typical + inputMargin) * 1.25)
+  const floor = Math.min(2048, Math.floor(admission * 0.05))
+  // Keep one token below admission so the next request remains under the gate.
+  // Actual feasibility against protected content is decided by the planner.
+  const limit = Math.max(0, Math.floor(admission) - 1)
+  const required = Math.max(floor, need)
+  return { tokens: required, required, limit, projectedGrowth, projectionCapped, inputMargin, sufficient: required <= limit }
 }
 
 interface Group { start: number; end: number; tokens: number; fixed: boolean }
@@ -46,7 +107,7 @@ function groupNodes(nodes: readonly WorkingNode[]): Group[] {
 }
 
 function planWithTail(
-  nodes: readonly WorkingNode[], groups: readonly Group[], limits: WorkingLimits, upper: number, recentTokens: number,
+  nodes: readonly WorkingNode[], groups: readonly Group[], limits: WorkingLimits, upper: number, recentTokens: number, resumeHeadroom: number,
 ): WorkingPlan | undefined {
   const tail = new Set<number>()
   let retainedTokens = 0
@@ -79,7 +140,7 @@ function planWithTail(
     if (cap >= 256 && tokens - cap - FRAMING_TOKENS >= minimumGain(limits.total)) {
       const candidate = { start: nodes[first.start]!.seq, end: nodes[groups[cursor - 1]!.end]!.seq, tokens,
         before: limits.total, remaining, estimatedAfter: remaining + cap + FRAMING_TOKENS,
-        summaryTokens: cap, upper, retainedTokens }
+        summaryTokens: cap, upper, retainedTokens, resumeHeadroom, admission: limits.admission }
       if (!best || candidate.tokens > best.tokens) best = candidate
     }
     start = Math.max(start + 1, cursor)
@@ -89,10 +150,14 @@ function planWithTail(
 
 export function planWorkingSet(nodes: readonly WorkingNode[], limits: WorkingLimits): WorkingPlan | undefined {
   const measures = [limits.total, limits.admission, limits.hard, limits.recentTokens, limits.summaryTokens,
-    ...(limits.target === undefined ? [] : [limits.target])]
+    ...(limits.target === undefined ? [] : [limits.target]), limits.resumeHeadroom ?? 0]
   if (measures.some(value => !Number.isFinite(value) || value < 0)
     || nodes.some(node => !Number.isFinite(node.tokens) || node.tokens < 0)) return undefined
-  const upper = Math.min(limits.admission - 1, limits.hard - 1, limits.target ?? Infinity)
+  const headroom = limits.resumeHeadroom ?? 0
+  const ceiling = Math.min(limits.admission - 1, limits.hard - 1, limits.target ?? Infinity)
+  // The continuation reserve comes out of the planning ceiling, never out of
+  // protected facts: if the fixed content cannot fit, planning is infeasible.
+  const upper = Math.max(0, ceiling - headroom)
   const groups = groupNodes(nodes)
   // At most four linear passes. T is a preference; shrink it before declaring the
   // fixed/protected remainder impossible. Provider overflow immediately requests
@@ -101,7 +166,7 @@ export function planWorkingSet(nodes: readonly WorkingNode[], limits: WorkingLim
     limits.recentTokens, Math.floor(limits.recentTokens / 2), Math.floor(limits.recentTokens / 4), 0,
   ])]
   for (const recentTokens of budgets) {
-    const plan = planWithTail(nodes, groups, limits, upper, recentTokens)
+    const plan = planWithTail(nodes, groups, limits, upper, recentTokens, headroom)
     if (plan) return plan
   }
   return undefined
@@ -111,7 +176,7 @@ export function planWorkingSet(nodes: readonly WorkingNode[], limits: WorkingLim
 export function validateWorkingCandidate(plan: WorkingPlan, replacementTokens: number): number {
   const after = plan.remaining + replacementTokens
   if (!Number.isFinite(replacementTokens) || replacementTokens < 0 || !Number.isFinite(after) || after > plan.upper) {
-    throw new Error(`压缩后仍超过有效上限（预计 ${Math.ceil(after)} / ${Math.floor(plan.upper)} Token），原文保留`)
+    throw new Error(`压缩后仍超过有效上限（预计 ${Math.ceil(after)} / ${Math.floor(plan.upper)} Token，含续跑余量 ${plan.resumeHeadroom}），原文保留`)
   }
   const freed = plan.before - after
   if (freed < minimumGain(plan.before)) {

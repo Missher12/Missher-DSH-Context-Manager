@@ -12,6 +12,7 @@ const archive = resolve(process.argv[2] ?? `${root}/missher-dsh-context-manager-
 const members = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n').sort()
 const read = name => execFileSync('tar', ['-xOf', archive, `package/${name}`], { encoding: 'utf8' })
 const manifest = JSON.parse(read('package.json'))
+const compatibility = JSON.parse(read('COMPATIBILITY.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
 const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
   'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
@@ -39,6 +40,7 @@ assert.deepEqual(manifest.dsh.client.inject, ['@deepseek-ai/dsh-client-ui-settin
   ...(manifest.devDependencies?.['@deepseek-ai/dsh-client-ui-model-selection'] ? ['@deepseek-ai/dsh-client-ui-model-selection'] : []), '@deepseek-ai/dsh-client-locale'])
 const overlayText = read('cordis.patch.yml')
 const overlay = load(overlayText)
+const narrowProvider = compatibility.presetMode === 'registry-compaction-provider'
 const ownedTargets = new Set(['compaction-basic', 'preset-standard', 'preset-ptc', 'preset-cordis', 'preset-minimal'])
 const targetIds = [], insertedIds = []
 for (const entry of overlay) {
@@ -50,6 +52,18 @@ for (const entry of overlay) {
   }
 }
 assert.deepEqual(insertedIds, ['context-manager', 'context-manager-engine', ...(inspector ? ['context-manager-inspector'] : [])])
+const expectedPresetTargets = ['preset-standard', 'preset-ptc', 'preset-cordis']
+assert.deepEqual(targetIds.filter(id => id.startsWith('preset-')).sort(), expectedPresetTargets.sort())
+assert.equal(targetIds.includes('compaction-basic'), true, 'the global Basic fallback is replaced for base sessions')
+for (const id of expectedPresetTargets) {
+  const patch = overlay.find(entry => entry.id === id)
+  if (narrowProvider) {
+    assert.equal(patch.compactionProvider, '@missher/dsh-context-manager/engine')
+    assert.equal('config' in patch, false, 'narrow artifacts cannot snapshot the full preset config')
+  } else {
+    assert.ok(patch.config?.plugins, 'legacy fallback must provide its full preset config')
+  }
+}
 assert.ok(!/dsh-session-bridge|dsh-sbc-|session-bridge/.test(overlayText))
 for (const member of members.filter(p => p.startsWith('package/lib/'))) {
   assert.ok(!/dsh-session-bridge|dsh-sbc-|session-bridge/.test(read(member.slice('package/'.length))),

@@ -275,9 +275,10 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
   const form = { subscribe: () => () => {}, getSnapshot: () => state }
   const pulse = { subscribe: () => () => {}, getSnapshot: () => 0 }
   const reads = []
+  let windowTokens = 10000
   const api = {
     idleStatus: async () => ({ status: 'scheduled', dueAt: Date.now() + 60000, restored: true, message: 'server scheduled', reasonCode: 'eligible' }),
-    inspect: async query => ({ ...query, cursor: 30, cutSeq: 30, sampledAt: 1000, historical: false, pressure: null, official: null, usage: null, summaryUsage: { input: 2300, output: 200, attempts: 3, unknownAttempts: 1, since: 1000 }, contextGrowth: { sinceCompaction: { fromSeq: 20, toSeq: 30, beforeTokens: 1000, afterTokens: 800, deltaTokens: -200 }, lastToolResult: null }, model: null, parts: [], rows: [summaryRow], total: 1, pageSize: 50, activeCount: 1, archivedCount: 6, requests: [], requestCount: 0, pressureHistory: [], compactions: [] }),
+    inspect: async query => ({ ...query, cursor: 30, cutSeq: 30, sampledAt: 1000, historical: false, pressure: { projected: 1000, input: 800, window: windowTokens }, official: null, usage: null, summaryUsage: { input: 2300, output: 200, attempts: 3, unknownAttempts: 1, since: 1000 }, contextGrowth: { sinceCompaction: { fromSeq: 20, toSeq: 30, beforeTokens: 1000, afterTokens: 800, deltaTokens: -200 }, lastToolResult: null }, model: null, parts: [], rows: [summaryRow], total: 1, pageSize: 50, activeCount: 1, archivedCount: 6, requests: [], requestCount: 0, pressureHistory: [], compactions: [] }),
     content: (query, signal) => new Promise(resolve => reads.push({ query, signal, resolve })),
   }
   const root = createRoot(document.getElementById('root'))
@@ -293,7 +294,7 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
     assert.equal(document.querySelectorAll('.cmv-usage').length, 1)
     assert.match(document.querySelector('.cmv-usage .cmv-summary-usage').textContent, /摘要已记录 2\.5K Token · 3 次尝试 · 1 次用量未知/)
     assert.match(document.querySelector('.cmv-usage').textContent, /暂无累计用量/, 'summary accounting does not fabricate main-request usage')
-    assert.match(document.querySelector('[data-growth="sinceCompaction"]').textContent, /≈ -200 Token/)
+    assert.match(document.querySelector('[data-growth="sinceCompaction"]').textContent, /≈ -2\.00%/)
     assert.match(document.querySelector('[data-growth="lastToolResult"]').textContent, /未知/)
     assert.equal(document.querySelectorAll('.cmv-composition').length, 1, 'growth stays inside the existing occupancy card')
     await reply(reads[0])
@@ -320,8 +321,12 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
     assert.equal(document.querySelectorAll('[role="tab"], textarea').length, 0)
     // Waiting for a background task preserves the server explanation.
     api.idleStatus = async () => ({ status: 'scheduled', dueAt: Date.now() + 30000, message: '后台任务尚未结束，稍后检查', reasonCode: 'background-busy' })
+    windowTokens = null
     await render('c'); await settle()
     assert.match(document.querySelector('[aria-label="闲置整理"]').textContent, /后台任务尚未结束/)
+    const unknownGrowth = document.querySelector('[data-growth="sinceCompaction"]').textContent
+    assert.match(unknownGrowth, /未知/)
+    assert.doesNotMatch(unknownGrowth, /≈ -—/)
   } finally {
     await act(async () => root.unmount()); assert.ok(reads.every(read => read.signal.aborted))
     dom.window.close(); delete globalThis.window; delete globalThis.document

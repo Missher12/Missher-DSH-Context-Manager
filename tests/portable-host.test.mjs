@@ -27,7 +27,7 @@ import { budget, defaults } from '../lib/policy.js'
 const WINDOW = 200000
 const SESSION = 'portable-host-subject'
 const TOOL_MARKER = 'ORIGINAL_TOOL_EVIDENCE_MUST_REMAIN_IN_HISTORY:'
-const POLICY = { ...defaults, absoluteEnabled: true, absoluteTriggerTokens: 200000,
+const POLICY = { ...defaults, capacityMode: 'legacy', absoluteEnabled: true, absoluteTriggerTokens: 200000,
   absoluteTargetTokens: 100000, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: false }
 const USAGE = { inputTokens: 700, outputTokens: 23, cacheReadTokens: 90, cacheWriteTokens: 10 }
 const TOTALS = { input: 800, output: 23, cacheRead: 90, cacheWrite: 10, attempts: 1, unknownAttempts: 0 }

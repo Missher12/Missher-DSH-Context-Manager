@@ -8,7 +8,7 @@ export type SummaryTrigger = 'idle' | 'pressure' | 'overflow' | 'manual'
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const totals = z.object({ input: count, output: count, cacheRead: count, cacheWrite: count, attempts: count, unknownAttempts: count }).strict()
 const attempt = z.object({ id: z.string(), compactionId: z.string(), trigger: z.enum(['idle', 'pressure', 'overflow', 'manual']),
-  startedAt: count, endedAt: count.optional(), status: z.enum(['started', 'generated', 'failed', 'cancelled']),
+  startedAt: count, endedAt: count.optional(), status: z.enum(['started', 'generated', 'failed', 'cancelled', 'not_dispatched']),
   input: count.nullable(), output: count.nullable(), cacheRead: count.nullable(), cacheWrite: count.nullable() }).strict()
 const record = z.object({ sessionId: z.string(), since: count, archived: totals, recent: z.array(attempt).max(128) }).strict()
 const spec = defineDomain({ name: 'context_manager_summaries', version: 1, tables: { sessions: domainTable<string, z.infer<typeof record>>(record) } })
@@ -21,31 +21,27 @@ const zero = (): Totals => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, 
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0
 
 /**
- * Per-field first-known merge of a provider usage totals snapshot. Every
- * component fills independently of the others and of arrival order; `finish`
- * only settles the status and never overwrites a known field with a missing
- * one. Cache components carry their own known/unknown state, so a later
- * notification can still fill them, and a billed input that was computed
- * without them is adjusted exactly once when they first become known.
+ * Per-field latest-known merge of provider usage totals snapshots. A later
+ * snapshot replaces an earlier value for fields it reports, while omitted
+ * fields retain their last known value. Cache components keep independent
+ * known/unknown state; when they arrive without an input total, adjust the
+ * billed input by their delta rather than counting the full snapshot twice.
  */
 function mergeUsage(row: Pick<Attempt, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>, usage?: Usage): Pick<Attempt, 'input' | 'output' | 'cacheRead' | 'cacheWrite'> {
-  const cacheRead = row.cacheRead ?? (finite(usage?.cacheReadTokens) ? usage.cacheReadTokens : null)
-  const cacheWrite = row.cacheWrite ?? (finite(usage?.cacheWriteTokens) ? usage.cacheWriteTokens : null)
-  const incomingInput = finite(usage?.inputTokens) ? usage.inputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0) : null
-  const incomingOutput = finite(usage?.outputTokens) ? usage.outputTokens : null
-  let input = row.input ?? incomingInput
-  if (row.input !== null && input !== null) {
-    // Late cache components complete a previously computed billed input once.
-    if (row.cacheRead === null && cacheRead !== null) input += cacheRead
-    if (row.cacheWrite === null && cacheWrite !== null) input += cacheWrite
-  }
-  return { input, output: row.output ?? incomingOutput, cacheRead, cacheWrite }
+  const cacheRead = finite(usage?.cacheReadTokens) ? usage.cacheReadTokens : row.cacheRead
+  const cacheWrite = finite(usage?.cacheWriteTokens) ? usage.cacheWriteTokens : row.cacheWrite
+  const snapshotInput = finite(usage?.inputTokens)
+    ? usage.inputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0) : null
+  const input = snapshotInput ?? (row.input === null ? null
+    : row.input + (cacheRead ?? 0) - (row.cacheRead ?? 0) + (cacheWrite ?? 0) - (row.cacheWrite ?? 0))
+  const output = finite(usage?.outputTokens) ? usage.outputTokens : row.output
+  return { input, output, cacheRead, cacheWrite }
 }
 
 function add(total: Totals, row: Attempt): Totals {
   return { input: total.input + (row.input ?? 0), output: total.output + (row.output ?? 0),
     cacheRead: total.cacheRead + (row.cacheRead ?? 0), cacheWrite: total.cacheWrite + (row.cacheWrite ?? 0),
-    attempts: total.attempts + 1, unknownAttempts: total.unknownAttempts + (row.input === null || row.output === null ? 1 : 0) }
+    attempts: total.attempts + 1, unknownAttempts: total.unknownAttempts + (row.status !== 'not_dispatched' && (row.input === null || row.output === null) ? 1 : 0) }
 }
 
 export class SummaryLedger {
@@ -151,28 +147,27 @@ export class SummaryLedger {
     await this.commit(sessionId, next)
     return id
   }
-  async finish(sessionId: string, id: string, status: 'generated' | 'failed' | 'cancelled', usage?: Usage): Promise<void> {
+  async finish(sessionId: string, id: string, status: 'generated' | 'failed' | 'cancelled' | 'not_dispatched', usage?: Usage): Promise<void> {
     const old = this.read(sessionId)
     const index = old?.recent.findIndex(item => item.id === id) ?? -1
     // Only settled attempts are archived; a repeated finish remains idempotent.
     if (!old || index < 0) return
     const item = old.recent[index]!
-    const merged = mergeUsage(item, usage)
-    if (item.status !== 'started' && merged.input === item.input && merged.output === item.output
-      && merged.cacheRead === item.cacheRead && merged.cacheWrite === item.cacheWrite) {
+    if (item.status !== 'started') {
       if (this.overlay.has(sessionId)) await this.commit(sessionId, old)
       return
     }
+    const merged = mergeUsage(item, usage)
     const recent = [...old.recent]
-    recent[index] = { ...item, ...merged, ...(item.status === 'started' ? { status, endedAt: Date.now() } : {}) }
+    recent[index] = { ...item, ...merged, status, endedAt: Date.now() }
     await this.commit(sessionId, { ...old, recent })
   }
 
   /**
-   * Idempotently record usage that arrived after a cancelled attempt was
-   * settled. Each field is filled at most once from the first notification
-   * that provides it; later notifications only fill still-unknown fields, the
-   * attempt status stays untouched, and genuinely absent usage stays unknown.
+   * Record usage that arrived after a cancelled attempt was settled. Each
+   * field keeps the latest finite totals snapshot; omitted values do not erase
+   * it, the attempt status stays untouched, and genuinely absent usage stays
+   * unknown.
    * @param sessionId - owning session of the settled attempt.
    * @param id - exact attempt id from {@link start}.
    * @param usage - late provider usage totals snapshot; partial usage records only the known fields.

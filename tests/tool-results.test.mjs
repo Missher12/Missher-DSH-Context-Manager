@@ -50,7 +50,7 @@ assert.equal(typeof realBash.output?.render, 'function', 'the real definition ow
 /** A long, purely repetitive success output: the only shape this rule reduces. */
 const repetitive = () => Array.from({ length: 40 }, () => 'progress line without any protected word').join('\n')
 function shellResult(text, overrides = {}) {
-  return { kind: 'foreground', exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
+  return { kind: 'foreground', cwd: process.cwd(), exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
     stdout: { text, truncated: false }, stderr: { text: '', truncated: false }, ...overrides }
 }
 
@@ -158,7 +158,12 @@ test('reduction: the real bash definition is actually reduced, the canonical val
   assert.equal(result.isError, false)
   // Real SDK definition: the value keeps its canonical shape and stays complete.
   assert.equal(result.value.kind, 'foreground')
+  assert.equal(typeof result.value.cwd, 'string')
+  assert.ok(result.value.cwd.length > 0)
   assert.equal(result.value.exitCode, 0)
+  assert.equal(result.value.timedOut, false)
+  assert.equal(result.value.aborted, false)
+  assert.equal(result.value.signal, null)
   assert.equal(result.value.stdout.text, text)
   assert.equal(result.value.stdout.truncated, false)
   const published = result.content.map(block => block.text).join('\n')
@@ -207,6 +212,7 @@ test('reduction: a non-zero exit or a truncated stream is never reduced, even wh
   for (const [label, value] of [
     ['non-zero exit', shellResult(text, { exitCode: 1 })],
     ['timeout', shellResult(text, { timedOut: true })],
+    ['aborted result', shellResult(text, { aborted: true })],
     ['signal', shellResult(text, { signal: 'SIGKILL' })],
     ['truncated stdout', shellResult(text, { stdout: { text, truncated: true, spillPath: '/tmp/spill' } })],
     ['stderr output', shellResult(text, { stderr: { text: 'warning: something', truncated: false } })],

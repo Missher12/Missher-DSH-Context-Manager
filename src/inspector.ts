@@ -250,10 +250,10 @@ export class ContextRecovery extends TypertRemoteService {
     await engine.executeEmergency(agent,query.token,signal);return {granted:true}
   }
   @Remote('authorizeOnce')
-  async authorizeOnce(input: { sessionId: string; requestHash: string }, signal: AbortSignal): Promise<{ granted: true }> {
+  async authorizeOnce(input: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<{ granted: true }> {
     signal.throwIfAborted()
     const query = recoveryGrantSchema().parse(input)
-    await this.ctx.contextManager.authorizeRecovery(query.sessionId, query.requestHash, signal)
+    await this.ctx.contextManager.authorizeRecovery(query.sessionId, query.authorizationToken, signal)
     return { granted: true }
   }
 }

@@ -9,6 +9,7 @@ import { DEPRECATED_CWD_CLAUSE } from '../scripts/generate-overlay.mjs'
 
 const schema = DEFAULT_SCHEMA.extend([new Type('tag:yaml.org,2002:js', { kind: 'scalar', construct: text => ({ __jsExpr: text }) })])
 const overlay = load(readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8'), { schema })
+const compatibility = JSON.parse(readFileSync(new URL('../COMPATIBILITY.json', import.meta.url), 'utf8'))
 const legacyOverlay = readFileSync(new URL('./fixtures/context-local.5-cordis.patch.yml', import.meta.url), 'utf8')
 const PRESETS = ['standard', 'ptc', 'cordis']
 const persona = preset => overlay.find(row => row.id === `preset-${preset}`).config.plugins.find(entry => entry.id === 'persona')
@@ -27,7 +28,15 @@ const registerLoopFacts = ctx => {
   })
 }
 
-test('alpha.2 assembly renders every overlay persona with only provider/model registered', async () => {
+if (compatibility.presetMode === 'registry-compaction-provider') {
+  test('narrow overlay delegates preset persona configs to the Host registry', () => {
+    for (const preset of PRESETS) {
+      const patch = overlay.find(row => row.id === `preset-${preset}`)
+      assert.equal(patch.compactionProvider, '@missher/dsh-context-manager/engine')
+      assert.equal('config' in patch, false, `${preset}: the narrow artifact must not snapshot the Host preset config`)
+    }
+  })
+} else test('alpha.2 assembly renders every overlay persona with only provider/model registered', async () => {
   for (const preset of PRESETS) {
     const { prefix, suffix } = persona(preset).config
     assert.ok(prefix.includes('{{model}}'))

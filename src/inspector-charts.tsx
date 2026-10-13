@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { EfficiencyReadout, FieldTotalReadout, Inspection, ReductionReadout } from './inspector-types.ts'
+import type { CompactCapacity } from './idle-types.ts'
 import { contextWindow, composition, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
 import type { InspectorText } from './inspector-locales.ts'
 import { capacityPercent, formatPercent, type Policy } from './policy.ts'
@@ -198,15 +199,29 @@ export function UsageComposition({ data, t }: { data: Inspection; t: InspectorTe
 }
 
 /** Secondary diagnostics are reachable without making the summary cards tall. */
-export function UsageDetails({ data, t, onCut }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void }) {
+export function UsageDetails({ data, t, onCut, capacity }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void; capacity?: CompactCapacity | null }) {
   const recent = data.requests.at(-1)
   return <details className="cmv-card cmv-data-basis"><summary>{t('dataBasis')}</summary><div>
     {recent && <p className="cmv-muted">{t('recent')} · {recent.turn} {t('turn')} · {recent.step} {t('step')}</p>}
     {!data.historical && <div className="cmv-growth cmv-muted"><span>{t('growthBasis')}</span>{(['sinceCompaction', 'lastToolResult'] as const).map(key => {
       const delta = data.contextGrowth?.[key]
+      const window = contextWindow(data)
       const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${formatPercent(delta.beforeTokens,contextWindow(data))} → ${formatPercent(delta.afterTokens,contextWindow(data))}` : ` ${t('growthUnknownHint')}`}`
-      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta ? `≈ ${delta.deltaTokens > 0 ? '+' : delta.deltaTokens < 0 ? '-' : ''}${formatPercent(Math.abs(delta.deltaTokens),contextWindow(data))}` : t('growthUnknown')}</strong></span></Tooltip>
+      const amount = delta && window !== null ? formatPercent(Math.abs(delta.deltaTokens), window) : t('growthUnknown')
+      const sign = delta && window !== null && delta.deltaTokens !== 0 ? delta.deltaTokens > 0 ? '+' : '-' : ''
+      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta && window !== null ? `≈ ${sign}${amount}` : amount}</strong></span></Tooltip>
     })}</div>}
+    {capacity && <div className="cmv-growth cmv-muted" data-compact-capacity data-window={capacity.windowTokens}>
+      <span>{t('window')} <strong>{exactTokens(capacity.windowTokens)} Token</strong></span>
+      <span>{t('gate')} <strong>{exactTokens(capacity.admission)} Token · {formatPercent(capacity.admission, capacity.windowTokens)}</strong></span>
+      <span>{t('planUpper')} <strong>{exactTokens(capacity.upper)} Token · {formatPercent(capacity.upper, capacity.windowTokens)}</strong></span>
+      <span>{t('protectedContent')} <strong>{exactTokens(capacity.protectedTokens)} Token · {formatPercent(capacity.protectedTokens, capacity.windowTokens)}</strong></span>
+      <span>{t('continuationReserve')} <strong>{exactTokens(capacity.resumeHeadroom)} Token · {formatPercent(capacity.resumeHeadroom, capacity.windowTokens)}</strong></span>
+      <span>{t('reserveNeed')} <strong>{exactTokens(capacity.requiredResumeHeadroom)} Token</strong></span>
+      <span>{t('reserveMax')} <strong>{exactTokens(capacity.resumeHeadroomLimit)} Token</strong></span>
+      <span>{t('observedGrowth')} <strong>{exactTokens(capacity.recentGrowth)} Token</strong></span>
+      <span>{t('incomingEstimate')} <strong>{exactTokens(capacity.incomingTokens)} Token</strong></span>
+    </div>}
     {data.efficiency && <EfficiencyLine efficiency={data.efficiency} t={t}/>}
     {data.reduction ? <ReductionLine reduction={data.reduction} t={t}/> : data.historical ? <p className="cmv-muted cmv-summary-usage">{t('histUnavailable')}</p> : null}
     {data.requests.length > 0 && <details className="cmv-request-details"><summary>{t('requests')} · {data.requestCount}</summary><div><table><thead><tr><th>{t('record')}</th><th>{t('input')}</th><th>{t('output')}</th><th>{t('read')}</th></tr></thead><tbody>{[...data.requests].reverse().map(request => <tr key={request.seq}><td><button type="button" onClick={() => onCut(request.seq)}>{request.turn} / {request.step}</button></td><td>{formatTokens(request.input)}</td><td>{formatTokens(request.output)}</td><td>{formatTokens(request.cacheRead)}</td></tr>)}</tbody></table></div></details>}

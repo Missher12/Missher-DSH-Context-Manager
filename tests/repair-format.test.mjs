@@ -20,20 +20,15 @@ import Engine from '../lib/engine.js'
 import { defaults } from '../lib/policy.js'
 
 // A type-broken primary: all seven keys present, only `constraints` has the
-// wrong JSON type. Every other field is valid and must survive a repair verbatim.
+// wrong JSON type. The local wrap must preserve every value byte-for-byte.
 const typeBroken = JSON.stringify({ goal: 'Preserve the pending task', constraints: 'Keep authorization boundaries', completed: ['Preparation complete'], pending: ['Continue current task'], evidence: [], next: 'Continue after completed preparation', uncertainties: [] })
-// The correct repair: only the broken type is fixed; every other value stays identical.
-const repairedCheckpoint = JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: [], next: 'Continue after completed preparation', uncertainties: [] })
-// A repair that silently rewrites a valid field must be rejected.
-const alteredCheckpoint = JSON.stringify({ goal: 'Altered goal', constraints: ['Keep authorization boundaries'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: [], next: 'Continue after completed preparation', uncertainties: [] })
 const missingField = JSON.stringify({ goal: 'no next field', constraints: [], completed: [], pending: [], evidence: [], uncertainties: [] })
-const primaryMissingField = JSON.stringify({ goal: 'Preserve the pending task', constraints: [], completed: [], pending: ['Continue current task'], evidence: [], next: 'Continue after completed preparation' })
 const primaryProse = 'ordinary prose summary'
 const primaryTruncated = '{"goal":'
-const primaryOversize = JSON.stringify({ goal: 'g', constraints: 'not-an-array', completed: [], pending: [], evidence: ['e'.repeat(40000)], next: 'n', uncertainties: [] })
+const primaryOversize = JSON.stringify({ goal: 'g', constraints: 'not-an-array', completed: [], pending: [], evidence: ['e'.repeat(70000)], next: 'n', uncertainties: [] })
 
 class Adapter extends LlmAdapter {
-  constructor(options = {}) { super(); this.options = options; this.order = []; this.summaries = []; this.requests = []; this.work = 0 }
+  constructor(options = {}) { super(); this.options = options; this.order = []; this.summaries = []; this.requests = []; this.repairs = []; this.work = 0 }
   async resolveModel(provider, model) { return { provider, id: model, name: model, context: { contextWindow: 10000 } } }
   providerRetryPolicy() { return resolveRetryPolicy({ mode: 'normal', maxRetries: 0 }, 'test') }
   async *stream(options) {
@@ -44,22 +39,15 @@ class Adapter extends LlmAdapter {
       yield { type: 'finish', reason: { kind: 'stop' } }
       return
     }
-    // The repair request carries exactly one user message and never the history.
-    const repair = options.messages.length === 1
-    this.summaries.push(options); this.order.push(repair ? 'repair-start' : 'summary-start')
-    if (repair) {
-      if (this.options.repairHold) await this.options.repairHold(options.signal)
-      if (this.options.repairFail) { yield { type: 'usage', usage: { inputTokens: 600, cacheReadTokens: 100, outputTokens: 30 } }; yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'repair unavailable' } } }; return }
-      const text = this.options.repairMissingField ? missingField : this.options.repairAltered ? alteredCheckpoint : this.options.repairText ?? repairedCheckpoint
-      yield { type: 'usage', usage: { inputTokens: 600, cacheReadTokens: 100, outputTokens: 30 } }
-      yield { type: 'block-start', index: 0, blockType: 'text' }
-      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
-      yield { type: 'finish', reason: { kind: 'stop' } }
-      return
-    }
-    const text = this.options.fail ? '' : this.options.missingField ? primaryMissingField : this.options.prose ? primaryProse : this.options.truncated ? primaryTruncated : this.options.oversize ? primaryOversize : this.options.typeBroken === false ? repairedCheckpoint : typeBroken
-    yield { type: 'usage', usage: { inputTokens: 500, cacheReadTokens: 100, outputTokens: 20 } }
+    // A repair request would carry exactly one user message and never history.
+    // The local deterministic repair must make this path unreachable.
+    if (options.messages.length === 1) { this.repairs.push(options); this.order.push('repair-start'); yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'repair must not be requested' } } }; return }
+    this.summaries.push(options); this.order.push('summary-start')
+    if (this.options.primaryHold) await this.options.primaryHold(options.signal)
     if (this.options.fail) { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'summary unavailable' } } }; return }
+    yield { type: 'usage', usage: { inputTokens: 500, cacheReadTokens: 100, outputTokens: 20 } }
+    if (this.options.primaryHoldAfterUsage) await this.options.primaryHoldAfterUsage(options.signal)
+    const text = this.options.missingField ? missingField : this.options.prose ? primaryProse : this.options.truncated ? primaryTruncated : this.options.oversize ? primaryOversize : typeBroken
     yield { type: 'block-start', index: 0, blockType: 'text' }
     yield { type: 'block-end', index: 0, block: { type: 'text', text } }
     yield { type: 'finish', reason: { kind: 'stop' } }
@@ -100,84 +88,52 @@ async function fixture(options = {}, policy = {}, seed = history()) {
 const message = () => createUserMessage({ content: [{ type: 'text', text: '请完成当前任务；不要改动无关文件。' }], source: { kind: 'user' } })
 const commits = agent => agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length
 const stats = ctx => ctx.contextManager.summaryLedger.stats('subject')
+const terminal = (ctx, purpose = 'summary') => ctx.contextManager.summaryOperations.records('subject').find(row => row.purpose === purpose)
 async function drainUntil(predicate) {
   const until = performance.now() + 5000
   while (performance.now() < until) { if (predicate()) return; await immediate() }
-  assert.ok(predicate(), 'asynchronous repair did not settle')
+  assert.ok(predicate(), 'asynchronous operation did not settle')
 }
 
-test('repair: a type-broken primary is repaired once in the same transaction with bounded input and no history', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairText: repairedCheckpoint })
+test('repair: a type-broken primary commits with one local wrap and zero repair calls', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture()
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'repair-start', 'main'])
+    assert.deepEqual(adapter.order, ['summary-start', 'main'])
+    assert.equal(adapter.repairs.length, 0, 'deterministic repair must never request a model')
+    assert.equal(adapter.summaries.length, 1)
     assert.equal(adapter.requests.length, 1); assert.equal(adapter.work, 0)
     assert.equal(commits(agent), 1)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const repair = adapter.summaries[1]
-    assert.equal(repair.messages.length, 1, 'repair must not resend the conversation history')
-    assert.equal('toolHistory' in repair, false, 'repair must not carry tool history')
-    assert.equal('tools' in repair, false, 'repair must not carry tool schemas')
-    const repairText = JSON.stringify(repair.messages)
-    assert.ok(!repairText.includes('h'.repeat(100)), 'repair input must not contain the original history')
-    assert.ok(repairText.includes('Keep authorization boundaries'), 'repair input carries the complete failed output')
-    assert.equal(repair.provider, 'mock'); assert.equal(repair.model, 'large')
-    assert.ok((repair.maxTokens ?? 0) <= 2048, 'repair output is bounded by the repair budget')
+    const checkpoint = agent.session.snapshotEvents().find(event => event.type === 'compaction/summary')
+    const text = checkpoint.data.summary.map(block => block.text).join('')
+    assert.match(text, /Keep authorization boundaries/)
+    assert.ok(!text.includes('constraints'), 'the checkpoint surface is Markdown, not raw JSON')
     const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.equal(ledger.unknownAttempts, 0)
-    assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'generated'])
-    assert.equal(ledger.recent[0].compactionId, ledger.recent[1].compactionId, 'both attempts share the same compaction')
-    assert.equal(ledger.input, 1300); assert.equal(ledger.output, 50)
+    assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
+    assert.deepEqual(ledger.recent.map(item => item.status), ['generated'])
+    assert.equal(ledger.input, 600); assert.equal(ledger.output, 20)
+    const row = terminal(ctx)
+    assert.equal(row.phase, 'committed')
+    assert.equal(row.reasonCode, 'deterministic_repair')
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
     assert.equal(view.compactions[0].status, 'completed')
-    assert.equal(view.compactions[0].inputTokens, 1300); assert.equal(view.compactions[0].outputTokens, 50)
+    assert.equal(view.compactions[0].inputTokens, 600); assert.equal(view.compactions[0].outputTokens, 20)
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: a second failure terminates without commit, charges both attempts and preserves the task', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairFail: true })
-  try {
-    const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'repair-start'])
-    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0)
-    assert.equal(commits(agent), 0)
-    assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.equal(ledger.unknownAttempts, 0)
-    assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'failed'])
-    const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.equal(view.compactions[0].status, 'failed')
-    assert.match(view.compactions[0].error ?? '', /格式修复未通过校验/)
-  } finally { await ctx.fiber.dispose() }
-})
-
-test('repair: disabled by policy, a structural failure permits one bounded primary reissue but no repair', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true }, { formatRepairEnabled: false })
-  try {
-    const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'])
-    assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
-    assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.equal(ledger.unknownAttempts, 0)
-    assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'failed'])
-    const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /格式修复已关闭/)
-  } finally { await ctx.fiber.dispose() }
-})
-
-test('repair: an error finish with no text is rejected without a second paid call and its usage is recorded', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ fail: true })
+test('repair: disabled by policy rejects a repairable structure without any second call', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({}, { formatRepairEnabled: false })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
     assert.deepEqual(adapter.order, ['summary-start'])
+    assert.equal(adapter.summaries.length, 1); assert.equal(adapter.repairs.length, 0)
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const ledger = stats(ctx)
     assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
-    assert.equal(ledger.input, 600); assert.equal(ledger.output, 20, 'usage observed before the failure settles the failed attempt')
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.equal(view.compactions[0].error, 'summary unavailable', 'retain the provider failure instead of replacing its cause with a generic finish label')
+    assert.match(view.compactions[0].error ?? '', /本地结构修复已关闭|格式修复已关闭/)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -185,137 +141,103 @@ for (const [name, option, errorMatch] of [
   ['truncated JSON', { truncated: true }, /损坏或截断/],
   ['missing fields', { missingField: true }, /缺少字段/],
   ['prose', { prose: true }, /损坏或截断/],
-]) test(`repair: ${name} is rejected without format repair and at most one exact primary reissue`, { timeout: 8000 }, async () => {
+]) test(`repair: ${name} fails closed as known-unapplied with no replay`, { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture(option)
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'], 'damaged input must never reach a repair call')
+    assert.deepEqual(adapter.order, ['summary-start'], 'damaged input must never be replayed')
+    assert.equal(adapter.summaries.length, 1); assert.equal(adapter.repairs.length, 0)
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    assert.equal(stats(ctx).attempts, 2)
+    const ledger = stats(ctx)
+    assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
+    const row = terminal(ctx)
+    assert.equal(row.phase, 'known_failed_unapplied', 'a physically complete unapplied call is not unknown')
+    assert.equal(row.reasonCode, 'invalid_structure')
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
     assert.match(view.compactions[0].error ?? '', errorMatch)
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: a failed output whose complete repair request exceeds the window budget is rejected whole, never sliced', { timeout: 8000 }, async () => {
+test('repair: over-limit evidence is rejected whole without truncation, local repair or replay', { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture({ oversize: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'summary-start'], 'over-budget output must never reach a repair call')
+    assert.deepEqual(adapter.order, ['summary-start'])
+    assert.equal(adapter.summaries.length, 1); assert.equal(adapter.repairs.length, 0)
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /超出窗口预算/)
+    assert.match(view.compactions[0].error ?? '', /字段条目类型或长度无效/)
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: a repair response with missing fields still fails closed', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairMissingField: true })
+test('repair: an error finish keeps the provider failure, records usage and is not replayed', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ fail: true })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'repair-start'])
+    assert.deepEqual(adapter.order, ['summary-start'])
+    assert.equal(adapter.summaries.length, 1); assert.equal(adapter.repairs.length, 0)
     assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'failed'])
+    assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 1)
+    assert.equal(ledger.input, 0); assert.equal(ledger.output, 0)
     const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /格式修复未通过校验/)
+    assert.equal(view.compactions[0].error, 'summary unavailable')
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: a repair response that rewrites an already-valid field is rejected', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairAltered: true })
-  try {
-    const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'repair-start'])
-    assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
-    assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /格式修复与无损修复要求不一致（goal）/u)
-  } finally { await ctx.fiber.dispose() }
-})
-
-test('repair: cancellation during the repair stream stops everything without commit', { timeout: 8000 }, async () => {
-  let started; const entered = new Promise(resolve => { started = resolve })
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairHold: signal => new Promise((_resolve, reject) => {
-    started(); signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-  }) })
-  try {
-    const task = message(); agent.followup(task); await entered
-    assert.equal(adapter.requests.length, 0)
-    agent.cancel({ kind: 'user' }); await agent.whenIdle()
-    assert.equal(adapter.requests.length, 0); assert.equal(adapter.work, 0); assert.equal(commits(agent), 0)
-    assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2)
-    assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'cancelled'])
-  } finally { await ctx.fiber.dispose() }
-})
-
-test('repair: a late repair response after cancellation never commits and its delivered usage is recorded once', { timeout: 8000 }, async () => {
+test('repair: cancellation during the summary stream never commits and late usage is recorded once', { timeout: 8000 }, async () => {
   let release; let started; const entered = new Promise(resolve => { started = resolve })
   const held = new Promise(resolve => { release = resolve })
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairHold: async () => { started(); await held } })
+  const { ctx, adapter, agent } = await fixture({ primaryHoldAfterUsage: async () => { started(); await held } })
   try {
     const task = message(); agent.followup(task); await entered
     agent.cancel({ kind: 'user' }); await agent.whenIdle()
     assert.equal(commits(agent), 0); assert.equal(adapter.requests.length, 0)
     release()
-    await drainUntil(() => { const ledger = stats(ctx); return ledger.recent[1]?.status === 'cancelled' && ledger.recent[1].input !== null })
+    await drainUntil(() => { const ledger = stats(ctx); return ledger.recent[0]?.status === 'cancelled' && ledger.recent[0].input !== null })
     await immediate()
     assert.equal(commits(agent), 0); assert.equal(adapter.requests.length, 0)
     assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
     const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.equal(ledger.unknownAttempts, 0)
-    assert.equal(ledger.recent[1].status, 'cancelled', 'late content must not upgrade a cancelled attempt')
-    assert.equal(ledger.recent[1].input, 700); assert.equal(ledger.recent[1].output, 30, 'delivered usage is recorded once')
-    // A second identical notification must not double-count.
-    const id = ledger.recent[1].id
-    await ctx.contextManager.summaryLedger.recordUsage('subject', id, { inputTokens: 9999, outputTokens: 9999 })
-    assert.equal(stats(ctx).recent[1].input, 700)
+    assert.equal(ledger.attempts, 1); assert.equal(ledger.unknownAttempts, 0)
+    assert.equal(ledger.recent[0].status, 'cancelled')
+    assert.equal(ledger.recent[0].input, 600); assert.equal(ledger.recent[0].output, 20)
+    await ctx.contextManager.summaryLedger.recordUsage('subject', ledger.recent[0].id, { inputTokens: 9999, outputTokens: 9999 })
+    assert.equal(stats(ctx).recent[0].input, 10099, 'a newer provider total replaces the prior input snapshot and retains known cache usage')
+    assert.equal(stats(ctx).recent[0].output, 9999)
+    assert.equal(stats(ctx).attempts, 1, 'late snapshots update the original attempt rather than creating a duplicate charge')
   } finally { await ctx.fiber.dispose() }
 })
 
-test('repair: idle path repairs a type-broken summary once inside its maintenance pass', { timeout: 8000 }, async t => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairText: repairedCheckpoint }, {}, history(28000))
+test('repair: idle path applies the deterministic wrap once inside maintenance', { timeout: 8000 }, async t => {
+  const { ctx, adapter, agent } = await fixture({}, {}, history(28000))
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   try {
     agent.followup(message()); await agent.whenIdle()
     await drainUntil(() => ctx.contextManager.idleStatus(agent.id).status === 'scheduled')
     t.mock.timers.tick(900000)
     await drainUntil(() => ctx.contextManager.idleStatus(agent.id).status === 'completed')
-    assert.deepEqual(adapter.order, ['main', 'summary-start', 'repair-start'])
+    assert.deepEqual(adapter.order, ['main', 'summary-start'])
+    assert.equal(adapter.repairs.length, 0)
     assert.equal(commits(agent), 1)
     const ledger = stats(ctx)
-    assert.equal(ledger.attempts, 2); assert.deepEqual(ledger.recent.map(item => item.status), ['failed', 'generated'])
+    assert.equal(ledger.attempts, 1); assert.deepEqual(ledger.recent.map(item => item.status), ['generated'])
     assert.ok(ctx.contextManager.idleStatus(agent.id).afterTokens < ctx.contextManager.idleStatus(agent.id).beforeTokens)
   } finally { t.mock.timers.reset(); await ctx.fiber.dispose() }
 })
 
-test('repair: a repair response that adds facts to the broken field is rejected', { timeout: 8000 }, async () => {
-  const { ctx, adapter, agent } = await fixture({ typeBroken: true, repairText: JSON.stringify({ goal: 'Preserve the pending task', constraints: ['Keep authorization boundaries', 'extra invented fact'], completed: ['Preparation complete'], pending: ['Continue current task'], evidence: [], next: 'Continue after completed preparation', uncertainties: [] }) })
+test('percent: deterministic repair commits without consuming repair output budget', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({}, { capacityMode: 'percent', recentPercent: 10, summaryPercent: 5, repairPercent: 1, maxPasses: 1 })
   try {
     const task = message(); agent.followup(task); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['summary-start', 'repair-start'])
-    assert.equal(adapter.requests.length, 0); assert.equal(commits(agent), 0)
-    assert.ok(agent.session.deriveMessages().some(m => m.id === task.id))
-    const view = ctx.sessionProjections.snapshot(agent.session).values.contextManagerDiagnostics
-    assert.match(view.compactions[0].error ?? '', /格式修复与无损修复要求不一致（constraints）/u)
+    assert.deepEqual(adapter.order, ['summary-start', 'main'])
+    assert.equal(adapter.summaries.length, 1); assert.equal(adapter.repairs.length, 0)
+    assert.equal(adapter.requests.length, 1); assert.equal(commits(agent), 1)
+    const ledger = stats(ctx)
+    assert.equal(ledger.attempts, 1); assert.equal(ledger.input, 600); assert.equal(ledger.output, 20)
+    assert.equal(ctx.contextManager.summaryOperations.records('subject').filter(row => row.purpose === 'repair').length, 0)
   } finally { await ctx.fiber.dispose() }
-})
-
-
-test('percent: insufficient repair output rejects before any repair claim or provider call',async()=>{
- const {ctx,adapter,agent}=await fixture({typeBroken:true,repairText:repairedCheckpoint},{capacityMode:'percent',recentPercent:10,summaryPercent:5,repairPercent:1,maxPasses:1})
- try{
-  const task=message();agent.followup(task);await agent.whenIdle()
-  assert.deepEqual(adapter.order,['summary-start','summary-start'],'existing known-failure primary reissue remains bounded')
-  assert.equal(adapter.summaries.length,2);assert.equal(adapter.requests.length,0)
-  assert.equal(ctx.contextManager.summaryOperations.records('subject').filter(row=>row.purpose==='repair').length,0)
-  assert.equal(commits(agent),0)
-  assert.ok(agent.session.deriveMessages().some(m=>m.id===task.id))
-  const ledger=stats(ctx);assert.equal(ledger.attempts,2);assert.equal(ledger.unknownAttempts,0)
-  assert.equal(ledger.input,1200);assert.equal(ledger.output,40)
- }finally{await ctx.fiber.dispose()}
 })

@@ -9,7 +9,7 @@ const compiled = await build({
   bundle: true, write: false, platform: 'node', format: 'esm', target: 'es2022',
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
 })
-const { planWorkingSet, validateWorkingCandidate } = await import(
+const { planWorkingSet, validateWorkingCandidate, continuationHeadroom } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`,
 )
 
@@ -180,4 +180,79 @@ test('working set: unknown/invalid measurements do not create a payable plan or 
   assert.equal(planWorkingSet([node(1, NaN)], input), undefined)
   assert.equal(planWorkingSet([node(1, -1)], input), undefined)
   assert.equal(planWorkingSet([], input), undefined)
+})
+
+test('continuation reserve replays one comparable growth step at 200K and 1M without immediate re-admission', () => {
+  for (const scenario of [
+    { window: 200000, admission: 158000, current: 158000, growth: 20000, protected: 40000, expectedReserve: 25000 },
+    { window: 1000000, admission: 790000, current: 790000, growth: 100000, protected: 650000, expectedReserve: 125000 },
+  ]) {
+    const estimate = continuationHeadroom({ window: scenario.window, admission: scenario.admission,
+      recentGrowth: scenario.growth, incomingTokens: 0 })
+    assert.equal(estimate.sufficient, true)
+    assert.equal(estimate.required, scenario.expectedReserve)
+    assert.equal(estimate.tokens, scenario.expectedReserve)
+    const eligible = scenario.current - scenario.protected
+    const nodes = [node(1, eligible), node(2, scenario.protected, { protected: true })]
+    const plan = planWorkingSet(nodes, { total: scenario.current, admission: scenario.admission,
+      hard: scenario.window, recentTokens: 0, summaryTokens: Math.floor(scenario.window * 0.01),
+      resumeHeadroom: estimate.tokens })
+    assertSafe(nodes, plan)
+    assert.ok(plan.estimatedAfter <= scenario.admission - estimate.required)
+    assert.ok(plan.estimatedAfter + scenario.growth < scenario.admission,
+      `${scenario.window} window: the next comparable step remains below admission`)
+  }
+})
+
+test('continuation reserve rejects the reviewed 20K growth plan whose protected floor cannot fit', () => {
+  const nodes = [node(1, 20000), node(2, 138000, { protected: true })]
+  const old = planWorkingSet(nodes, { total: 158000, admission: 158000, hard: 190000,
+    recentTokens: 0, summaryTokens: 1871, resumeHeadroom: 10000 })
+  assert.equal(old.estimatedAfter, 139999, 'reproduces the old 5%-capped plan')
+  assert.equal(old.estimatedAfter + 20000, 159999, 'that plan immediately crosses the 158K admission line')
+
+  const estimate = continuationHeadroom({ window: 200000, admission: 158000, recentGrowth: 20000, incomingTokens: 0 })
+  assert.equal(estimate.required, 25000)
+  assert.equal(estimate.sufficient, true)
+  assert.equal(planWorkingSet(nodes, { total: 158000, admission: 158000, hard: 190000,
+    recentTokens: 0, summaryTokens: 1871, resumeHeadroom: estimate.tokens }), undefined,
+  '138K protected floor cannot leave the required 25K for continuation')
+})
+
+test('continuation reserve keeps observed growth above the old percentage cap, or refuses when it cannot fit', () => {
+  const estimate = continuationHeadroom({ window: 200000, admission: 158000, recentGrowth: 80000, incomingTokens: 0 })
+  assert.equal(estimate.projectedGrowth, 80000)
+  assert.equal(estimate.projectionCapped, false)
+  assert.equal(estimate.required, 100000)
+  assert.equal(estimate.tokens, 100000, 'the planner receives the full measured reserve')
+  assert.equal(estimate.sufficient, true)
+
+  const nodes = [node(1, 130000), node(2, 20000, { protected: true })]
+  const plan = planWorkingSet(nodes, { total: 150000, admission: 158000, hard: 190000,
+    recentTokens: 0, summaryTokens: 1871, resumeHeadroom: estimate.tokens })
+  assertSafe(nodes, plan)
+  assert.ok(plan.estimatedAfter + estimate.projectedGrowth < 158000,
+    'the next comparable 80K step stays below the actual admission line')
+
+  const impossible = continuationHeadroom({ window: 200000, admission: 158000, recentGrowth: 160000, incomingTokens: 0 })
+  assert.equal(impossible.required, 200000)
+  assert.equal(impossible.tokens, impossible.required, 'an impossible reserve is never silently clipped')
+  assert.equal(impossible.sufficient, false)
+})
+
+test('continuation reserve preserves the one-token counterexample and does not replay a one-off attachment as recurring growth', () => {
+  const tiny = continuationHeadroom({ window: 200000, admission: 158000, recentGrowth: 1, incomingTokens: 0 })
+  assert.equal(tiny.tokens, 2048, 'a single observed token never becomes a one-token continuation reserve')
+  const nodes = [node(1, 4000), node(2, 156000, { protected: true })]
+  const old = planWorkingSet(nodes, { total: 160000, admission: 158000, hard: 190000,
+    recentTokens: 0, summaryTokens: 1871, resumeHeadroom: 1 })
+  assert.equal(old.estimatedAfter, 157998)
+  assert.equal(old.estimatedAfter + 2, 158000, 'the old one-token reserve leaves only one extra token before re-trigger')
+  assert.equal(planWorkingSet(nodes, { total: 160000, admission: 158000, hard: 190000,
+    recentTokens: 0, summaryTokens: 1871, resumeHeadroom: tiny.tokens }), undefined,
+  'the old protected floor cannot provide a safe 2K continuation reserve')
+
+  const attachment = continuationHeadroom({ window: 200000, admission: 158000, recentGrowth: 0, incomingTokens: 150000 })
+  assert.equal(attachment.sufficient, true, 'one large input is already in current pressure and only contributes a bounded error margin')
+  assert.ok(attachment.required < 10000)
 })
