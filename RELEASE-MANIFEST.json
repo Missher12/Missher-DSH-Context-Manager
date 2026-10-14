@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "plugin and paired Host source accepted and published; install Release pending",
+  "status": "formal plugin release published and anonymously verified; paired Ubuntu native installation accepted",
   "package": "@missher/dsh-context-manager",
   "packages": [
     {
@@ -25,7 +25,7 @@
     "automaticQueuedInputHandoff": "requires the paired AgentLoop Host change, absent on unpatched legacy Host",
     "hostRepository": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop",
     "hostSourceBase": "70f01a61a6cf9964b127c3c483278619df231dc0",
-    "hostIntegration": "official build,43 documentation checks,lint and normal Git hooks passed; packaging and installation pending",
+    "hostIntegration": "official build,56 focused checks,43 documentation checks,lint and normal Git hooks passed; Ubuntu installed and native verified; Intel packaging/actual renderer CI passed",
     "sameContractFingerprintMapping": {
       "archivedCandidate": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
       "integratedSource": "ddde6df7e436354318c26f0b3a1cd18f51ed4418124321cc66ae34e33448f396",
@@ -34,7 +34,7 @@
       "scope": "preset interface only; not full AgentLoop handoff acceptance"
     },
     "pairedHostCommit": "818b495a877b04b53f7d07bbaec5837a0fe07c71",
-    "plannedHostBuildVersion": "0.2.1-alpha.2.20261014.1"
+    "hostBuildVersion": "0.2.1-alpha.2.20261014.1"
   },
   "checks": {
     "narrow": {
@@ -54,8 +54,8 @@
       "failed": 0
     },
     "realProviderAcceptance": false,
-    "nativeDesktopAcceptance": false,
-    "dailyInstallationAccepted": false,
+    "nativeDesktopAcceptance": true,
+    "dailyInstallationAccepted": true,
     "redactedFixtureReplay": {
       "passed": 1,
       "failed": 0,
@@ -64,7 +64,7 @@
     "hostOfficialBuild": {
       "passed": true,
       "clientArtifacts": 357,
-      "finalPackagingAccepted": false
+      "finalPackagingAccepted": true
     },
     "storagePortability": {
       "runUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/38451852467",
@@ -89,7 +89,17 @@
       "newErrors": 0,
       "baselineWarning": "unused disable in experimental client-ui-cot-translation"
     },
-    "hostGitHooks": "normal pre-commit and pre-push passed"
+    "hostGitHooks": "normal pre-commit and pre-push passed",
+    "nativeAcceptanceScope": "Ubuntu only: exact installed package files, settings/Inspector and activation; no provider prompt or physical Mac/plugin business acceptance",
+    "intelPackaging": {
+      "runUrl": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop/actions/runs/38485572586",
+      "runId": 38485572586,
+      "head": "818b495a877b04b53f7d07bbaec5837a0fe07c71",
+      "passed": true,
+      "checksPassed": 88,
+      "actualRendererVerified": true,
+      "physicalUserMacInstallationVerified": false
+    }
   },
   "frozenSourceTrees": [
     {
@@ -138,6 +148,16 @@
       "private review logs",
       "coordination instructions"
     ],
-    "frozenArchivesUnmodified": true
+    "frozenArchivesUnmodified": true,
+    "release": {
+      "id": 412211010,
+      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.9",
+      "tag": "v0.10.0-local.9",
+      "sourceCommit": "6fb5dda33b2254d54721f26b47fc7897f5eab0fe",
+      "draft": false,
+      "prerelease": false,
+      "assetCount": 4,
+      "anonymousAssetHashesMatched": true
+    }
   }
 }

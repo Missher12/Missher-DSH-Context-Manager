@@ -4,7 +4,7 @@
 
 在发送模型请求前整理过长上下文，保留可追溯的原文，分别显示当前占用、摘要用量和恢复状态。包名为 `@missher/dsh-context-manager`，源码和匹配运行文件版本为 **0.10.0-local.9**。
 
-当前源码已接受进入配套桌面整合。新安装包的正式发布、日常安装和原生界面验收仍需分别完成；仅下载源码不会更新已运行的插件。精确包、兼容要求和验证范围见 [交付说明](PUBLICATION.md) 与 [公开包清单](RELEASE-MANIFEST.json)。
+[local.9 正式版](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.9)已发布。配套 Ubuntu 桌面已完成安装、原生设置和上下文页面验收，三个插件入口正常加载；更新保留已有会话和设置。精确包、宿主能力和验证范围见 [交付说明](PUBLICATION.md) 与 [公开包清单](RELEASE-MANIFEST.json)。
 
 ## 选择适合宿主的包
 
@@ -28,7 +28,7 @@
 
 ## 安装与更新
 
-从正式 Release 选择满足宿主要求的 `.tgz`，核对 SHA-256 后，在 DSH 的“插件 → 添加插件”安装。配套 Host 尚未验收发布时，不把本源码版本当作通用最新版；以已发布 Release 的实际要求为准。
+从正式 Release 选择满足上述宿主能力要求的 `.tgz`，核对 SHA-256 后，在 DSH 的“插件 → 添加插件”安装。主包本次已验收于配套 Desktop `0.2.1-alpha.2.20261014.1`；其他版本按接口能力与验证记录判断。桌面安装包与插件分别提供，下载源码或只更新桌面不会自动替换用户已装插件。
 
 更新前备份完整 profile、会话和本插件档案/账本，等待活动任务结束；通过应用正常退出并重启。确认 `context-manager`、`context-manager-engine`、`context-manager-inspector` 均正常加载，再检查会话“上下文”入口与保存的设置。已有配置不会因为更新而被默认值覆盖。
 

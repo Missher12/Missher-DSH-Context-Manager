@@ -4,7 +4,7 @@
 
 Compacts oversized context before model requests, retains traceable original text, and distinguishes current occupancy, summary usage and recovery state. Package: `@missher/dsh-context-manager`. The source and matching runtime files are **0.10.0-local.9**.
 
-This source has been accepted for coordinated Desktop integration. Formal packages, daily installation and native UI acceptance remain separate delivery steps; downloading source does not update a running plugin. See [delivery notes](PUBLICATION.md) and the [public package manifest](RELEASE-MANIFEST.json).
+[The local.9 formal release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.9) is published. The paired Ubuntu desktop installation, native settings and Context view were verified, with all three plugin entries active and existing sessions and settings preserved. See [delivery notes](PUBLICATION.md) and the [public package manifest](RELEASE-MANIFEST.json) for exact artifacts, required capabilities and evidence limits.
 
 ## Choose a package for your Host
 
@@ -28,7 +28,7 @@ Required services include Session, Projection, TokenMeter, StorageDomain, BasicC
 
 ## Install and update
 
-Choose a `.tgz` from a regular Release that meets your Host requirements, verify its SHA-256, and install through DSH plugin management. Until the matching Host is accepted and published, do not treat this source revision as a universal latest package; follow the actual published Release requirements.
+Choose a `.tgz` from a regular Release that meets the Host capabilities above, verify its SHA-256, and install through DSH plugin management. The main package was verified on the paired Desktop `0.2.1-alpha.2.20261014.1`; other versions are assessed by capabilities and evidence. Desktop installers and plugins are separate downloads. Downloading source or updating only the desktop does not automatically replace installed user plugins.
 
 Back up the full profile, sessions, original archive and accounting before updating. Finish active work, then exit and restart normally. Check all three entries—`context-manager`, `context-manager-engine`, `context-manager-inspector`—and the conversation Context view and saved settings. Updating does not replace saved values with defaults.
 
