@@ -6,7 +6,7 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { Policy } from './policy.ts'
 import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery } from './inspector-types.ts'
 import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, PressureTrend, UsageComposition, contextWindow, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
-import { inspectorText, type InspectorText } from './inspector-locales.ts'
+import { inspectorText, type InspectorLocaleKey, type InspectorText } from './inspector-locales.ts'
 import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
@@ -21,6 +21,16 @@ export interface ContextViewInjected {
 }
 const errorText = (error: unknown, t: InspectorText) => error instanceof Error ? error.message : t('error')
 function Loading() { return <div className="cmv-empty"><StateDot state="ongoing"/></div> }
+function compressionLabel(mode: NonNullable<Inspection['compression']>['mode']): InspectorLocaleKey {
+  switch (mode) {
+    case 'enhanced': return 'enhancedCurrent'
+    case 'native': return 'nativeOnly'
+    case 'other': return 'otherProvider'
+    case 'unconfigured': return 'unconfigured'
+    case 'unavailable': return 'unavailable'
+    default: return 'unknownBinding'
+  }
+}
 
 function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void }) {
   const [state, setState] = useState<{ target: string; value: IdleStatus } | null>(null)
@@ -29,7 +39,9 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
   const [recoveryResult, setRecoveryResult] = useState('')
   const [emergencyPlan,setEmergencyPlan]=useState<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}|null>(null)
   const action = useRef<AbortController | null>(null)
-  useEffect(() => { setEmergencyPlan(null); setRecovering(false); setRecoveryResult(''); return () => { action.current?.abort() } }, [target])
+  const currentCompressionMode = useRef<string>('unknown')
+  const emergencyEpoch = useRef(0)
+  useEffect(() => { currentCompressionMode.current = 'unknown'; emergencyEpoch.current++; setEmergencyPlan(null); setRecovering(false); setRecoveryResult(''); return () => { action.current?.abort() } }, [target])
   useEffect(() => {
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -38,15 +50,25 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
         const value = await api.idleStatus({ sessionId: target }, abort.signal)
         if (abort.signal.aborted) return
         setState({ target, value }); setError(false)
-        if (value.status !== 'off') timer = setTimeout(() => { void read() }, value.status === 'compacting' ? 1000 : 5000)
+        currentCompressionMode.current = value.compression?.mode ?? 'unknown'
+        if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; setEmergencyPlan(null) }
+        timer = setTimeout(() => { void read() }, value.status === 'compacting' ? 1000 : 5000)
       } catch (reason) {
         // A cancelled view owns no status update or follow-up timer.
-        if (!abort.signal.aborted) { setError(true); timer = setTimeout(() => { void read() }, 5000) }
+        if (!abort.signal.aborted) {
+          setState(null)
+          onCapacity(null)
+          currentCompressionMode.current = 'unknown'; emergencyEpoch.current++
+          action.current?.abort(); action.current = null
+          setRecovering(false); setRecoveryResult(''); setEmergencyPlan(null)
+          setError(true)
+          timer = setTimeout(() => { void read() }, 5000)
+        }
       }
     }
     void read()
     return () => { abort.abort(); clearTimeout(timer) }
-  }, [target, api, revision, settingsRevision, retry])
+  }, [target, api, revision, settingsRevision, retry, onCapacity])
   const value = state?.target === target ? state.value : null
   useEffect(() => { onCapacity(value?.capacity ?? null) }, [onCapacity, value])
   const message = value?.status === 'scheduled' && value.dueAt !== null && !/background|busy/u.test(value.reasonCode ?? '')
@@ -67,17 +89,28 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     try {
       if(confirm && emergencyPlan) {
         const plan=emergencyPlan;setEmergencyPlan(null)
+        const modeAtStart = currentCompressionMode.current
+        const epochAtStart = emergencyEpoch.current
+        const current = await api.idleStatus({ sessionId: target }, controller.signal)
+        if (controller.signal.aborted || action.current !== controller
+          || modeAtStart !== 'enhanced' || currentCompressionMode.current !== 'enhanced'
+          || emergencyEpoch.current !== epochAtStart) return
+        setState({ target, value: current }); setError(false)
+        currentCompressionMode.current = current.compression?.mode ?? 'unknown'
+        if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; return }
         await api.executeEmergency({sessionId:target,token:plan.token,acceptUnknownCost:true},controller.signal)
         if(!controller.signal.aborted)setRecoveryResult('人工急救压缩完成；原任务未自动重放')
       }else{
+        const modeAtStart = currentCompressionMode.current
+        const epochAtStart = emergencyEpoch.current
         const plan=await api.prepareEmergency({sessionId:target},controller.signal)
-        if(!controller.signal.aborted)setEmergencyPlan(plan)
+        if(!controller.signal.aborted) setEmergencyPlan(modeAtStart === 'enhanced' && currentCompressionMode.current === 'enhanced' && epochAtStart === emergencyEpoch.current ? plan : null)
       }
     }catch(reason){if(!controller.signal.aborted){setEmergencyPlan(null);setRecoveryResult(errorText(reason,t))}}
     finally{if(!controller.signal.aborted)setRecovering(false)}
   }
   return <span role="status" aria-label={t('idle')}>{t('idle')} · {error ? t('idleUnknown') : message ?? t('idleWait')}
-    {value?.owner === 'other' && <> · 当前压缩由其他引擎接管，本插件未接管自动调用</>}
+    {value?.compression && <> · <span title={value.compression.reason}>{t(compressionLabel(value.compression.mode))}</span></>}
     {value?.deadline && <> · 当前设置：{value.deadline}</>}
     {value?.execution && <> · {value.execution}</>}
     {value?.capacity && <> · {t('gate')} {formatPercent(value.capacity.admission, value.capacity.windowTokens)} · {t('planUpper')} {formatPercent(value.capacity.upper, value.capacity.windowTokens)} · {t('continuationReserve')} {formatPercent(value.capacity.resumeHeadroom, value.capacity.windowTokens)}</>}
@@ -93,13 +126,15 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
 function RequestStatus({ data, policy, stale, t }: { data: Inspection; policy: Policy | undefined; stale: boolean; t: InspectorText }) {
   const pressure = data.pressure
   const reading = data.historical ? undefined : data.admission
-  const gate = admissionBudget(data, policy)
-  const status = stale ? 'stale' : data.historical ? 'historical' : policy && !policy.enabled ? 'off' : !gate || !reading ? 'unknown' : reading.tokens >= gate.admission ? 'compactFirst' : 'continue'
+  const mode = data.compression?.mode ?? 'unknown'
+  const gate = mode === 'enhanced' ? admissionBudget(data, policy) : undefined
+  const status = stale ? 'stale' : data.historical ? 'historical' : mode !== 'enhanced' ? compressionLabel(mode)
+    : policy && !policy.enabled ? 'off' : !gate || !reading ? 'unknown' : reading.tokens >= gate.admission ? 'compactFirst' : 'continue'
   const source = gate ? gate.admissionSource === 'absolute' ? t('gateAbsolute') : gate.admissionSource === 'hard' ? t('gateHard') : t('gatePercent') : ''
   const effectiveCapacity = policy && gate ? capacityTokens(policy,gate.window) : null
   const recent = data.requests.at(-1)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={t('admissionHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · 近期原文 ${formatPercent(effectiveCapacity.recent,gate.window)} · 摘要 ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)} · 修复 ${formatPercent(Math.min(effectiveCapacity.repair,effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
+  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={mode === 'enhanced' ? t('admissionHint') : t('bindingHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · 近期原文 ${formatPercent(effectiveCapacity.recent,gate.window)} · 摘要 ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)} · 修复 ${formatPercent(Math.min(effectiveCapacity.repair,effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
     <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{formatTokens(recent?.input ?? pressure?.input)} <small>Token</small></strong></div></div>
     <div><h3>{t('cache')}</h3><div className="cmv-request-values"><strong>{hit === null ? '—' : `${Math.round(hit)}%`}</strong></div></div>
   </div>

@@ -29,10 +29,11 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import AgentPresets from '@deepseek-ai/dsh-agent-preset-registry'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { pressureHistory } from '../lib/inspector.js'
 import { defaults, budget, validatePolicy } from '../lib/policy.js'
 import { diagnosticsProjection } from '../lib/diagnostics.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 const checkpointBuild = await build({ entryPoints: [fileURLToPath(new URL('../src/checkpoint.ts', import.meta.url))],
   bundle: true, write: false, platform: 'node', format: 'esm', target: 'es2022',
@@ -117,14 +118,17 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
   if (options.pruner) await ctx.plugin(ToolResultPruner, { thresholdChars: 2000, headChars: 600, tailChars: 400 })
-  await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'legacy', summaryMaxTokens: 512, ...policy } })
-  await ctx.plugin(Engine)
   if (options.presets) {
     ctx.baseUrl = new URL('../', import.meta.url).href
     await ctx.plugin(Loader); ctx.loader.builtins.group = Group
     await ctx.plugin(AgentPresets, { default: 'one' })
+  }
+  const testHost = installTestCompactionHost(ctx)
+  await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'legacy', summaryMaxTokens: 512, ...policy } })
+  await ctx.plugin(Engine)
+  if (options.presets) {
     for (const id of ['one', 'two']) await ctx.plugin({ inject: ['agentPresets'], async *apply(child) {
-      yield await child.agentPresets.register({ id, plugins: [{ name: 'cordis:group', group: true, isolate: { compaction: true }, config: [{ name: options.customBasic ? '@deepseek-ai/dsh-compaction-basic' : new URL('../lib/engine.js', import.meta.url).href, ...(options.customBasic ? { config: { auto: false } } : {}) }] }] })
+      yield await child.agentPresets.register({ id, plugins: [{ name: 'cordis:group', group: true, isolate: { compaction: true }, config: [{ name: options.customBasic ? '@deepseek-ai/dsh-compaction-basic' : new URL('./fixtures/context-engine-class-entry.mjs', import.meta.url).href, ...(options.customBasic ? { config: { auto: false } } : {}) }] }] })
     } })
   }
   const adapter = new Adapter(options)
@@ -134,6 +138,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
     meta: { delegationDepth: options.seeded ? 1 : 0, ...(options.seeded ? { isSeeded: true, parentSession: SessionId('seed') } : {}) },
     ...(options.seeded ? { inheritedEventCount: SessionLogOffset(seed.length) } : {}),
     ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
+  if (agent) testHost.bind(agent.ctx, options.customBasic ? 'native' : 'enhanced')
   return { ctx, adapter, agent, storageRoot }
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
@@ -1563,7 +1568,7 @@ test('real loop semantic replay: two compactions preserve prior facts and the la
     ],
     completed: ['原风险调用费用仍未知，绝不可自动再次收费'],
     pending: ['失败验收：RISK-17 需在 not_dispatched 重启后获得新的显式授权并成功 claim'],
-    evidence: ['/workspace/context/tests/risk-accepted-not-dispatched-retry.test.mjs:1'],
+    evidence: ['synthetic://context-manager/recovery/risk-accepted-not-dispatched-retry.test.mjs:1'],
     next: '完成第二轮摘要后恢复 session，继续核对提交状态',
     uncertainties: ['真实模型的语义保真度尚未验证'],
   }

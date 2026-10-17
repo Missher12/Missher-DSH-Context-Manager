@@ -111,29 +111,39 @@ function EfficiencyLine({ efficiency, t }: { efficiency: EfficiencyReadout; t: I
   const componentSum = components.reduce((total, field) => total + field.sum, 0)
   const anyReported = components.some(field => field.reported > 0)
   const hostTotal = host === null ? null : host.uncachedInputTokens + host.cacheReadTokens + host.cacheWriteTokens + host.outputTokens
-  const business = hostTotal ?? componentSum
-  // Known at all: a recorded Host projection, or at least one reported component.
-  const known = hostTotal !== null || anyReported
+  const business = Math.max(hostTotal ?? 0, componentSum)
+  // A Host projection with zero fields is not evidence of zero usage when the
+  // event fold has only unknown attempts. Explicitly reported component zeros
+  // remain known, including a complete zero-usage cut.
+  const known = anyReported || (hostTotal !== null && hostTotal > 0)
   const bounded = !mirrored.complete || lowerBound(components)
   const source = host === null ? t('effEventSource') : t('effHostSource')
   const difference = efficiency.differences.length > 0 ? t('effDifference') : t('effNoDifference')
-  const componentsHint = components.map((field, index) => `${t((['uncached', 'read', 'write', 'output'] as const)[index]!)} ${exactTokens(field.sum)}${field.missing > 0 ? ` (${field.missing} ${t('effUnknownValue')})` : ''}`).join(' · ')
+  const usageAmount = (field: FieldTotalReadout) => field.reported === 0
+    ? `— ${t('effUnknownValue')}`
+    : `${field.missing > 0 ? '≥ ' : ''}${exactTokens(field.sum)}`
+  const componentsHint = components.map((field, index) => `${t((['uncached', 'read', 'write', 'output'] as const)[index]!)} ${usageAmount(field)}${field.missing > 0 ? ` (${field.missing} ${t('effUnknownValue')})` : ''}`).join(' · ')
   const maintenance = efficiency.summaryAndRepair
   const maintenanceTotal = maintenance === null ? null : maintenance.input + maintenance.output
+  const maintenanceUnknown = maintenance !== null && maintenance.unknownAttempts > 0
+  const maintenanceDisplay = maintenanceTotal === null ? '—' : maintenanceUnknown
+    ? maintenanceTotal > 0 ? '≥ ' + formatTokens(maintenanceTotal) + ' Token' : '— ' + t('effUnknownValue')
+    : '≈ ' + formatTokens(maintenanceTotal) + ' Token'
+  const maintenanceValue = (value: number) => maintenanceUnknown ? value > 0 ? '≥ ' + exactTokens(value) : '—' : exactTokens(value)
   return <>
     <p className="cmv-muted cmv-summary-usage" data-efficiency={efficiency.accounting} data-bounded={String(bounded)}><Tooltip portal label={`${source} · ${difference} · ${t('usageHint')}`}>
       <span tabIndex={0}>{t('effBusiness')} {known ? `${bounded ? '≥ ' : '≈ '}${formatTokens(business)} Token` : `— ${t('effUnknownValue')}`}</span></Tooltip>
-      <span> · {t('effMaintenance')} {maintenanceTotal === null ? '—' : `≈ ${formatTokens(maintenanceTotal)} Token`}</span>
+      <span> · {t('effMaintenance')} {maintenanceDisplay}</span>
       <span> · {t('effUnknownRuns')} {exactTokens(mirrored.withoutUsage)}{mirrored.retries > 0 ? ` · ${t('effRetryCount')} ${exactTokens(mirrored.retries)}` : ''}{host === null ? ` · ${t('effEventSource')}` : ''}{efficiency.cacheHitRatio === null ? ` · ${t('effCacheUnknown')}` : ''}</span>
     </p>
     <details className="cmv-request-details"><summary>{t('details')} · {t('effLine')}</summary>
       <div>
         <p className="cmv-muted" data-attribution-source={efficiency.accounting}>{source} · {difference}{bounded ? ` · ${t('effBoundHint')}` : ''}{host === null ? ` ${t('effEventHint')}` : ''}</p>
-        <dl className="cmv-usage-legend">{components.map((field, index) => <div key={index}><dt>{t((['uncached', 'read', 'write', 'output'] as const)[index]!)}</dt><dd>{exactTokens(field.sum)}<small>{field.reported} {t('record')}{field.missing > 0 ? ` · ${field.missing} ${t('effUnknownValue')}` : ''}</small></dd></div>)}</dl>
+        <dl className="cmv-usage-legend">{components.map((field, index) => <div key={index}><dt>{t((['uncached', 'read', 'write', 'output'] as const)[index]!)}</dt><dd>{usageAmount(field)}<small>{field.reported} {t('record')}{field.missing > 0 ? ` · ${field.missing} ${t('effUnknownValue')}` : ''}</small></dd></div>)}</dl>
         <p className="cmv-muted" data-known-bound={componentSum}>{known ? `${t('effBusiness')} ${bounded ? '≥' : '≈'} ${exactTokens(business)} Token` : `${t('effBusiness')} —`} · {componentsHint}</p>
-        <p className="cmv-muted">{t('effInclusiveNote')} {exactTokens(mirrored.cacheInclusiveInput.sum)} Token · {mirrored.cacheInclusiveInput.reported} {t('record')}{mirrored.cacheInclusiveInput.missing > 0 ? ` · ${mirrored.cacheInclusiveInput.missing} ${t('effUnknownValue')}` : ''}</p>
+        <p className="cmv-muted">{t('effInclusiveNote')} {usageAmount(mirrored.cacheInclusiveInput)} Token · {mirrored.cacheInclusiveInput.reported} {t('record')}{mirrored.cacheInclusiveInput.missing > 0 ? ` · ${mirrored.cacheInclusiveInput.missing} ${t('effUnknownValue')}` : ''}</p>
         {efficiency.differences.map(item => <p key={item.field} className="cmv-muted">{item.field} · {t('effDifference')} {item.delta > 0 ? '+' : ''}{exactTokens(item.delta)} Token</p>)}
-        {maintenance !== null && <p className="cmv-muted" data-maintenance-split={String(maintenance.purposeSplit)}>{t('effPurposeUndivided')} · {exactTokens(maintenance.input)} + {exactTokens(maintenance.output)} Token · {maintenance.attempts} {t('summaryCalls')}{maintenance.unknownAttempts > 0 ? ` · ${maintenance.unknownAttempts} ${t('summaryUnknown')}` : ''} · {t('effLedgerInputNote')}</p>}
+        {maintenance !== null && <p className="cmv-muted" data-maintenance-split={String(maintenance.purposeSplit)}>{t('effPurposeUndivided')} · {maintenanceValue(maintenance.input)} + {maintenanceValue(maintenance.output)} Token · {maintenance.attempts} {t('summaryCalls')}{maintenance.unknownAttempts > 0 ? ` · ${maintenance.unknownAttempts} ${t('summaryUnknown')}` : ''} · {t('effLedgerInputNote')}</p>}
         {efficiency.maintenanceSuspects > 0 && <p className="cmv-muted">{efficiency.maintenanceSuspects} {t('effSuspects')}</p>}
         {efficiency.fingerprint === null ? <p className="cmv-muted">{t('effPrefixOff')}</p> : efficiency.changes.length === 0
           ? <p className="cmv-muted">{t('effPrefixNone')}</p>
@@ -173,6 +183,12 @@ function ReductionLine({ reduction, t }: { reduction: ReductionReadout; t: Inspe
 export function UsageComposition({ data, t }: { data: Inspection; t: InspectorText }) {
   const chart = usageSlices(data.usage)
   const summary = data.historical ? undefined : data.summaryUsage
+  const summaryUnknown = summary !== undefined && summary.unknownAttempts > 0
+  const summaryTotal = summary ? summary.input + summary.output : null
+  const summaryAmount = (value: number) => summaryUnknown ? value > 0 ? '≥ ' + exactTokens(value) : '— ' + t('effUnknownValue') : exactTokens(value)
+  const summaryDisplay = summaryTotal === null ? null : summaryUnknown
+    ? summaryTotal > 0 ? '≥ ' + formatTokens(summaryTotal) + ' Token' : '— ' + t('effUnknownValue')
+    : formatTokens(summaryTotal) + ' Token'
   const labels = ['uncached', 'read', 'write', 'output'] as const
   // One completeness rule for the main total and every legend row: a cut with no
   // reported component must not read as a complete zero, and a partial cut says
@@ -192,7 +208,7 @@ export function UsageComposition({ data, t }: { data: Inspection; t: InspectorTe
       <dl className="cmv-usage-legend">{chart.values.map((value, index) => <div key={labels[index]} data-legend-missing={unknownTotal ? 'unknown' : String(missing[index]!)}><dt><i data-usage={labels[index]}/>{t(labels[index]!)}</dt><dd>{unknownTotal ? '—' : formatTokens(value)}<small>{unknownTotal ? t('effUnknownValue') : <>{chart.total ? `${chart.shares[index]!.toFixed(1)}%` : '—'}{missing[index]! > 0 ? ` · ${missing[index]} ${t('effUnknownValue')}` : ''}</>}</small></dd></div>)}</dl>
     </>}
     {!data.historical && <p className="cmv-muted cmv-summary-usage">{summary
-      ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${exactTokens(summary.input)} / ${t('output')} ${exactTokens(summary.output)} Token`} portal><span tabIndex={0}>{t('summaryRecorded')} {formatTokens(summary.input + summary.output)} Token · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
+      ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${summaryAmount(summary.input)} / ${t('output')} ${summaryAmount(summary.output)} Token`} portal><span tabIndex={0}>{t('summaryRecorded')} {summaryDisplay} · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
       : t('noSummaryUsage')}</p>}
 
   </article>

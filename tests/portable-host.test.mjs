@@ -19,8 +19,9 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { budget, defaults } from '../lib/policy.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 // Run this same file against naturally old and enhanced SDK installations.
 // Never erase a capability marker or replace a Host's storage close method.
@@ -157,6 +158,7 @@ async function harness(t) {
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(TokenMeter)
     await ctx.plugin(Retry)
+    installTestCompactionHost(ctx)
     await ctx.plugin(Manager, { policy: { ...POLICY, ...options.policy } })
     await ctx.plugin(Engine)
     const adapter = new Adapter(options)

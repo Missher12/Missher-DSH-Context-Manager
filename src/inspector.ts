@@ -16,10 +16,11 @@ import { attributeSession } from './efficiency.ts'
 import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
 import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout } from './inspector-types.ts'
 import type { IdleStatus } from './idle-types.ts'
-import type {} from './index.ts'
+import type ContextManager from './index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type ContextEngine from './engine.ts'
-import { idleQuerySchema, recoveryGrantSchema, emergencyConfirmSchema } from './inspector-wire.ts'
+import type { ContextEngine } from './engine.ts'
+import { compatibilityQuerySchema, idleQuerySchema, recoveryGrantSchema, emergencyConfirmSchema } from './inspector-wire.ts'
+import { hostCapabilityReadout, readAgentCompaction, resolveCompactionHost } from './compatibility.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextInspector: ContextInspector; contextRecovery: ContextRecovery } }
 
@@ -68,18 +69,42 @@ export function contextGrowth(registry: Pick<SessionProjectionRegistry, 'restore
 
 /** Read-only observations; no Agent activation, persistence writes, or model calls. */
 export class ContextInspector extends TypertRemoteService {
-  static inject = ['sessionQuery', 'sessions', 'contextManager', 'sessionProjections']
+  static inject = ['sessionQuery', 'sessions', 'sessionProjections']
   private readonly lifetime = new AbortController()
+  private managerRef?: ContextManager
   constructor(ctx: Context) {
     super(ctx, 'contextInspector')
-    ctx.plugin(ContextRecovery)
+    ctx.inject(['contextManager'], child => {
+      const manager = child.contextManager
+      this.managerRef = manager
+      child.effect(() => () => {
+        if (this.managerRef === manager) this.managerRef = undefined
+      })
+      if (manager.enhancementCapable) void child.plugin(ContextRecovery)
+    })
     ctx.effect(() => () => this.lifetime.abort())
+  }
+  private getManager(): ContextManager | undefined {
+    return this.managerRef ?? this.ctx.get('contextManager')
+  }
+  @Remote('compatibility')
+  compatibility(input: {}, signal: AbortSignal) {
+    signal.throwIfAborted()
+    compatibilityQuerySchema().parse(input)
+    const manager = this.getManager()
+    return manager?.capabilityReadout() ?? hostCapabilityReadout(resolveCompactionHost(this.ctx))
   }
   @Remote('idleStatus')
   async idleStatus(input: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus> {
     signal.throwIfAborted()
     const query = idleQuerySchema().parse(input)
-    return this.ctx.contextManager.idleStatus(query.sessionId)
+    const manager = this.getManager()
+    if (manager) return manager.idleStatus(query.sessionId)
+    const agent = this.ctx.get('agents')?.get(SessionId(query.sessionId))
+    const compression = readAgentCompaction(this.ctx, agent?.ctx)
+    return { status: compression.mode === 'unavailable' ? 'failed' : 'off', dueAt: null,
+      message: compression.mode === 'native' ? '原生压缩 · Context 仅查看' : `Context 仅查看。${compression.reason}`,
+      owner: compression.mode === 'native' || compression.mode === 'other' ? 'other' : 'unknown', compression }
   }
   private admission(sessionId: string, cut: number): AdmissionReadout | undefined {
     // get() reads existing services/sessions only. Never load an Agent, resolve
@@ -124,13 +149,14 @@ export class ContextInspector extends TypertRemoteService {
   async inspect(input: InspectQuery, signal: AbortSignal): Promise<Inspection> {
     const query = inspectQuerySchema().parse(input)
     return this.read(query.sessionId, query.atSeq, signal, query.atSeq === null ? 'all' : 'none', (observation, cut, index) => {
+      const manager = this.getManager()
       const values = observation.projections?.values
       const pressure = values?.contextPressure
       const official = values?.contextBreakdown
       const usage = values?.tokenUsage
       const goalState = values?.goal
       const admission = query.atSeq === null ? this.admission(query.sessionId, cut) : undefined
-      const summary = query.atSeq === null ? this.ctx.contextManager.summaryLedger?.stats(query.sessionId) : undefined
+      const summary = query.atSeq === null ? manager?.summaryLedger?.stats(query.sessionId) : undefined
       // The Host projection is authoritative for the current cut only. A
       // historical cut keeps the event-log fold and omits every current
       // ledger/archive figure instead of passing them off as old values.
@@ -140,9 +166,9 @@ export class ContextInspector extends TypertRemoteService {
           cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens } }),
         ...(summary === undefined ? {} : { summary: { source: 'summary-ledger', input: summary.input, output: summary.output,
           cacheRead: summary.cacheRead, cacheWrite: summary.cacheWrite, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts } }),
-        fingerprint: this.ctx.contextManager.snapshot?.().prefixDiagnosticsEnabled ?? true,
+        fingerprint: manager?.snapshot?.().prefixDiagnosticsEnabled ?? true,
       })
-      const reductions = query.atSeq === null ? this.ctx.contextManager.reductionReadout?.(query.sessionId) : undefined
+      const reductions = query.atSeq === null ? manager?.reductionReadout?.(query.sessionId) : undefined
       const efficiency: EfficiencyReadout = {
         accounting: attribution.accounting,
         host: attribution.host === undefined ? null : { uncachedInputTokens: attribution.host.uncachedInputTokens,
@@ -172,7 +198,7 @@ export class ContextInspector extends TypertRemoteService {
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
         const trigger = entry.kind === 'compact' ? triggers.get(entry.id) : undefined
-        const run=query.atSeq===null?this.ctx.contextManager.summaryOperations?.run(query.sessionId,entry.id):undefined
+        const run=query.atSeq===null?manager?.summaryOperations?.run(query.sessionId,entry.id):undefined
         const modelCallStatus=run?.endedAt!==undefined?((run.actualDispatched??run.dispatched)===0?'not_dispatched' as const:'dispatched' as const):undefined
         return { ...entry, ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}) }
       })
@@ -183,6 +209,8 @@ export class ContextInspector extends TypertRemoteService {
         && (!needle || `${row.title} ${row.source}`.toLocaleLowerCase().includes(needle)))
       matched.sort(query.sort === 'size' ? (a, b) => b.tokens - a.tokens || b.seq - a.seq || a.id.localeCompare(b.id) : (a, b) => a.seq - b.seq || a.id.localeCompare(b.id))
       const config = index.header?.config
+      const agent = query.atSeq === null ? this.ctx.get('agents')?.get(SessionId(query.sessionId)) : undefined
+      const compression = query.atSeq === null ? readAgentCompaction(this.ctx, agent?.ctx) : undefined
       return { sessionId: query.sessionId, cursor: observation.cursor, cutSeq: cut, sampledAt: Date.now(), historical: query.atSeq !== null,
         pressure: query.atSeq === null && typeof pressure?.projectedTokens === 'number' && typeof pressure.pressureTokens === 'number' ? { projected: pressure.projectedTokens, input: pressure.pressureTokens, window: pressure.contextWindow ?? null } : null,
         ...(admission ? { admission } : {}),
@@ -196,6 +224,7 @@ export class ContextInspector extends TypertRemoteService {
         ...(query.atSeq === null && goalState ? { goal: { phase: goalState.goal.phase,
           blockedReason: goalState.goal.blockedReason === undefined ? null : { code: goalState.goal.blockedReason.code, message: goalState.goal.blockedReason.message },
           roundsStarted: goalState.roundsStarted, maxGoalRounds: goalState.goal.maxGoalRounds } } : {}),
+        ...(compression === undefined ? {} : { compression }),
         pressureHistory: pressureHistory(this.ctx.sessionProjections, observation, cut, signal),
         parts: index.parts, rows: matched.slice(query.offset, query.offset + 50), total: matched.length, offset: query.offset, pageSize: 50,
         activeCount: index.indexed.filter(item => item.row.current).length, archivedCount: index.indexed.filter(item => !item.row.current).length,
@@ -231,11 +260,14 @@ export class ContextRecovery extends TypertRemoteService {
   constructor(ctx: Context) { super(ctx, 'contextRecovery') }
   private async emergencyEngine(sessionId:string,signal:AbortSignal) {
     signal.throwIfAborted()
+    const manager = this.ctx.get('contextManager')
+    if (!manager?.enhancementCapable) throw new Error('当前宿主不支持 Context 压缩接管；恢复或急救未执行。')
     // Explicit mutation only. The public Host lookup restores its normal preset
     // and ownership; read-only status never invokes this lookup.
     const agent=this.ctx.get('agents')?.get(SessionId(sessionId)) ?? await this.ctx.typert.lookups.get('agent')?.resolve(SessionId(sessionId)) as Agent | undefined
     signal.throwIfAborted();if(!agent)throw new Error('当前宿主不能恢复该会话，请先打开会话')
-    const engine=this.ctx.get('agentPresets')?.serviceFor(agent,'compaction') ?? agent.ctx.get('compaction')
+    if (!manager.isEnhancedAgent(agent)) throw new Error('当前会话没有可用的 Context Agent 绑定；恢复或急救未执行。')
+    const engine=this.ctx.get('agentPresets')?.serviceFor?.(agent,'compaction') ?? agent.ctx.get('compaction')
     if(!engine || !('prepareEmergency' in engine) || !('executeEmergency' in engine))throw new Error('当前会话未由支持人工急救的Context接管')
     return {agent,engine:engine as ContextEngine}
   }
@@ -252,8 +284,10 @@ export class ContextRecovery extends TypertRemoteService {
   @Remote('authorizeOnce')
   async authorizeOnce(input: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<{ granted: true }> {
     signal.throwIfAborted()
+    const manager = this.ctx.get('contextManager')
+    if (!manager?.enhancementCapable) throw new Error('当前宿主不支持 Context 压缩接管；授权未执行。')
     const query = recoveryGrantSchema().parse(input)
-    await this.ctx.contextManager.authorizeRecovery(query.sessionId, query.authorizationToken, signal)
+    await manager.authorizeRecovery(query.sessionId, query.authorizationToken, signal)
     return { granted: true }
   }
 }

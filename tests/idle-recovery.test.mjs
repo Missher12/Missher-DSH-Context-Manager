@@ -17,8 +17,9 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { defaults } from '../lib/policy.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 const sessionId = SessionId('durable-idle-subject')
 const delay = defaults.idleMinutes * 60000
@@ -98,6 +99,7 @@ async function fixture(t) {
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(TokenMeter)
     await ctx.plugin(Retry)
+    installTestCompactionHost(ctx)
     if (manager) await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512 } })
     if (engine) await ctx.plugin(Engine)
     const adapter = new Adapter()

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {
+      "file": "context-official-readonly.jpg",
+      "kind": "actual official alpha.5 Web",
+      "packageSha256": "7ccd21435cf82665ae9d32e863e276307bf03536915d6675edd3a70e70f918f7",
+      "data": "synthetic cold session",
+      "nativeElectron": false,
+      "sha256": "c517e0d1090e36edd23df3a8b4aded94b847ee1c27a72ca1dc4e23a8dfe31766"
+    },
+    {
+      "file": "context-enhanced-preview.jpg",
+      "kind": "actual client component with Host theme and synthetic in-memory data",
+      "sourcePackageSha256": "35aed59955efa22e0dfcc60cf282018645bbcceb507bcf97cbc08218b048b298",
+      "deltaToFinal": "the complete client differs only by the settings save-success sentence; context charts unchanged",
+      "nativeEnhancedHost": false,
+      "sha256": "8bc20fb44e4703a4b75c303e2c95e3a6559f2514c0a4ea9c584e2f105e20645b"
+    }
+  ]
+}

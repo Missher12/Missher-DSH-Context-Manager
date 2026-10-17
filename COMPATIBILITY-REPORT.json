@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 4,
+  "packageName": "@missher/dsh-context-manager",
+  "packageVersion": "0.10.0-local.11",
+  "compatibilityPolicy": "One neutral Bundle, broad dependency ranges and public runtime capability checks. A version range is not proof that every version implements enhanced compaction.",
+  "bundleEntries": [
+    "context-manager",
+    "context-manager-inspector"
+  ],
+  "hostCapability": {
+    "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
+    "supportedVersion": 1,
+    "requiredMethods": [
+      "register",
+      "bindingFor",
+      "retained"
+    ],
+    "enhancementRequires": "supported capability plus this provider actually bound to the current Agent",
+    "missingCapability": "read-only inspection and settings persistence; preserve native compactor and user presets",
+    "presetSnapshots": false,
+    "disablesBasic": false,
+    "rootEngineEntry": false
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh-agent": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-compaction": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-compaction-basic": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-token-meter": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session-projection": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-api-session-controller": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session-query": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-api-remotes": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-storage-domain": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.4 || 3.18.5-alpha.1"
+  },
+  "validatedRuntimeReference": {
+    "candidateRevision": "r2",
+    "archiveSha256": "7ccd21435cf82665ae9d32e863e276307bf03536915d6675edd3a70e70f918f7",
+    "clientSha256": "caa7745b4b2992b4e6bac1c6d28143562c411ab0e09033a8d91fc35090dd7ef0",
+    "sourceManifestSha256": "16ed8762f2113b79b29beca3d0aae921dae5f119e860b6bd64a21ffc92d98af0",
+    "releaseDocumentationMayDiffer": true
+  },
+  "testedEnvironments": [
+    {
+      "host": "community frozen v1 capability snapshot",
+      "baseCommit": "0ff7e27023e4791dacef8d55cfb90de962fb2a77",
+      "sourceListSha256": "43fc7611117b4b2c096bb3170753fbd97ac442d71079d0b1e765c819e88b7737",
+      "level": "actual Loader, Manager, Agent, provider and continuation with a synthetic in-memory model adapter",
+      "passed": 6
+    },
+    {
+      "host": "official npm 0.2.1-alpha.5",
+      "mode": "read-only fallback",
+      "naturalHostAssertions": 68,
+      "settingsPersistence": true,
+      "actualWebUi": true,
+      "viewportWidths": [
+        1280,
+        390
+      ],
+      "actualOldPackageReplacement": [
+        "0.10.0-local.9",
+        "0.10.0-local.9-legacy.1"
+      ],
+      "checksPerUpgrade": 31
+    },
+    {
+      "host": "community 0.2.0-rc.2",
+      "mode": "read-only fallback",
+      "naturalHostAssertions": 68,
+      "settingsPersistence": true
+    }
+  ],
+  "validation": {
+    "coreRegression": {
+      "total": 401,
+      "passed": 397,
+      "failed": 0,
+      "skipped": 4,
+      "reuse": "unchanged backend; final client fixes covered separately"
+    },
+    "finalPackagedUi": {
+      "passed": 6,
+      "failed": 0
+    },
+    "finalSettingsFeedback": {
+      "actualOfficialWeb": true,
+      "savedThreshold": 82,
+      "diskAndReopenReadback": 82,
+      "enhancementStillUnsupported": true
+    },
+    "realModelCalls": 0,
+    "fullMatrixVersionClaim": false
+  },
+  "limitations": [
+    "No real-provider quality, latency or billing proof",
+    "No native Electron or community staged-update/HMR acceptance in this plugin review",
+    "Mac/Windows real filesystem CI must be recorded separately from Linux Host/UI checks",
+    "Four specialty regression cases were skipped, not passed",
+    "Stock official alpha.5 and community rc.2 do not expose compactionHost v1; they do not run Context enhanced compaction"
+  ],
+  "publicationNotes": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md",
+  "recordRole": "Current release validation. COMPATIBILITY.json is the generated implementation-stage contract snapshot; its candidate-era verification text is historical, not current delivery status."
+}

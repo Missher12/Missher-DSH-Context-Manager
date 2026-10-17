@@ -29,7 +29,7 @@ test('legacy budgets preserve old bounds until explicit migration; unsupported m
  assert.throws(()=>validatePolicy({...defaults,recentPercent:NaN}))
 })
 test('composition uses current authoritative window including null and preserves over-window shares',()=>{
- const data={historical:false,parts:[{category:'user',tokens:100000}],pressure:{window:1000000,projected:100000},pressureHistory:[],model:null,admission:{tokens:100000,window:200000,outputReserve:32000}}
+ const data={historical:false,parts:[{category:'user',tokens:100000}],pressure:{window:1000000,projected:100000},pressureHistory:[],model:null,compression:{mode:'enhanced'},admission:{tokens:100000,window:200000,outputReserve:32000}}
  const chart=composition(data,defaults)
  assert.equal(chart.free,58000);assert.equal(chart.reserve,42000)
  assert.ok(Math.abs(chart.slices.find(s=>s.id==='free').share-29)<1e-9)

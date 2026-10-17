@@ -124,7 +124,7 @@ const RECOVERY_STRATEGY = `Recovery strategy: use a more compact checkpoint than
 constraints, evidence, pending work, and next action; omit repeated examples and narrative. Keep the source span and model unchanged.`
 
 /** Keep Basic's public service configuration; own the cancellation-safe transaction. */
-export default class ContextEngine extends BasicCompactionEngine {
+export class ContextEngine extends BasicCompactionEngine {
   static inject = [...BasicCompactionEngine.inject, 'agents', 'contextManager']
   /** Public stable identity survives Cordis service context binding. */
   readonly contextManagerOwner = randomUUID()
@@ -353,7 +353,7 @@ export default class ContextEngine extends BasicCompactionEngine {
   }
 
   private owns(agent: Agent): boolean {
-    const backend = this.ctx.get('agentPresets')?.serviceFor(agent, 'compaction') ?? agent.ctx.get('compaction')
+    const backend = this.ctx.get('agentPresets')?.serviceFor?.(agent, 'compaction') ?? agent.ctx.get('compaction')
     return backend instanceof ContextEngine && backend.contextManagerOwner === this.contextManagerOwner
   }
 
@@ -1238,3 +1238,14 @@ export default class ContextEngine extends BasicCompactionEngine {
     }
   }
 }
+
+/** Provider entry guard: legacy Hosts and explicit stale overlays must fail before Basic hooks or tools register. */
+export const inject = ContextEngine.inject
+export async function apply(ctx: Context, config: BasicCompactionConfig = {}): Promise<void> {
+  if (!ctx.get('contextManager')?.enhancementCapable) {
+    throw new Error('Context compaction requires the Host v1 binding capability; no engine hooks were registered')
+  }
+  await ctx.plugin(ContextEngine, config)
+}
+const engineEntry = Object.assign(apply, { inject })
+export default engineEntry

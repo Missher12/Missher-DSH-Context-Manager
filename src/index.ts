@@ -1,4 +1,4 @@
-import { Context, Service } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Volatile } from '@deepseek-ai/cosmokit'
@@ -19,6 +19,10 @@ import { registerHistoryTools } from './history-tools.ts'
 import { TextArchive, type ArchiveSummary } from './archive.ts'
 import type { ReductionReadout } from './inspector-types.ts'
 import { registerToolResultReduction, type ReductionStats } from './tool-results.ts'
+import { CONTEXT_ENGINE_MODULE, CONTEXT_MANAGER_ORIGIN, hostCapabilityReadout, isEnhancedBinding, readAgentCompaction, resolveCompactionHost,
+  type CompactionReadout, type ContextProviderRegistrationReadout, type HostCapabilityProbe } from './compatibility.ts'
+import { registerContextCompaction } from './registration.ts'
+import { CONTEXT_MANAGER_VERSION } from './version.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextManager: ContextManager } }
 export interface Config { policy: Volatile<Policy> }
@@ -49,15 +53,20 @@ export interface ReductionStatus extends ReductionStats {
 
 /** A single live policy shared by isolated preset engines. */
 export default class ContextManager extends Service {
-  static inject = ['storageDomain']
+  static inject = ['storageDomain', 'agentPresets']
+  /** Stable owner identity; service proxies rebind `ctx` for each consumer. */
+  private readonly ownerFiber: Fiber
   idleStore!: IdleStore
   summaryLedger!: SummaryLedger
   compactionCycles!: CompactionCycles
   /** Additive durable call outcomes; the v1 cycle table keeps its shape and semantics. */
   summaryOperations!: SummaryOperations
   supportsSafeShutdown = false
-  private reductionStats!: () => ReductionStats
-  private pipelineReported!: () => boolean
+  readonly hostCapability: HostCapabilityProbe
+  readonly enhancementCapable: boolean
+  private registrationReadout: ContextProviderRegistrationReadout
+  private reductionStats?: () => ReductionStats
+  private pipelineReported?: () => boolean
   private reductionSessions?: () => ReadonlyMap<string, { published: number; reverted: number }>
   private archive?: TextArchive
   private archiveFailure?: string
@@ -112,26 +121,37 @@ export default class ContextManager extends Service {
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'contextManager')
+    this.ownerFiber = ctx.fiber
+    const hostCapability = resolveCompactionHost(ctx)
+    this.hostCapability = hostCapability
+    this.enhancementCapable = hostCapability.state === 'supported'
+    this.registrationReadout = hostCapability.state === 'supported' ? { state: 'pending' }
+      : { state: 'inactive', reason: hostCapability.reason }
     this.snapshot()
-    registerHistoryTools(ctx, () => {
-      const { archive, error } = this.archiveAccess(false)
-      const policy = this.snapshot()
-      return { ...(archive === undefined ? {} : { archive }), ...(error === undefined ? {} : { error }),
-        searchLimit: policy.archiveSearchLimit, readBudget: policy.archiveReadBudget }
-    })
-    ctx.inject(['sessionProjections'], child => {
-      child.sessionProjections.register(diagnosticsProjection)
-    })
+    if (this.enhancementCapable) {
+      registerHistoryTools(ctx, () => {
+        const { archive, error } = this.archiveAccess(false)
+        const policy = this.snapshot()
+        return { ...(archive === undefined ? {} : { archive }), ...(error === undefined ? {} : { error }),
+          searchLimit: policy.archiveSearchLimit, readBudget: policy.archiveReadBudget }
+      })
+      ctx.inject(['sessionProjections'], child => {
+        child.sessionProjections.register(diagnosticsProjection)
+      })
+      const reduction = registerToolResultReduction(ctx, () => this.snapshot(), () => this.archive$(), agent => this.isEnhancedAgent(agent))
+      this.reductionStats = reduction.stats
+      this.pipelineReported = reduction.reported
+      this.reductionSessions = reduction.sessions
+    }
     ctx.inject(['settings'], child => {
       child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
     })
-    const reduction = registerToolResultReduction(ctx, () => this.snapshot(), () => this.archive$())
-    this.reductionStats = reduction.stats
-    this.pipelineReported = reduction.reported
-    this.reductionSessions = reduction.sessions
   }
 
   protected async [Service.init](): Promise<void> {
+    // A capability-free Host keeps the saved policy visible, but this service
+    // must not open stores, journals, history tools, or reduction listeners.
+    if (!this.enhancementCapable) return
     // The launcher owns this profile location. Never guess a user's storage
     // backend path or write directly to the Host's domain JSON documents.
     const profile = this.ctx.get('profileContext')
@@ -187,11 +207,39 @@ export default class ContextManager extends Service {
       try { await close() }
       finally { for (const release of releases) await release() }
     })
+    // Wait until the Engine's runtime dependencies are active before exposing
+    // the provider to preset selection. The injected child is lifecycle-owned
+    // by this Manager Context; registration itself remains owned by this exact
+    // plugin Context so the Host retracts it when the Manager unloads.
+    this.ctx.inject(['agents', 'llm', 'sessions', 'tokenMeter'], () => {
+      registerContextCompaction(this.ctx, this.hostCapability, status => { this.registrationReadout = status })
+    })
   }
 
   registerDrain(drain: () => Promise<void>): () => void {
     this.drains.add(drain)
     return () => { this.drains.delete(drain) }
+  }
+
+  isEnhancedAgent(agent: { ctx?: Context } | undefined): boolean {
+    if (!this.enhancementCapable || !agent?.ctx) return false
+    return isEnhancedBinding(readAgentCompaction(this.ctx, agent.ctx))
+  }
+
+  capabilityReadout() {
+    let integration = this.registrationReadout
+    if (integration.state === 'registered' && this.hostCapability.state === 'supported') {
+      try {
+        const selected = this.hostCapability.capability.selected
+        if (!selected || selected.ownerFiber !== this.ownerFiber || selected.origin !== CONTEXT_MANAGER_ORIGIN
+          || selected.revision !== CONTEXT_MANAGER_VERSION || selected.module !== CONTEXT_ENGINE_MODULE) {
+          integration = { state: 'inactive', reason: 'Host no longer selects this Context provider' }
+        }
+      } catch {
+        integration = { state: 'unknown', reason: 'Host provider selection could not be read' }
+      }
+    }
+    return hostCapabilityReadout(this.hostCapability, integration)
   }
 
   /**
@@ -371,7 +419,10 @@ export default class ContextManager extends Service {
   }
 
   async authorizeRecovery(sessionId: string, authorizationToken: string, signal: AbortSignal): Promise<void> {
+    if (!this.enhancementCapable) throw new Error('当前宿主不支持 Context 压缩接管；恢复操作未执行，策略仅保存且未生效。')
     signal.throwIfAborted()
+    const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
+    if (!this.isEnhancedAgent(agent)) throw new Error('该会话当前没有可用的 Context Agent 绑定；恢复授权未应用。')
     const run = this.recoveries.get(sessionId)
     if (!run) throw new Error('该会话没有可恢复的原压缩计划，请重新检查上下文状态')
     await this.summaryOperations.grant(sessionId, authorizationToken)
@@ -387,18 +438,28 @@ export default class ContextManager extends Service {
    * @returns the live status, or an inactive default.
    */
   idleStatus(sessionId: string): IdleStatus {
+    const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
+    const compression: CompactionReadout = readAgentCompaction(this.ctx, agent?.ctx)
+    if (compression.mode !== 'enhanced') {
+      const message = compression.mode === 'native' ? '原生压缩 · Context 仅查看'
+        : compression.mode === 'unavailable' ? 'Context 增强暂不可用；保留原文和队列，未回退或重绑'
+          : compression.mode === 'other' ? '当前会话由其他压缩提供者处理；Context 仅查看'
+            : compression.mode === 'unconfigured' ? '当前 preset 未配置压缩 provider；Context 仅查看'
+              : `当前会话压缩绑定未知；Context 仅查看。${compression.reason}`
+      return { status: compression.mode === 'unavailable' ? 'failed' : 'off', dueAt: null, message,
+        owner: compression.mode === 'other' || compression.mode === 'native' ? 'other' : 'unknown',
+        compression }
+    }
     const base = this.readIdleStatus(sessionId)
     const stop = this.stops.get(sessionId)
     const status: IdleStatus = stop && base.status !== 'compacting' ? { ...base, ...stop } : base
     const policy = this.snapshot()
-    const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
-    const engine = agent && (this.ctx.get('agentPresets')?.serviceFor(agent, 'compaction') ?? agent.ctx.get('compaction'))
-    const owner: IdleStatus['owner'] = engine ? ('contextManagerOwner' in engine ? 'context-manager' : 'other') : 'unknown'
+    const owner: IdleStatus['owner'] = 'context-manager'
     const recovery = this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId))
     const executableRecovery = recovery.available && !this.recoveries.has(sessionId)
       ? { ...recovery, available: false, message: '记录显示存在可恢复风险，但当前没有匹配的原计划执行器；保留原文，未提供收费授权。' }
       : recovery
-    return { ...status, owner, emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)), execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
+    return { ...status, owner, compression, emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)), execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
       ? `总限 ${policy.summaryTotalMs / 1000}s · 首输出 ${policy.summaryFirstOutputMs / 1000}s · 停滞 ${policy.summaryStallMs / 1000}s`
       : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: executableRecovery }
   }

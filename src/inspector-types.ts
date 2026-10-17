@@ -1,5 +1,6 @@
 import type { CompactionEntry } from './diagnostics-types.ts'
 import type { IdleStatus } from './idle-types.ts'
+import type { CompactionReadout, HostCapabilityReadout } from './compatibility.ts'
 
 export const categories = [
   { id: 'summary', label: '压缩摘要' }, { id: 'system', label: '系统指令' }, { id: 'tools', label: '工具定义' },
@@ -132,6 +133,8 @@ export interface Inspection {
   contextGrowth?: ContextGrowth
   /** Goal stop reason as recorded by the host, distinct from context pressure. */
   goal?: GoalReadout
+  /** Current Agent's actual installed compaction binding; absent for historical cuts. */
+  compression?: CompactionReadout
   pressureHistory: PressurePoint[]
   rows: ContentRow[]; total: number; offset: number; pageSize: number; activeCount: number; archivedCount: number
   requests: RequestRow[]; requestCount: number; compactions: InspectedCompaction[]
@@ -141,6 +144,7 @@ export interface ContentQuery { sessionId: string; cutSeq: number; id: string; o
 export interface ContentSources { rows: ContentRow[]; offset: number; total: number; nextOffset: number | null }
 export interface ContentPage { sessionId: string; cutSeq: number; id: string; text: string; offset: number; totalChars: number; nextOffset: number | null; sources?: ContentSources }
 export interface InspectorApi {
+  compatibility?(signal: AbortSignal): Promise<HostCapabilityReadout>
   prepareEmergency?(query:{sessionId:string},signal:AbortSignal):Promise<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>
   executeEmergency?(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<{granted:true}>
   authorizeOnce?(query: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<{ granted: true }>

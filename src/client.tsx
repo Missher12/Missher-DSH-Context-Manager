@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { ContextInspectorView, type ContextViewInjected } from './inspector-view.tsx'
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
 import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi } from './inspector-types.ts'
+import type { HostCapabilityReadout } from './compatibility.ts'
 import { TYPERT_REMOTE } from './inspector-wire.ts'
 import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
 import type { IdleStatus } from './idle-types.ts'
@@ -27,6 +28,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespaceMap {
     contextRecovery: { prepareEmergency(query:{sessionId:string},signal:AbortSignal):Promise<RemoteResult<{token:string;expiresAt:number;cycle:number;warning:string;model:string;deadline:string;estimatedInput:number}>>; executeEmergency(query:{sessionId:string;token:string;acceptUnknownCost:true},signal:AbortSignal):Promise<RemoteResult<{granted:true}>>; authorizeOnce(query: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<RemoteResult<{ granted: true }>> }
     contextInspector: {
+      compatibility(query: {}, signal: AbortSignal): Promise<RemoteResult<HostCapabilityReadout>>
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
       content(query: ContentQuery, signal: AbortSignal): Promise<RemoteResult<ContentPage>>
@@ -54,24 +56,28 @@ export async function apply(ctx: Context) {
       directory: ctx.modelDirectories.directoryFor(sessionId).store,
     }),
   }, PeakIndicator))
-  ctx.effect(() => ctx.configForms.whileServed(['context-manager'], () => ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section', id: 'context-manager', order: 65, label: '上下文管理', inject: () => ({ form }),
-  }, ContextPage))))
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE)
   ctx.effect(() => unmount, 'context-manager: remote')
-  ctx.inject(['remote.contextInspector', 'remote.contextRecovery'], scope => {
+  ctx.inject(['remote.contextInspector'], scope => {
     const unwrap = <T,>(result: RemoteResult<T>): T => {
       if (!result.ok) throw new Error(`上下文读取失败：${result.error.code}`)
       return result.value
     }
     const api: InspectorApi = {
-      prepareEmergency: async(query,signal)=>unwrap(await scope.remote.contextRecovery.prepareEmergency(query,signal)),
-      executeEmergency: async(query,signal)=>unwrap(await scope.remote.contextRecovery.executeEmergency(query,signal)),
-      authorizeOnce: async (query, signal) => unwrap(await scope.remote.contextRecovery.authorizeOnce(query, signal)),
+      compatibility: async signal => unwrap(await scope.remote.contextInspector.compatibility({}, signal)),
       idleStatus: async (query, signal) => unwrap(await scope.remote.contextInspector.idleStatus(query, signal)),
       inspect: async (query, signal) => unwrap(await scope.remote.contextInspector.inspect(query, signal)),
       content: async (query, signal) => unwrap(await scope.remote.contextInspector.content(query, signal)),
     }
+    scope.inject(['remote.contextRecovery'], recovery => {
+      api.prepareEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.prepareEmergency(query, signal))
+      api.executeEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.executeEmergency(query, signal))
+      api.authorizeOnce = async (query, signal) => unwrap(await recovery.remote.contextRecovery.authorizeOnce(query, signal))
+    })
+    scope.effect(() => scope.configForms.whileServed(['context-manager'], () => scope.slots.inject('settings.section', () => scope.slots.register({
+      name: 'settings.section', id: 'context-manager', order: 65, label: '上下文管理',
+      inject: () => ({ form, compatibility: api.compatibility! }),
+    }, ContextPage))))
     scope.slots.inject('conversation.view', () => scope.slots.register({
       name: 'conversation.view', id: 'context-manager', order: 20, label: () => t('title'), locale: 'context.manager',
       inject: (sessionId: SessionId): ContextViewInjected => {
@@ -83,10 +89,27 @@ export async function apply(ctx: Context) {
   })
 }
 
-export function ContextPage({ form }: { form: ConfigForm<Values> }) {
+export function ContextPage({ form, compatibility }: { form: ConfigForm<Values>; compatibility: NonNullable<InspectorApi['compatibility']> }) {
+  const [host, setHost] = useState<HostCapabilityReadout | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    void compatibility(controller.signal).then(setHost, () => setHost({ state: 'unknown', reason: '无法读取宿主压缩能力',
+      integration: { state: 'unknown', reason: '无法读取 Context provider 注册状态' } }))
+    return () => controller.abort()
+  }, [compatibility])
   return <section aria-label="上下文管理" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">上下文管理</h2>
     <p className="cm-intro">设置何时先压缩、再继续执行。会话数据位于“对话 / 轨迹”后的“上下文”页签。</p>
+    <p className="cm-intro" role="status">
+      {host?.state === 'unsupported' ? `宿主压缩 API 不可用：${host.reason}`
+        : host?.state === 'supported' ? '宿主压缩 API v1 可用。'
+          : '宿主压缩 API 状态未知。'}{' '}
+      {host?.integration.state === 'pending' ? 'Context provider 正在注册；各会话是否增强以实际绑定为准。'
+        : host?.integration.state === 'registered' ? 'Context provider selection 已注册供后续绑定使用；各会话是否增强以实际绑定为准。'
+          : host?.integration.state === 'failed' ? `Context provider 注册失败：${host.integration.reason ?? '原因未知'}。请在会话页核对实际压缩绑定。`
+            : host?.integration.state === 'unknown' ? `Context provider 注册状态未知${host.integration.reason ? `：${host.integration.reason}` : '。'} 请在会话页核对实际压缩绑定。`
+              : `Context provider 当前未注册${host?.integration.reason ? `：${host.integration.reason}` : '。'} 各会话是否增强以实际绑定为准。`}
+    </p>
     <ContextSettings form={form} />
   </section>
 }
@@ -126,7 +149,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     setSaving(true); setFeedback(''); setFailed(false)
     try {
       const ok = await form.mutate([{ op: 'set', path: ['policy'], value: { ...policy } }], revision)
-      if (ok) { setDirty(false); setFeedback('已保存。请求前检查与闲置整理按新设置生效。') }
+      if (ok) { setDirty(false); setFeedback('设置已保存。') }
       else { setFailed(true); setFeedback('未保存：配置可能已在别处更改。请重新载入后再编辑。') }
     } catch (error) { setFailed(true); setFeedback(`保存失败：${error instanceof Error ? error.message : String(error)}`) }
     finally { setSaving(false) }

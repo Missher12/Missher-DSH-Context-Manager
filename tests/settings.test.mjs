@@ -43,10 +43,11 @@ test('settings section contains only policy controls and does not read any sessi
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
   const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
+  const compatibility = async () => ({ state: 'supported', reason: 'synthetic test', integration: { state: 'inactive', reason: 'synthetic test' } })
   const root = createRoot(document.getElementById('root'))
   const click = async text => act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === text).click())
   try {
-    await act(async () => root.render(React.createElement(client.ContextPage, { form })))
+    await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
     assert.equal(document.querySelectorAll('style').length, 2)
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0,
       'page and nested settings styles must not be claimed by another plugin')
@@ -139,7 +140,7 @@ test('inspector cancels stale Session reads, never flashes another Session and r
     assert.ok(!document.body.textContent.includes('fixture / first-session'))
     await act(async () => calls[1].resolve(snapshot('second-session')))
     assert.match(document.body.textContent, /fixture \/ second-session/)
-    assert.match(document.body.textContent, /等待完整参数/)
+    assert.match(document.querySelector('.cmv-quick')?.textContent ?? '', /压缩绑定未知/)
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0, 'all context sections share one panel')
     for (const title of ['当前上下文', '最近压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelector('#cmi-content-panel'), null, 'entry shows compact preview without loading bodies')
@@ -374,7 +375,9 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'trigger presets preserve the saved custom cap')
     assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
     assert.equal(writes[0].ops[0].value.recentTokens, 20000)
-    assert.match(document.body.textContent, /已保存/)
+    const feedback = document.querySelector('.cm-feedback[role="status"]')?.textContent ?? ''
+    assert.equal(feedback, '设置已保存。', 'a successful save confirms persistence without claiming unsupported features are active')
+    assert.doesNotMatch(feedback, /请求前检查|闲置整理.*生效/)
     await act(async () => document.querySelector('[role="switch"]').click())
     assert.equal(document.querySelector('#context-manager-idleMinutes').disabled, true)
     assert.equal(writes.length, 1, 'toggling the native switch still only stages an edit')
@@ -512,7 +515,7 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
 test('current context shows full-window percentages and keeps all original bucket measures', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
+  const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced' },
     pressure: {window:1000000,projected:320000,input:310000}, official: null, usage: null, model: {provider:'mock',model:'large',maxTokens:64000,effort:null},
     admission: {tokens:320000,logRevision:3,baseline:'usage',window:1000000,outputReserve:64000},
     parts: [{category:'summary',tokens:30000,count:1},{category:'tool',tokens:200000,count:1},{category:'user',tokens:50000,count:1},{category:'system',tokens:20000,count:1}],
@@ -549,7 +552,7 @@ test('current context shows full-window percentages and keeps all original bucke
 test('request status uses live admission pressure, leaves unknown cuts unknown and preserves projection trends', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const base = { sessionId: 'admission', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
+  const base = { sessionId: 'admission', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced' },
     pressure: { window: 200000, projected: 100000, input: 99000 }, official: null, usage: null,
     model: { provider: 'offline', model: '200k', maxTokens: 8192, effort: null }, parts: [], rows: [],
     total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, compactions: [],
@@ -582,6 +585,11 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
       assert.match(status().textContent, /检查线 —/)
       if(snapshot.admission?.window===null)assert.equal(document.querySelector('.cmv-composition .cmv-number strong').textContent,'≈ —','current unknown route cannot borrow old pressure window')
+    }
+    for (const mode of ['native', 'unknown']) {
+      await render({ ...base, compression: { mode }, admission: reading })
+      assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
+      assert.match(status().textContent, /检查线 —/)
     }
     await render({...base,admission:{...reading,window:1000000}})
     assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
@@ -721,7 +729,7 @@ test('the panel renders codec-parsed attribution and reduction data without inve
         cacheWrite: { sum: 10, reported: 1, missing: 1 }, output: { sum: 12, reported: 2, missing: 0 },
         cacheInclusiveInput: { sum: 250, reported: 1, missing: 1 }, complete: false },
       differences: [{ field: 'uncachedInputTokens', host: 600, mirrored: 130, delta: 470 }],
-      summaryAndRepair: { source: 'summary-ledger', input: 900, output: 120, cacheRead: 800, cacheWrite: 0, attempts: 2,
+    summaryAndRepair: { source: 'summary-ledger', input: 900, output: 120, cacheRead: 800, cacheWrite: 0, attempts: 2,
         unknownAttempts: 1, purposeSplit: false, note: '现有摘要总账的累计值，含失败与取消尝试；账本没有持久用途字段' },
       maintenanceSuspects: 1, cacheHitRatio: 0.44,
       requests: [{ seq: 2, time: 5, turn: 3, step: 1, settledBy: 'attempt', routeKnown: true, retry: 1, provider: 'offline',
@@ -735,6 +743,7 @@ test('the panel renders codec-parsed attribution and reduction data without inve
       run: { considered: 9, unverified: 1, wouldReduce: 2, skipped: 1, failed: 0, lastSkip: 'no_savings', lastReason: '低于最小节省' },
       archiveError: '原文档案目录不可写' },
   }
+  inspection.summaryUsage = { input: 900, output: 120, attempts: 2, unknownAttempts: 1, since: 1000 }
   const codec = TYPERT.invocations.find(item => item.method === 'inspect').result.create()
   const parsed = codec.parse(inspection)
   const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }),
@@ -749,6 +758,8 @@ test('the panel renders codec-parsed attribution and reduction data without inve
     assert.match(text, /用量未知尝试 1/)
     assert.match(text, /宿主投影为准/)
     assert.match(text, /摘要与修复未区分用途，合计显示/)
+    assert.match(text, /整理用量 ≥ 1\.0K Token/)
+    assert.match(text, /摘要已记录 ≥ 1\.0K Token/)
     assert.match(text, /工具结果精简 · 安全精简/)
     assert.match(text, /已确认引用 2/)
     assert.match(text, /可见字符减少 3,100/)
@@ -817,6 +828,24 @@ test('the attribution line shows the known lower bound, never a fabricated zero 
     assert.equal(document.querySelector('[data-efficiency="event-log"]').dataset.bounded, 'true')
     assert.match(text, /已知下界/)
     assert.match(text, /完整输入样本的缓存合计/)
+    await act(async () => root.unmount())
+
+    const unknownLedger = { source: 'summary-ledger', input: 0, output: 0, cacheRead: null, cacheWrite: null,
+      attempts: 2, unknownAttempts: 2, purposeSplit: false, note: 'Unknown attempts may contain unreported usage.' }
+    const summaryUnknown = { ...base, usage: { input: 0, uncached: 0, cacheRead: 0, cacheWrite: 0, output: 0 },
+      summaryUsage: { input: 0, output: 0, attempts: 2, unknownAttempts: 2, since: 1000 },
+      efficiency: { accounting: 'host-projection', host: null,
+        mirrored: { settledAttempts: 2, retries: 0, withoutUsage: 2,
+          uncachedInput: field(0, 0, 2), cacheRead: field(0, 0, 2), cacheWrite: field(0, 0, 2), output: field(0, 0, 2),
+          cacheInclusiveInput: field(0, 0, 2), complete: false },
+        differences: [], summaryAndRepair: unknownLedger, maintenanceSuspects: 0, cacheHitRatio: null,
+        requests: [], fingerprint: null, changes: [] } }
+    root = await render(summaryUnknown)
+    text = document.body.textContent
+    assert.match(text, /摘要已记录 — 未知/)
+    assert.match(document.querySelector('[data-efficiency]').textContent, /整理用量 — 未知/)
+    assert.ok(!/摘要已记录 (?:≈\s*|≥\s*)?0 Token/u.test(text))
+    assert.ok(!/整理用量 (?:≈\s*|≥\s*)?0 Token/u.test(text))
     await act(async () => root.unmount())
 
     // 2. Nothing reported at all: four zero buckets are not a zero reading.
@@ -964,7 +993,7 @@ test('compact panel keeps long model, failures and exact content selection reach
 test('manual emergency UI requires separate preview and explicit unknown-cost confirmation; zero dispatch is not unknown usage',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
  const snapshot={revision:1,value:{policy:defaults}},calls=[]
- const api={idleStatus:async()=>({status:'off',dueAt:null,message:'quota',emergency:{eligible:true,used:false,message:'旧调用费用未知'}}),
+ const api={idleStatus:async()=>({status:'off',dueAt:null,message:'quota',compression:{mode:'enhanced'},emergency:{eligible:true,used:false,message:'旧调用费用未知'}}),
   inspect:async q=>({...q,cursor:10,cutSeq:10,sampledAt:1,historical:false,pressure:null,official:null,usage:null,model:null,parts:[],rows:[],total:0,pageSize:50,activeCount:0,archivedCount:0,requests:[],requestCount:0,pressureHistory:[],compactions:[{id:'denied',kind:'compact',status:'failed',startedAt:1,endedAt:2,applied:false,modelCallStatus:'not_dispatched'}]}),
   prepareEmergency:async()=>{calls.push('prepare');return {token:'token',expiresAt:Date.now()+120000,cycle:1,warning:'未知费用可能再次收费',model:'mock/large',deadline:'600s',estimatedInput:8000}},
   executeEmergency:async q=>{assert.equal(q.acceptUnknownCost,true);calls.push('execute');return {granted:true}}}

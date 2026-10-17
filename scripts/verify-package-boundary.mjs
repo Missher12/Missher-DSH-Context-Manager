@@ -15,7 +15,7 @@ const manifest = JSON.parse(read('package.json'))
 const compatibility = JSON.parse(read('COMPATIBILITY.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
 const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
-  'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
+  'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compatibility.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
   'lib/history-tools.js', 'lib/index.js', 'lib/policy.js', 'lib/reducer.js', 'lib/tool-results.js', 'lib/working-set.js', 'package.json',
   ...(inspector ? ['lib/inspector.js', 'lib/inspector-fold.js', 'lib/typert.js'] : [])].map(p => `package/${p}`).sort()
 assert.deepEqual(members, expected, 'Package must not contain another plugin, verification fixtures, or local profiles')
@@ -40,30 +40,21 @@ assert.deepEqual(manifest.dsh.client.inject, ['@deepseek-ai/dsh-client-ui-settin
   ...(manifest.devDependencies?.['@deepseek-ai/dsh-client-ui-model-selection'] ? ['@deepseek-ai/dsh-client-ui-model-selection'] : []), '@deepseek-ai/dsh-client-locale'])
 const overlayText = read('cordis.patch.yml')
 const overlay = load(overlayText)
-const narrowProvider = compatibility.presetMode === 'registry-compaction-provider'
-const ownedTargets = new Set(['compaction-basic', 'preset-standard', 'preset-ptc', 'preset-cordis', 'preset-minimal'])
+assert.equal(compatibility.bundleMode, 'neutral-runtime-capability')
+assert.equal(compatibility.presetMode, 'host-declared-provider-with-read-only-fallback')
+assert.equal(compatibility.overlayContract.presetSnapshots, false)
+assert.equal(compatibility.overlayContract.disablesBasicProvider, false)
+assert.equal(compatibility.overlayContract.insertsEngineAtRoot, false)
+assert.equal(compatibility.overlayContract.runtimeCapabilityDetection, true)
 const targetIds = [], insertedIds = []
 for (const entry of overlay) {
-  if (entry.insert) {
-    for (const row of entry.insert) insertedIds.push(row.id)
-  } else {
-    assert.ok(ownedTargets.has(entry.id), `Unexpected host config target: ${entry.id}`)
-    targetIds.push(entry.id)
-  }
+  assert.ok(entry && typeof entry === 'object' && Array.isArray(entry.insert), 'Neutral overlay may only insert plugin entries')
+  assert.deepEqual(Object.keys(entry), ['insert'], 'Neutral overlay cannot patch Host preset/config')
+  for (const row of entry.insert) insertedIds.push(row.id)
 }
-assert.deepEqual(insertedIds, ['context-manager', 'context-manager-engine', ...(inspector ? ['context-manager-inspector'] : [])])
-const expectedPresetTargets = ['preset-standard', 'preset-ptc', 'preset-cordis']
-assert.deepEqual(targetIds.filter(id => id.startsWith('preset-')).sort(), expectedPresetTargets.sort())
-assert.equal(targetIds.includes('compaction-basic'), true, 'the global Basic fallback is replaced for base sessions')
-for (const id of expectedPresetTargets) {
-  const patch = overlay.find(entry => entry.id === id)
-  if (narrowProvider) {
-    assert.equal(patch.compactionProvider, '@missher/dsh-context-manager/engine')
-    assert.equal('config' in patch, false, 'narrow artifacts cannot snapshot the full preset config')
-  } else {
-    assert.ok(patch.config?.plugins, 'legacy fallback must provide its full preset config')
-  }
-}
+assert.deepEqual(targetIds, [])
+assert.deepEqual(insertedIds, ['context-manager', ...(inspector ? ['context-manager-inspector'] : [])])
+assert.doesNotMatch(overlayText, /compactionProvider|compaction-basic|preset-standard|preset-ptc|preset-cordis/u)
 assert.ok(!/dsh-session-bridge|dsh-sbc-|session-bridge/.test(overlayText))
 for (const member of members.filter(p => p.startsWith('package/lib/'))) {
   assert.ok(!/dsh-session-bridge|dsh-sbc-|session-bridge/.test(read(member.slice('package/'.length))),

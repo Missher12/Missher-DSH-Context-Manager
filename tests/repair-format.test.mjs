@@ -16,8 +16,9 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { defaults } from '../lib/policy.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 // A type-broken primary: all seven keys present, only `constraints` has the
 // wrong JSON type. The local wrap must preserve every value byte-for-byte.
@@ -78,6 +79,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
+  installTestCompactionHost(ctx)
   await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'legacy', summaryMaxTokens: 512, ...policy } })
   await ctx.plugin(Engine)
   const adapter = new Adapter(options)

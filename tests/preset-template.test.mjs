@@ -5,13 +5,13 @@ import { Context } from '@deepseek-ai/cordis'
 import { SystemPrompt, renderPrompt, renderContextSections } from '@deepseek-ai/dsh-system-prompt'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import { load, DEFAULT_SCHEMA, Type } from 'js-yaml'
-import { DEPRECATED_CWD_CLAUSE } from '../scripts/generate-overlay.mjs'
 
 const schema = DEFAULT_SCHEMA.extend([new Type('tag:yaml.org,2002:js', { kind: 'scalar', construct: text => ({ __jsExpr: text }) })])
 const overlay = load(readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8'), { schema })
 const compatibility = JSON.parse(readFileSync(new URL('../COMPATIBILITY.json', import.meta.url), 'utf8'))
 const legacyOverlay = readFileSync(new URL('./fixtures/context-local.5-cordis.patch.yml', import.meta.url), 'utf8')
 const PRESETS = ['standard', 'ptc', 'cordis']
+const DEPRECATED_CWD_CLAUSE = 'Your working directory is {{cwd}}.'
 const persona = preset => overlay.find(row => row.id === `preset-${preset}`).config.plugins.find(entry => entry.id === 'persona')
 
 /** The two prompt variables the alpha.2 agent loop owns, plus the literal working-directory context. */
@@ -28,7 +28,14 @@ const registerLoopFacts = ctx => {
   })
 }
 
-if (compatibility.presetMode === 'registry-compaction-provider') {
+if (compatibility.bundleMode === 'neutral-runtime-capability') {
+  test('neutral overlay leaves every preset declaration to the Host', () => {
+    const entries = overlay.flatMap(row => row.insert ?? [])
+    assert.deepEqual(entries.map(entry => entry.id), ['context-manager', 'context-manager-inspector'])
+    for (const preset of PRESETS) assert.equal(entries.some(entry => entry.id === `preset-${preset}`), false, preset)
+    assert.doesNotMatch(JSON.stringify(overlay), /dsh-compaction-basic|\/engine/u)
+  })
+} else if (compatibility.presetMode === 'registry-compaction-provider') {
   test('narrow overlay delegates preset persona configs to the Host registry', () => {
     for (const preset of PRESETS) {
       const patch = overlay.find(row => row.id === `preset-${preset}`)

@@ -11,11 +11,23 @@ export function emergencyConfirmSchema(){return z.object({sessionId:sessionId(),
 export function emergencyPlanSchema(){return z.object({token:z.string().uuid(),expiresAt:count(),cycle:count(),warning:z.string().max(300),model:z.string().max(240),deadline:z.string().max(200),estimatedInput:count()}).strict()}
 export function recoveryResultSchema() { return z.object({ granted: z.literal(true) }).strict() }
 export function idleQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
+export function compatibilityQuerySchema() { return z.object({}).strict() }
+export function hostCapabilityReadoutSchema() { return z.object({ state: z.enum(['supported', 'unsupported', 'unknown']),
+  reason: z.string().max(300), version: count().optional(), integration: z.object({
+    state: z.enum(['inactive', 'pending', 'registered', 'failed', 'unknown']), reason: z.string().max(300).optional(),
+  }).strict() }).strict() }
+export function compactionReadoutSchema() { return z.object({
+  mode: z.enum(['enhanced', 'native', 'other', 'unconfigured', 'unknown', 'unavailable']),
+  hostCapability: z.enum(['supported', 'unsupported', 'unknown']), reason: z.string().max(300),
+  agentPreset: z.string().max(160).optional(), generation: count().optional(), provider: z.string().max(300).optional(),
+  source: z.enum(['declaration', 'registration']).optional(), selectable: z.boolean().optional(),
+}).strict() }
 export function idleStatusSchema() { return z.object({
   status: z.enum(['off', 'waiting', 'scheduled', 'checking', 'compacting', 'completed', 'skipped', 'cancelled', 'failed']),
   dueAt: count().nullable(), message: z.string().max(300), beforeTokens: count().optional(), afterTokens: count().optional(),
   reasonCode: z.string().max(100).optional(), restored: z.boolean().optional(), windowTokens: count().optional(), minimumPercent: z.number().min(0).max(100).optional(), updatedAt: count().optional(),
   owner: z.enum(['context-manager', 'other', 'unknown']).optional(),
+  compression: compactionReadoutSchema().optional(),
   minimumTokens: count().optional(), deadline: z.string().max(200).optional(), execution: z.string().max(400).optional(), emergency:z.object({eligible:z.boolean(),used:z.boolean(),message:z.string().max(300)}).strict().optional(),
   recovery: z.object({ available: z.boolean(), message: z.string().max(300), requestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     authorizationToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
@@ -82,6 +94,7 @@ export function inspectionSchema() { return z.object({
   efficiency: efficiencySchema().optional(),
   reduction: reductionSchema().optional(),
   goal: goalReadoutSchema().optional(),
+  compression: compactionReadoutSchema().optional(),
   pressureHistory: z.array(z.object({ seq: seq(), time: count(), tokens: count().nullable(), window: count().nullable(), kind: z.enum(['reply', 'replace', 'current']) })).max(40),
   rows: z.array(contentRowSchema()).max(50),
   total: count(), offset: count(), pageSize: count(), activeCount: count(), archivedCount: count(),
@@ -95,6 +108,9 @@ export function contentPageSchema() { return z.object({ sessionId: sessionId(), 
 export const TYPERT_REMOTE = {
   package: '@missher/dsh-context-manager',
   descriptors: [
+    {id:'@missher/dsh-context-manager#contextInspector/compatibility',service:'contextInspector',namespace:'contextInspector',method:'compatibility',invocation:{kind:'direct'},
+      parameters:[{name:'query',wire:'query',source:'json',codec:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#CompatibilityQuery',create:compatibilityQuerySchema}}],
+      cancellation:{parameter:'signal'},result:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#HostCapabilityReadout',create:hostCapabilityReadoutSchema}},
     {id:'@missher/dsh-context-manager#contextRecovery/prepareEmergency',service:'contextRecovery',namespace:'contextRecovery',method:'prepareEmergency',invocation:{kind:'direct'},
       parameters:[{name:'query',wire:'query',source:'json',codec:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#IdleQuery',create:idleQuerySchema}}],
       cancellation:{parameter:'signal'},result:{mode:'strict',typeSymbol:'@missher/dsh-context-manager#EmergencyPlan',create:emergencyPlanSchema}},

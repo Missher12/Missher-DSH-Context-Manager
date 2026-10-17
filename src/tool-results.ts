@@ -46,7 +46,7 @@ const PROTECTED_TOOLS = new Set(['read', 'edit', 'write', 'str_replace_editor', 
 
 export type ReductionSkip = SkipReason | 'error_result' | 'blocked_decision' | 'replaced_value' | 'protected_tool'
   | 'unrecognized_tool' | 'foreign_marker' | 'no_session' | 'archive_unavailable' | 'cancelled' | 'finalizer_tool'
-  | 'non_text' | 'unverified_result' | 'no_savings' | 'skipped_disabled' | 'unloaded' | 'internal_error'
+  | 'non_text' | 'unverified_result' | 'no_savings' | 'skipped_disabled' | 'unloaded' | 'internal_error' | 'agent_not_enhanced'
 
 export interface ReductionStats {
   /** Host results this listener examined (successful, accepted, mode not off). */
@@ -135,6 +135,7 @@ export function registerToolResultReduction(
   ctx: Context,
   policy: () => Readonly<Policy>,
   archive: () => TextArchive | undefined,
+  availableForAgent: (agent: ToolExecution['agent']) => boolean = () => true,
 ): { stats: () => ReductionStats; reported: () => boolean; sessions: () => ReadonlyMap<string, { published: number; reverted: number }> } {
   const stats: ReductionStats = { considered: 0, unverified: 0, wouldReduce: 0, published: 0, reverted: 0, pending: 0, skipped: 0, failed: 0 }
   /** Short texts this listener produced for a dispatch, awaiting final confirmation. */
@@ -189,6 +190,10 @@ export function registerToolResultReduction(
       // Checked again after the suspension: the registration may have been
       // disposed while this listener was waiting on the downstream waterfall.
       if (!live()) { stats.lastSkip = 'unloaded'; return decision }
+      // A root listener can observe Agents that still use Basic or a custom
+      // provider. Reduction follows that Agent's retained binding, not the
+      // registry's future selection.
+      if (!availableForAgent(exec.agent)) { skip('agent_not_enhanced'); return decision }
       try {
         return reduceDecision(exec, result, decision, live)
       } catch (error) {

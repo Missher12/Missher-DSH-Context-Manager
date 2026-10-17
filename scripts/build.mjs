@@ -9,7 +9,7 @@ if (process.env.DSH_CONTEXT_BUILD_OUT) {
   if (outdir === join(here, 'lib') || !isAbsolute(outdir)) throw new Error(`DSH_CONTEXT_BUILD_OUT must be an isolated absolute directory, got ${outdir}`)
 }
 await mkdir(outdir, { recursive: true })
-await build({ entryPoints: ['src/index.ts', 'src/engine.ts', 'src/policy.ts', 'src/diagnostics.ts', 'src/inspector.ts', 'src/inspector-fold.ts', 'src/typert.ts', 'src/chart-data.ts', 'src/working-set.ts', 'src/compaction-cycles.ts', 'src/history-tools.ts', 'src/archive.ts', 'src/reducer.ts', 'src/tool-results.ts', 'src/efficiency.ts'],
+await build({ entryPoints: ['src/index.ts', 'src/engine.ts', 'src/compatibility.ts', 'src/policy.ts', 'src/diagnostics.ts', 'src/inspector.ts', 'src/inspector-fold.ts', 'src/typert.ts', 'src/chart-data.ts', 'src/working-set.ts', 'src/compaction-cycles.ts', 'src/history-tools.ts', 'src/archive.ts', 'src/reducer.ts', 'src/tool-results.ts', 'src/efficiency.ts'],
   outdir, platform: 'node', format: 'esm', bundle: true, packages: 'external', target: 'es2022', logLevel: 'warning' })
 // zod is not a browser platform seed. Bundle our wire codecs; only the host's
 // shared React and UI primitives cross the module-loader boundary.

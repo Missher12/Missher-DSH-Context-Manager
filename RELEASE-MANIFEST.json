@@ -1,163 +1,168 @@
 {
-  "schemaVersion": 1,
-  "status": "formal plugin release published and anonymously verified; paired Ubuntu native installation accepted",
+  "schemaVersion": 3,
   "package": "@missher/dsh-context-manager",
-  "packages": [
-    {
-      "file": "missher-dsh-context-manager-0.10.0-local.9.tgz",
-      "version": "0.10.0-local.9",
-      "sha256": "670e07978d98ceb0800bee021150487d1ce4c4776f3819de84e24a7d87d9c840",
-      "files": 23
-    },
-    {
-      "file": "missher-dsh-context-manager-0.10.0-local.9-legacy.1.tgz",
-      "version": "0.10.0-local.9-legacy.1",
-      "sha256": "7592ce7cae7e0ca9c10a6c7132fe03a2dc9c2b7b9d095a7c7567843640544ef5",
-      "files": 23
-    }
-  ],
-  "compatibility": {
-    "approach": "required capabilities plus reasonable evidenced version ranges; continued adaptation to the latest release",
-    "testedSdkBaseline": "0.2.1-alpha.2",
-    "narrowRequiredCapability": "preset-compaction-provider-patch-v1",
-    "narrowCapabilityFingerprint": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
-    "officialAlpha2IncludesCapability": false,
-    "automaticQueuedInputHandoff": "requires the paired AgentLoop Host change, absent on unpatched legacy Host",
-    "hostRepository": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop",
-    "hostSourceBase": "70f01a61a6cf9964b127c3c483278619df231dc0",
-    "hostIntegration": "official build,56 focused checks,43 documentation checks,lint and normal Git hooks passed; Ubuntu installed and native verified; Intel packaging/actual renderer CI passed",
-    "sameContractFingerprintMapping": {
-      "archivedCandidate": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
-      "integratedSource": "ddde6df7e436354318c26f0b3a1cd18f51ed4418124321cc66ae34e33448f396",
-      "algorithm": "sha256(concatInListedOrder(path + NUL + lowercaseFileSha256 + LF))",
-      "change": "JSDoc and arrow-parameter parentheses only in compaction-provider.ts; same interface contract",
-      "scope": "preset interface only; not full AgentLoop handoff acceptance"
-    },
-    "pairedHostCommit": "818b495a877b04b53f7d07bbaec5837a0fe07c71",
-    "hostBuildVersion": "0.2.1-alpha.2.20261014.1"
+  "version": "0.10.0-local.11",
+  "sourceTag": "v0.10.0-local.11",
+  "artifact": {
+    "filename": "missher-dsh-context-manager-0.10.0-local.11.tgz",
+    "sha256": "8c461eca88049978b475107d98b3c202a83fa9d568c8938a958a564704527006",
+    "bytes": 277698,
+    "fileCount": 24
   },
-  "checks": {
-    "narrow": {
-      "total": 396,
-      "passed": 392,
-      "failed": 0,
-      "skipped": 4
-    },
-    "legacy": {
-      "total": 396,
-      "passed": 389,
-      "failed": 0,
-      "skipped": 7
-    },
-    "hostFocusedRegression": {
-      "passed": 56,
-      "failed": 0
-    },
-    "realProviderAcceptance": false,
-    "nativeDesktopAcceptance": true,
-    "dailyInstallationAccepted": true,
-    "redactedFixtureReplay": {
-      "passed": 1,
-      "failed": 0,
-      "scope": "synthetic two-compaction and JSONL-restart replay with frozen legacy runtime; no provider calls"
-    },
-    "hostOfficialBuild": {
-      "passed": true,
-      "clientArtifacts": 357,
-      "finalPackagingAccepted": true
-    },
-    "storagePortability": {
-      "runUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/38451852467",
-      "sourceCommit": "fa07d43cf7eb6948f35e874035db21db5ea57df9",
-      "attempt": 1,
-      "passedJobs": 10,
-      "cancelledJobs": 2,
-      "failedJobs": 0,
-      "overallConclusion": "failure",
-      "unverifiedJobs": [
-        "archive macOS Node 24",
-        "recovery macOS Node 24"
-      ],
-      "scope": "native filesystem storage tests only, not full desktop or model behavior"
-    },
-    "hostDocs": {
-      "passed": 43,
-      "failed": 0
-    },
-    "hostLint": {
-      "passed": true,
-      "newErrors": 0,
-      "baselineWarning": "unused disable in experimental client-ui-cot-translation"
-    },
-    "hostGitHooks": "normal pre-commit and pre-push passed",
-    "nativeAcceptanceScope": "Ubuntu only: exact installed package files, settings/Inspector and activation; no provider prompt or physical Mac/plugin business acceptance",
-    "intelPackaging": {
-      "runUrl": "https://github.com/Missher12/Missher-DeepseekHarness-Desktop/actions/runs/38485572586",
-      "runId": 38485572586,
-      "head": "818b495a877b04b53f7d07bbaec5837a0fe07c71",
-      "passed": true,
-      "checksPassed": 88,
-      "actualRendererVerified": true,
-      "physicalUserMacInstallationVerified": false
-    }
-  },
-  "frozenSourceTrees": [
-    {
-      "mode": "narrow",
-      "tree": "src",
-      "files": 42,
-      "sha256": "812a7d0112d0c48615d23c3f5d508020a1d2d45e6ef2959ee4f92a2ecdcaad45"
-    },
-    {
-      "mode": "narrow",
-      "tree": "lib",
-      "files": 16,
-      "sha256": "6d1ff9d40c077776451a94f3fa7c4149bb08b6560a1e063b7b8037dd027fb375"
-    },
-    {
-      "mode": "legacy",
-      "tree": "src",
-      "files": 42,
-      "sha256": "0fd19f1f766f86d97fb5d83c08559f8c0241e92a8b3986b4e9e6c4e544cccb6a"
-    },
-    {
-      "mode": "legacy",
-      "tree": "lib",
-      "files": 16,
-      "sha256": "4572fc6dbcfcfb9199d881470ad76fddfa220091347b99b363a2c84c549d2633"
-    }
-  ],
-  "publication": {
-    "productBytes": "src and lib from frozen stages; canonical old lib is excluded",
-    "tests": {
-      "files": 33,
-      "frozenTreeSha256": "af5ff77c29e45420ee9f965933654be371b4adf379f4cca66f25439e5986da95",
-      "publicTreeSha256": "4238c40e0ba19899d88f98a257df99a8a3bc906ad000de061d4c29b52081d8d2",
-      "overlay": {
-        "file": "tests/loop.test.mjs",
-        "line": 1566,
-        "sha256": "2b927a0c06f2f5c3acf825c3f7ffab34ae95d74c2ecaa2e56c3150740b0e8c39",
-        "change": "one synthetic evidence path; assertions and product code unchanged"
-      }
-    },
-    "privateMaterialExcluded": [
-      "profiles",
-      "sessions",
-      "credentials",
-      "learning data",
-      "private review logs",
-      "coordination instructions"
+  "validationRuntimeReference": {
+    "sha256": "7ccd21435cf82665ae9d32e863e276307bf03536915d6675edd3a70e70f918f7",
+    "revision": "r2",
+    "onlyPackagedDifferences": [
+      "README.en.md",
+      "README.md"
     ],
-    "frozenArchivesUnmodified": true,
-    "release": {
-      "id": 412211010,
-      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.9",
-      "tag": "v0.10.0-local.9",
-      "sourceCommit": "6fb5dda33b2254d54721f26b47fc7897f5eab0fe",
-      "draft": false,
-      "prerelease": false,
-      "assetCount": 4,
-      "anonymousAssetHashesMatched": true
+    "unchangedFiles": 22,
+    "allRuntimeManifestOverlayAndGeneratedCompatibilityUnchanged": true
+  },
+  "reviewedSourceManifestSha256": "16ed8762f2113b79b29beca3d0aae921dae5f119e860b6bd64a21ffc92d98af0",
+  "additionalReviewedWorkflow": {
+    "path": ".github/workflows/context-portability.yml",
+    "sha256": "b3e8501627d6859e2e6e93039d8b609c4a8582e40f2aa74573b82b8b6592f9e3",
+    "matrixScheduling": "two unchanged 3-platform x 2-Node matrices, max-parallel 1, archive depends on recovery"
+  },
+  "validationSummary": {
+    "corePassed": 397,
+    "coreFailed": 0,
+    "coreSkipped": 4,
+    "realLoaderContinuationPassed": 6,
+    "finalUiPassed": 6,
+    "naturalHostAssertionsPerEnvironment": 68,
+    "naturalHosts": [
+      "official 0.2.1-alpha.5",
+      "community 0.2.0-rc.2"
+    ],
+    "oldPackageUpgradeChecksPerVariant": 31,
+    "actualOfficialWeb": true,
+    "enhancedGallery": "synthetic component preview, not native enhanced Host proof",
+    "actualProviderCalls": 0
+  },
+  "currentCompatibilityReport": "COMPATIBILITY-REPORT.json",
+  "publicationNotes": "PUBLICATION.md",
+  "members": [
+    {
+      "path": "COMPATIBILITY.json",
+      "bytes": 4420,
+      "sha256": "2bd5a824d3efe24f3e2903f9e80f5fbaf35a8875c0409a363427d4a5a3ff0250"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1092,
+      "sha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0"
+    },
+    {
+      "path": "README.en.md",
+      "bytes": 7136,
+      "sha256": "a0cb669b9e18f421c3955d7e75ef29207ae14b11ef470ff4ace4b7b41fdd7a25"
+    },
+    {
+      "path": "README.md",
+      "bytes": 6819,
+      "sha256": "cc0396f61c0b389efa0c7146ca34aa525f97d96bcf34cf72a50a80873c5cb6ae"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 2231,
+      "sha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810"
+    },
+    {
+      "path": "cordis.patch.yml",
+      "bytes": 278,
+      "sha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f"
+    },
+    {
+      "path": "lib/archive.js",
+      "bytes": 34621,
+      "sha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0"
+    },
+    {
+      "path": "lib/chart-data.js",
+      "bytes": 11907,
+      "sha256": "a68754a3a71af58838dc90d1c8120e757fda271dffb447de57acff4ec5cec298"
+    },
+    {
+      "path": "lib/client.js",
+      "bytes": 775891,
+      "sha256": "caa7745b4b2992b4e6bac1c6d28143562c411ab0e09033a8d91fc35090dd7ef0"
+    },
+    {
+      "path": "lib/compaction-cycles.js",
+      "bytes": 6425,
+      "sha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2"
+    },
+    {
+      "path": "lib/compatibility.js",
+      "bytes": 4232,
+      "sha256": "14f5f5bb05cc43ffc86dd1e8cbdc2617e076b2e1153c0aeb7c68a2f17459a7d9"
+    },
+    {
+      "path": "lib/diagnostics.js",
+      "bytes": 6598,
+      "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
+    },
+    {
+      "path": "lib/efficiency.js",
+      "bytes": 10195,
+      "sha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210"
+    },
+    {
+      "path": "lib/engine.js",
+      "bytes": 148430,
+      "sha256": "cd5b0ce36b050a15279039b3024f9d465f5fb8e550ecf866b64d08647c9918da"
+    },
+    {
+      "path": "lib/history-tools.js",
+      "bytes": 29674,
+      "sha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b"
+    },
+    {
+      "path": "lib/index.js",
+      "bytes": 201990,
+      "sha256": "4e81f4653784c762360b2f924e641612bb987ff8dba70b541126d9da3f91ac35"
+    },
+    {
+      "path": "lib/inspector-fold.js",
+      "bytes": 14513,
+      "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
+    },
+    {
+      "path": "lib/inspector.js",
+      "bytes": 56680,
+      "sha256": "4dae30323a540f447f67aef05fca3b47a50932bdf2d76a0310bedc987581c2db"
+    },
+    {
+      "path": "lib/policy.js",
+      "bytes": 10416,
+      "sha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4"
+    },
+    {
+      "path": "lib/reducer.js",
+      "bytes": 2874,
+      "sha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f"
+    },
+    {
+      "path": "lib/tool-results.js",
+      "bytes": 13389,
+      "sha256": "7c91d3f7df0524bfc5e82f70a2f67bfa19136a13de6e0946e2c242899818f83c"
+    },
+    {
+      "path": "lib/typert.js",
+      "bytes": 15947,
+      "sha256": "c1aae79f05399a811a3fb7107d9b8d56182414f55076286baca5f72a9473055e"
+    },
+    {
+      "path": "lib/working-set.js",
+      "bytes": 5228,
+      "sha256": "27789a95941702426148c600d4fc66c98ea6eb4c4d5a2f2922501c0bfe9de26c"
+    },
+    {
+      "path": "package.json",
+      "bytes": 5413,
+      "sha256": "5b063b8005bc78ec962475d261c64249bb5f84b10268c4a40dab90e42c882e35"
     }
-  }
+  ]
 }

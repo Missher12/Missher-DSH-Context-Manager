@@ -15,8 +15,9 @@ import { IMAGE_OFFLOAD_REQUIRED_CODE, LlmAdapter, LlmError, createMessage,
   createUserMessage, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { defaults } from '../lib/policy.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 // The real public image-offload plugin owns recovery and its message projection.
 // Only the provider is fake. This file never reads credentials or makes requests.
@@ -128,6 +129,7 @@ async function fixture(t, options) {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(ImageOffload)
+  installTestCompactionHost(ctx)
   await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: false } })
   await ctx.plugin(Engine)
   ctx.llm.registerAdapter(['mock'], adapter)

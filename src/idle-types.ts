@@ -1,3 +1,5 @@
+import type { CompactionReadout } from './compatibility.ts'
+
 /** Live or durable idle maintenance status; reads never activate an Agent. */
 export interface IdleStatus {
   status: 'off' | 'waiting' | 'scheduled' | 'checking' | 'compacting' | 'completed' | 'skipped' | 'cancelled' | 'failed'
@@ -14,6 +16,7 @@ export interface IdleStatus {
   /** Live phase of an in-flight compaction, from either request or idle path. */
   compactionPhase?: 'summarizing' | 'repairing'
   owner?: 'context-manager' | 'other' | 'unknown'
+  compression?: CompactionReadout
   emergency?: {eligible:boolean;used:boolean;message:string}
   execution?: string
   /** Live compaction planning numbers, when a plan exists for this transaction. */

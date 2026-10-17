@@ -1,64 +1,101 @@
 {
-  "harnessVersion": "0.2.1-alpha.2",
-  "verifiedHarnessVersions": [
-    "0.2.1-alpha.2"
-  ],
-  "sourceSha": null,
-  "sourceShaMeaning": "Target directory has no Git metadata; the opt-in Host capability is identified by its source fingerprint below.",
-  "presetMode": "registry-compaction-provider",
-  "hostCapabilityRequirement": {
-    "id": "preset-compaction-provider-patch-v1",
-    "status": "candidate-only",
-    "hostPackageVersion": "0.2.1-alpha.2",
-    "sourceFiles": [
-      "vendor/include/src/index.ts",
-      "packages/preset/agent-preset/src/index.ts",
-      "packages/preset/agent-preset-registry/src/index.ts",
-      "packages/preset/agent-preset-registry/src/compaction-provider.ts"
+  "schemaVersion": 3,
+  "candidatePackageVersion": "0.10.0-local.11",
+  "runtimeDiagnosticVersion": "0.10.0-local.11",
+  "bundleMode": "neutral-runtime-capability",
+  "presetMode": "host-declared-provider-with-read-only-fallback",
+  "candidateStatus": "Scoped build and typechecks passed; package regression (397 passed, 4 skipped), same-package Loader integration (6/6) and final client UI regression (5/5) are recorded. This isolated candidate is not an accepted Release; natural-Host, upgrade, visual/native UI and real-provider checks remain pending.",
+  "hostCapability": {
+    "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
+    "version": 1,
+    "requiredMethods": [
+      "register",
+      "bindingFor",
+      "retained"
     ],
-    "fingerprintSha256": "af10691561e7969fbcb9474541808b847455cd87e91339fa504610066bfdb6e5",
-    "officialVersionClaim": false
+    "selectionSemantics": [
+      "new-bindings-only",
+      "future-selection-only"
+    ],
+    "missingCapability": "Keep Host provider and every user preset unchanged; save Context policy without activating it."
   },
-  "legacyFallback": {
-    "available": true,
-    "artifactVersion": "0.10.0-local.9-legacy.1",
-    "presetMode": "legacy-full-preset-override",
-    "hashRecordedIn": "verification/automatic-compaction-20261014/ARTIFACTS.json"
+  "overlayContract": {
+    "presetSnapshots": false,
+    "disablesBasicProvider": false,
+    "insertsEngineAtRoot": false,
+    "runtimeCapabilityDetection": true,
+    "runtimeCompatibilityIsNotProvenByGeneration": true
+  },
+  "verification": {
+    "frozenHostSource": {
+      "commit": "0ff7e27023e4791dacef8d55cfb90de962fb2a77",
+      "sourceManifestSha256": "43fc7611117b4b2c096bb3170753fbd97ac442d71079d0b1e765c819e88b7737"
+    },
+    "packageRegression": {
+      "total": 401,
+      "passed": 397,
+      "failed": 0,
+      "skipped": 4,
+      "note": "Ran before the final client-only emergency epoch guard."
+    },
+    "samePackageLoader": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "staticClosure": {
+        "files": 49,
+        "edges": 168,
+        "oldCandidateReferences": 0,
+        "duplicateHostIdentities": 0,
+        "unresolvedImports": 0
+      }
+    },
+    "finalClient": {
+      "build": "passed",
+      "typecheck": "passed",
+      "uiRegression": {
+        "total": 5,
+        "passed": 5,
+        "failed": 0,
+        "environment": "JSDOM",
+        "clientSha256": "a70bb21f23a2ff3b0a2fad8f617ff8e5e27bb1e6088274da2c133818eafdf638"
+      }
+    },
+    "pending": [
+      "Independent natural Host runtime checks",
+      "Package upgrade review",
+      "Browser visual review and public screenshots",
+      "Native Electron UI",
+      "Real provider/model behavior and billing",
+      "Installation and Release"
+    ]
+  },
+  "compatibilityRanges": {
+    "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh-agent": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-compaction": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-compaction-basic": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-token-meter": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session-projection": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-api-session-controller": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-session-query": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-api-remotes": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/dsh-storage-domain": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.4 || 3.18.5-alpha.1"
+  },
+  "plannedIntegrationTarget": {
+    "hostCommit": "0ff7e27023e4791dacef8d55cfb90de962fb2a77",
+    "sourceManifestSha256": "43fc7611117b4b2c096bb3170753fbd97ac442d71079d0b1e765c819e88b7737",
+    "state": "same-package Loader integration passed 6/6; independent natural-Host, upgrade and visual/native UI review pending"
   },
   "priorRollback": {
-    "artifactVersion": "0.10.0-local.8",
-    "artifactPath": "verification/automatic-compaction-20261013/missher-dsh-context-manager-0.10.0-local.8.tgz",
-    "artifactSha256": "70d18d1536f014a60d3938626e6b2203c261ef81fad39cee346d9614b0f3c051",
-    "role": "rollback-only; predates this round and does not contain the local.9 fixes"
-  },
-  "sources": [
-    {
-      "path": "packages/bundle/web-app/presets/standard.patch.yml",
-      "sha256": "6462f63e24ea865d3931f992584bbc79aa152adf697e861af0b2e4dd7a4d622f",
-      "presetMode": "registry-compaction-provider",
-      "basicProviders": 1,
-      "replacedBackends": 0,
-      "compactionProvider": "@missher/dsh-context-manager/engine",
-      "normalizedDeprecatedPersonaSuffixes": 0
-    },
-    {
-      "path": "packages/bundle/web-app/presets/ptc.patch.yml",
-      "sha256": "162d1e57cc0ca48a2b54f4659e920264f46c87b3027a73e81429d345d584c566",
-      "presetMode": "registry-compaction-provider",
-      "basicProviders": 1,
-      "replacedBackends": 0,
-      "compactionProvider": "@missher/dsh-context-manager/engine",
-      "normalizedDeprecatedPersonaSuffixes": 0
-    },
-    {
-      "path": "packages/bundle/web-app/presets/cordis.patch.yml",
-      "sha256": "0b12c30161ac570face5e310f14f4c2177df20c0ca1c4e5a45ef959a37152434",
-      "presetMode": "registry-compaction-provider",
-      "basicProviders": 1,
-      "replacedBackends": 0,
-      "compactionProvider": "@missher/dsh-context-manager/engine",
-      "normalizedDeprecatedPersonaSuffixes": 0
-    }
-  ],
-  "customPresets": "Requires the opt-in Host source capability recorded below. Official Host packages labelled 0.2.1-alpha.2 do not gain this capability from this candidate; install only with a Host that contains the recorded narrow patch contract."
+    "artifactVersion": "0.10.0-local.9",
+    "artifactPath": "verification/automatic-compaction-20261014/artifacts-final/missher-dsh-context-manager-0.10.0-local.9.tgz",
+    "artifactSha256": "670e07978d98ceb0800bee021150487d1ce4c4776f3819de84e24a7d87d9c840",
+    "role": "rollback-only; accepted published baseline"
+  }
 }

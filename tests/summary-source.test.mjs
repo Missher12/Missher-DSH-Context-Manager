@@ -292,7 +292,7 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
     await click('展开当前有效内容'); assert.equal(reads.length, 1)
     assert.match(document.querySelector('[aria-label="闲置整理"]').textContent, /已恢复 · 1 分钟后检查/)
     assert.equal(document.querySelectorAll('.cmv-usage').length, 1)
-    assert.match(document.querySelector('.cmv-usage .cmv-summary-usage').textContent, /摘要已记录 2\.5K Token · 3 次尝试 · 1 次用量未知/)
+    assert.match(document.querySelector('.cmv-usage .cmv-summary-usage').textContent, /摘要已记录 ≥ 2\.5K Token · 3 次尝试 · 1 次用量未知/)
     assert.match(document.querySelector('.cmv-usage').textContent, /暂无累计用量/, 'summary accounting does not fabricate main-request usage')
     assert.match(document.querySelector('[data-growth="sinceCompaction"]').textContent, /≈ -2\.00%/)
     assert.match(document.querySelector('[data-growth="lastToolResult"]').textContent, /未知/)

@@ -25,6 +25,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as BashTool from '@deepseek-ai/dsh-tool-bash'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { TYPERT } from '../lib/typert.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 const plugin = [{ name: 'installed-public-api', setup(builder) {
   builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
@@ -67,9 +68,11 @@ async function mount(t, policy) {
   await ctx.plugin(class extends SessionQueryEngine {})
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  const testHost = installTestCompactionHost(ctx)
   await ctx.plugin(ContextManager, { policy: { ...defaults, ...policy } })
   const session = ctx.sessions.create(SessionId('archive-integration-session'))
-  const agent = { session }
+  const agent = { ctx, session }
+  testHost.bind(ctx)
   let call = 0
   t.after(async () => {
     const outcomes = []

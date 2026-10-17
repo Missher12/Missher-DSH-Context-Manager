@@ -1,20 +1,6 @@
-# Generated for Harness 0.2.1-alpha.2; profile/user overrides remain later layers.
-- id: compaction-basic
-  name: '@deepseek-ai/dsh-compaction-basic'
-  disabled: true
+# Generated neutral Bundle overlay. Host capability detection selects Context only for future Agent bindings.
 - insert:
     - id: context-manager
-      name: '@missher/dsh-context-manager'
-    - id: context-manager-engine
-      name: '@missher/dsh-context-manager/engine'
+      name: "@missher/dsh-context-manager"
     - id: context-manager-inspector
-      name: '@missher/dsh-context-manager/inspector'
-- id: preset-standard
-  name: '@deepseek-ai/dsh-agent-preset'
-  compactionProvider: '@missher/dsh-context-manager/engine'
-- id: preset-ptc
-  name: '@deepseek-ai/dsh-agent-preset'
-  compactionProvider: '@missher/dsh-context-manager/engine'
-- id: preset-cordis
-  name: '@deepseek-ai/dsh-agent-preset'
-  compactionProvider: '@missher/dsh-context-manager/engine'
+      name: "@missher/dsh-context-manager/inspector"

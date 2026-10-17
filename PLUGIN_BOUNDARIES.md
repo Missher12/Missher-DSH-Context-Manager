@@ -1,7 +1,7 @@
 # Plugin responsibilities
 
-Context Manager owns pre-request and idle compaction, bounded same-session original-text lookup, its archive and accounting, and the conversation Context view. Shared UI and session services come from the Host.
+Context Manager owns context inspection, its archives and accounting, and enhanced pre-request/idle compaction when the Host exposes a supported capability and the current Agent is actually bound to this provider. Shared UI and session services come from the Host.
 
-The package does not contain or depend on Session Bridge, mutate another plugin, or use installation lifecycle hooks to patch a Host. Narrow-preset and new-input continuation support must be supplied by the paired Host release; see [compatibility and validation](PUBLICATION.md).
+The neutral Bundle declares only Manager and Inspector root entries. It does not snapshot or overwrite Host presets, disable Basic, contain or depend on Session Bridge, mutate another plugin, or patch a Host through installation lifecycle hooks. Missing capabilities preserve native behavior and user configuration. See [compatibility and validation](PUBLICATION.md).
 
-The runtime tarball contains the declared 23 product files. Development profiles, private review records, credentials and personal conversations are excluded. Removal retains existing session history, archives and accounting unless the user separately manages that data.
+The release manifest enumerates the exact installable files. Development profiles, private review records, credentials and personal conversations are excluded. Removal retains session history, archives and accounting unless the user separately manages that data.

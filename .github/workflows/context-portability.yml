@@ -27,6 +27,7 @@ jobs:
   recovery:
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         node: ['22', '24']
@@ -61,8 +62,11 @@ jobs:
           if-no-files-found: warn
 
   archive:
+    needs: recovery
+    if: always()
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         node: ['22', '24']

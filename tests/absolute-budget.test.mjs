@@ -17,8 +17,9 @@ import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import Manager from '../lib/index.js'
-import Engine from '../lib/engine.js'
+import { ContextEngine as Engine } from '../lib/engine.js'
 import { defaults as percentDefaults, budget, validatePolicy, idleFloorTokens } from '../lib/policy.js'
+import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 const defaults={...percentDefaults,capacityMode:'legacy'}
 const ABSOLUTE = { absoluteEnabled: true, absoluteTriggerTokens: 200000, absoluteTargetTokens: 100000 }
@@ -73,6 +74,7 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
+  installTestCompactionHost(ctx)
   await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512, idleEnabled: false, ...policy } })
   await ctx.plugin(Engine)
   const adapter = new Adapter(options)
