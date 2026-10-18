@@ -1,4 +1,19 @@
-# Current candidate: Context 0.10.0-local.13 (local staging)
+# Context 0.10.0-local.13：正式发布与原生交付
+
+2026-10-19（Asia/Shanghai）。本版已发布为[正式 Latest Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.13)，并完成 Ubuntu 日常安装、实际官方 Host 设置持久化与原生 Electron 界面验收。详细机器可读结果见 [DELIVERY-VERIFIED.json](./DELIVERY-VERIFIED.json)。
+
+- 产品源码标签 `v0.10.0-local.13` 对应 `315725ad48fc5bc0f865dd54862f7f574618324c`，后续交付说明不修改该标签或安装包。
+- 最终包为 `missher-dsh-context-manager-0.10.0-local.13.tgz`，347,254 bytes；SHA-256：`2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc`。GitHub 摘要、无认证完整下载和本机24个产品文件（含17个运行文件）一致。
+- 官方 RC.2 的 Basic provider 保留，Context 协作路径和实际设置/Inspector已核对；设置在真实Host写盘、重启后的新进程中读回。宿主与其他插件代码未改，原有设置和数据保留，安装备份及原生截图不公开。
+- 本次没有提交业务模型请求。真实供应商的摘要质量、计费、其他设备及全部业务未据此宣称通过；无模型的原生检查也不证明工具结果最终减量拦截。
+
+**以下是封包时保存的历史记录。** 其中“尚未发布/安装”和冻结manifest的staging标记描述当时阶段；当前交付状态以本节、Release和 `DELIVERY-VERIFIED.json` 为准。源码/安装包不因补充交付记录而重建。
+
+**English:** Local.13 is now a formal Latest release and has passed native Ubuntu installation, actual Host settings persistence, and Electron UI readback. The immutable package and source tag are unchanged. The staging text below is retained as a historical freeze record; real-provider quality and other devices remain outside the verified scope.
+
+---
+
+# Packaging freeze record — historical staging snapshot
 
 **Status:** This is a local packaging candidate. It has not been published as a formal Release, has no public download URL, and has not been installed or accepted in the natural Host UI.
 
