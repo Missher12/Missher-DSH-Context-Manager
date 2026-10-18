@@ -20,6 +20,9 @@
 .cmv-view .cmv-header>.cmv-heading { margin-right: auto; justify-content: flex-start; }
 .cmv-view .cmv-heading { margin-bottom: 8px; flex-wrap: wrap; }
 .cmv-view .cmv-header .cmv-heading { margin-bottom: 0; }
+.cmv-view .cmv-binding-status { display: inline-flex; align-items: center; max-width: 100%; padding: 2px 7px; border: .5px solid var(--dsw-alias-settings-card-stroke); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-1); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.cmv-view .cmv-binding-status[data-mode="enhanced"] { color: var(--dsw-alias-state-success-primary); }
+.cmv-view .cmv-binding-status[data-mode="unavailable"], .cmv-view .cmv-binding-status[data-mode="unknown"] { color: var(--cmv-amber); }
 .cmv-view .cmv-meta { font-size: 12px; color: var(--dsw-alias-label-secondary); margin: 8px 0; flex-wrap: wrap; overflow-wrap: anywhere; }
 .cmv-view .cmv-card { border: .5px solid var(--dsw-alias-settings-card-stroke); border-radius: var(--dsw-radius-xl); padding: 12px; min-width: 0; background: var(--dsw-alias-bg-layer-1); }
 .cmv-view .cmv-metrics { display: grid; grid-template-columns: minmax(0,1fr); gap: 10px; }
@@ -36,6 +39,7 @@
 .cmv-view .cmv-latest { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cmv-view .cmv-small-number { font-size: 20px; font-variant-numeric: tabular-nums; margin: 4px 0; }
 .cmv-view .cmv-small-number small { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.cmv-view .cmv-request-detail { display: block; margin-top: 3px; overflow-wrap: anywhere; }
 .cmv-view [data-color="summary"], .cmv-view [data-category="summary"] { background: var(--dsw-alias-label-deep-diving); }
 .cmv-view [data-color="tool"], .cmv-view [data-category="tool"], .cmv-view [data-usage="uncached"] { background: var(--cmv-blue); }
 .cmv-view [data-color="message"], .cmv-view :is([data-category="user"],[data-category="assistant"]), .cmv-view [data-usage="read"] { background: var(--cmv-green); }

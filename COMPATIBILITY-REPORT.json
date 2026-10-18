@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "packageName": "@missher/dsh-context-manager",
-  "packageVersion": "0.10.0-local.11",
+  "packageVersion": "0.10.0-local.12",
   "compatibilityPolicy": "One neutral Bundle, broad dependency ranges and public runtime capability checks. A version range is not proof that every version implements enhanced compaction.",
   "bundleEntries": [
     "context-manager",
@@ -39,71 +39,71 @@
     "@deepseek-ai/schemastery": "^3.18.4 || 3.18.5-alpha.1"
   },
   "validatedRuntimeReference": {
-    "candidateRevision": "r2",
-    "archiveSha256": "7ccd21435cf82665ae9d32e863e276307bf03536915d6675edd3a70e70f918f7",
-    "clientSha256": "caa7745b4b2992b4e6bac1c6d28143562c411ab0e09033a8d91fc35090dd7ef0",
-    "sourceManifestSha256": "16ed8762f2113b79b29beca3d0aae921dae5f119e860b6bd64a21ffc92d98af0",
-    "releaseDocumentationMayDiffer": true
+    "archiveSha256": "cf0741d238b9864ad1b74e36a49d45a089fa96a740c89c8a70260c4fe9b083d0",
+    "clientSha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad",
+    "sourceFreezeSha256": "482a20f15187002ba477ee52dd355e18b050bfebef9b92f3f4dd6086f53a5f50",
+    "rootDeliveryDiffSha256": "f46ad039fdf45ed34f3e076ae3937d6a3dbe71fbaa19c8d1945e140c33f1a2b8"
   },
-  "testedEnvironments": [
-    {
-      "host": "community frozen v1 capability snapshot",
-      "baseCommit": "0ff7e27023e4791dacef8d55cfb90de962fb2a77",
-      "sourceListSha256": "43fc7611117b4b2c096bb3170753fbd97ac442d71079d0b1e765c819e88b7737",
-      "level": "actual Loader, Manager, Agent, provider and continuation with a synthetic in-memory model adapter",
-      "passed": 6
-    },
-    {
-      "host": "official npm 0.2.1-alpha.5",
-      "mode": "read-only fallback",
-      "naturalHostAssertions": 68,
-      "settingsPersistence": true,
-      "actualWebUi": true,
-      "viewportWidths": [
-        1280,
-        390
-      ],
-      "actualOldPackageReplacement": [
-        "0.10.0-local.9",
-        "0.10.0-local.9-legacy.1"
-      ],
-      "checksPerUpgrade": 31
-    },
-    {
-      "host": "community 0.2.0-rc.2",
-      "mode": "read-only fallback",
-      "naturalHostAssertions": 68,
-      "settingsPersistence": true
-    }
-  ],
   "validation": {
-    "coreRegression": {
-      "total": 401,
-      "passed": 397,
+    "versionedBuildAndPack": "passed one run",
+    "backendDifference": "Only index/engine diagnostic version constants differ;14 other backend files unchanged",
+    "uiRegression": {
+      "uniquePassed": 8,
       "failed": 0,
-      "skipped": 4,
-      "reuse": "unchanged backend; final client fixes covered separately"
+      "r2AffectedCases": 4,
+      "r1UnchangedCasesReused": 4,
+      "clientBuildAndTypecheck": "passed, exact client/source evidence reused"
     },
-    "finalPackagedUi": {
-      "passed": 6,
-      "failed": 0
+    "syntheticBrowser": {
+      "checksPassed": 14,
+      "viewports": [
+        [
+          1280,
+          900
+        ],
+        [
+          390,
+          844
+        ]
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "primitives": "alpha.2 source",
+      "scope": "binding modes, failures, historical view, request-window matching, percentage settings and in-memory save"
     },
-    "finalSettingsFeedback": {
-      "actualOfficialWeb": true,
-      "savedThreshold": 82,
-      "diskAndReopenReadback": 82,
-      "enhancementStillUnsupported": true
+    "officialRc2": {
+      "runtimeVersion": "0.2.1-rc.2",
+      "assertionsPassed": 70,
+      "assertionsFailed": 0,
+      "actualLoader": "core+inspector active; native declaration unchanged",
+      "compactionHostV1Available": false,
+      "enhancementCapable": false,
+      "integration": "unsupported/inactive",
+      "modelNetworkChildAgentAttempts": {
+        "networkAttempts": 0,
+        "childAttempts": 0,
+        "modelAttempts": 0,
+        "agentCreateAttempts": 0
+      },
+      "cleanup": "passed; no live sessions/Agents, preserved synthetic cold session/storage bytes"
     },
-    "realModelCalls": 0,
-    "fullMatrixVersionClaim": false
+    "modelRequests": 0,
+    "fullSuiteRerun": false
+  },
+  "inheritedEvidence": {
+    "version": "0.10.0-local.11",
+    "report": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/v0.10.0-local.11/COMPATIBILITY-REPORT.json",
+    "note": "Historical evidence only; not counted as local.12 reruns"
   },
   "limitations": [
-    "No real-provider quality, latency or billing proof",
-    "No native Electron or community staged-update/HMR acceptance in this plugin review",
-    "Mac/Windows real filesystem CI must be recorded separately from Linux Host/UI checks",
-    "Four specialty regression cases were skipped, not passed",
-    "Stock official alpha.5 and community rc.2 do not expose compactionHost v1; they do not run Context enhanced compaction"
+    "Official 0.2.1-rc.2 lacks compactionHost v1: Context enhanced compaction remains inactive; native provider and user presets are preserved.",
+    "Browser checks use synthetic fixtures and alpha.2 source primitives; not installed rc.2 or native Electron UI proof.",
+    "No real provider/model quality, latency or billing validation; no daily or other-device installation.",
+    "Smaller total working-set algorithm remains research only.",
+    "Historic local.11 regression and other-host evidence is inherited, not rerun for local.12."
   ],
-  "publicationNotes": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/PUBLICATION.md",
-  "recordRole": "Current release validation. COMPATIBILITY.json is the generated implementation-stage contract snapshot; its candidate-era verification text is historical, not current delivery status."
+  "publicationNotes": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/v0.10.0-local.12/PUBLICATION.md",
+  "recordRole": "Scoped release acceptance for exact local.12 archive; generated COMPATIBILITY.json remains a frozen source-stage contract."
 }

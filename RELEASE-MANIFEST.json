@@ -1,53 +1,39 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "package": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.11",
-  "sourceTag": "v0.10.0-local.11",
+  "version": "0.10.0-local.12",
+  "sourceTag": "v0.10.0-local.12",
+  "basePublicCommit": "b35f1509084f72564996e7e50a3d7fbe60103d35",
   "artifact": {
-    "filename": "missher-dsh-context-manager-0.10.0-local.11.tgz",
-    "sha256": "8c461eca88049978b475107d98b3c202a83fa9d568c8938a958a564704527006",
-    "bytes": 277698,
+    "filename": "missher-dsh-context-manager-0.10.0-local.12.tgz",
+    "sha256": "cf0741d238b9864ad1b74e36a49d45a089fa96a740c89c8a70260c4fe9b083d0",
+    "bytes": 279519,
     "fileCount": 24
   },
-  "validationRuntimeReference": {
-    "sha256": "7ccd21435cf82665ae9d32e863e276307bf03536915d6675edd3a70e70f918f7",
-    "revision": "r2",
-    "onlyPackagedDifferences": [
-      "README.en.md",
-      "README.md"
-    ],
-    "unchangedFiles": 22,
-    "allRuntimeManifestOverlayAndGeneratedCompatibilityUnchanged": true
-  },
-  "reviewedSourceManifestSha256": "16ed8762f2113b79b29beca3d0aae921dae5f119e860b6bd64a21ffc92d98af0",
-  "additionalReviewedWorkflow": {
-    "path": ".github/workflows/context-portability.yml",
-    "sha256": "b3e8501627d6859e2e6e93039d8b609c4a8582e40f2aa74573b82b8b6592f9e3",
-    "matrixScheduling": "two unchanged 3-platform x 2-Node matrices, max-parallel 1, archive depends on recovery"
-  },
+  "clientSha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad",
+  "candidateSourceFreezeSha256": "482a20f15187002ba477ee52dd355e18b050bfebef9b92f3f4dd6086f53a5f50",
+  "reviewedProductDeliveryDiffSha256": "f46ad039fdf45ed34f3e076ae3937d6a3dbe71fbaa19c8d1945e140c33f1a2b8",
+  "publicSourcePackageFilesMatch": true,
+  "repositoryOnlyDeliveryMetadata": [
+    "PUBLICATION.md",
+    "COMPATIBILITY-REPORT.json",
+    "RELEASE-MANIFEST.json"
+  ],
   "validationSummary": {
-    "corePassed": 397,
-    "coreFailed": 0,
-    "coreSkipped": 4,
-    "realLoaderContinuationPassed": 6,
-    "finalUiPassed": 6,
-    "naturalHostAssertionsPerEnvironment": 68,
-    "naturalHosts": [
-      "official 0.2.1-alpha.5",
-      "community 0.2.0-rc.2"
-    ],
-    "oldPackageUpgradeChecksPerVariant": 31,
-    "actualOfficialWeb": true,
-    "enhancedGallery": "synthetic component preview, not native enhanced Host proof",
-    "actualProviderCalls": 0
+    "uniqueUiCasesPassed": 8,
+    "syntheticBrowserChecks": 14,
+    "officialRc2LoaderAssertionsPassed": 70,
+    "actualProviderCalls": 0,
+    "compactionHostV1Available": false,
+    "installed": false
   },
   "currentCompatibilityReport": "COMPATIBILITY-REPORT.json",
   "publicationNotes": "PUBLICATION.md",
   "members": [
     {
       "path": "COMPATIBILITY.json",
-      "bytes": 4420,
-      "sha256": "2bd5a824d3efe24f3e2903f9e80f5fbaf35a8875c0409a363427d4a5a3ff0250"
+      "bytes": 6777,
+      "sha256": "64d5731639db47ea7e5e7da333d58e78f77b245ed91cd5ec11696e99a952ffba"
     },
     {
       "path": "LICENSE",
@@ -86,8 +72,8 @@
     },
     {
       "path": "lib/client.js",
-      "bytes": 775891,
-      "sha256": "caa7745b4b2992b4e6bac1c6d28143562c411ab0e09033a8d91fc35090dd7ef0"
+      "bytes": 781765,
+      "sha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad"
     },
     {
       "path": "lib/compaction-cycles.js",
@@ -112,7 +98,7 @@
     {
       "path": "lib/engine.js",
       "bytes": 148430,
-      "sha256": "cd5b0ce36b050a15279039b3024f9d465f5fb8e550ecf866b64d08647c9918da"
+      "sha256": "cd6f24a6707ce0ef97b4ab9f89825b238077d000ad2e6d40518af3bd93ef101d"
     },
     {
       "path": "lib/history-tools.js",
@@ -122,7 +108,7 @@
     {
       "path": "lib/index.js",
       "bytes": 201990,
-      "sha256": "4e81f4653784c762360b2f924e641612bb987ff8dba70b541126d9da3f91ac35"
+      "sha256": "33b47d2845be1e1bbeb144e2e130641f2b89ba913b638a597b0f490344aff2a3"
     },
     {
       "path": "lib/inspector-fold.js",
@@ -162,7 +148,7 @@
     {
       "path": "package.json",
       "bytes": 5413,
-      "sha256": "5b063b8005bc78ec962475d261c64249bb5f84b10268c4a40dab90e42c882e35"
+      "sha256": "0322b7b755187ce5b65d616e5263c9becf013d84f282e3a481eb42ca3ffbe42d"
     }
   ]
 }

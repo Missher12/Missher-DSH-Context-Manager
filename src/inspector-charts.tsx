@@ -228,15 +228,15 @@ export function UsageDetails({ data, t, onCut, capacity }: { data: Inspection; t
       return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta && window !== null ? `≈ ${sign}${amount}` : amount}</strong></span></Tooltip>
     })}</div>}
     {capacity && <div className="cmv-growth cmv-muted" data-compact-capacity data-window={capacity.windowTokens}>
-      <span>{t('window')} <strong>{exactTokens(capacity.windowTokens)} Token</strong></span>
-      <span>{t('gate')} <strong>{exactTokens(capacity.admission)} Token · {formatPercent(capacity.admission, capacity.windowTokens)}</strong></span>
-      <span>{t('planUpper')} <strong>{exactTokens(capacity.upper)} Token · {formatPercent(capacity.upper, capacity.windowTokens)}</strong></span>
-      <span>{t('protectedContent')} <strong>{exactTokens(capacity.protectedTokens)} Token · {formatPercent(capacity.protectedTokens, capacity.windowTokens)}</strong></span>
-      <span>{t('continuationReserve')} <strong>{exactTokens(capacity.resumeHeadroom)} Token · {formatPercent(capacity.resumeHeadroom, capacity.windowTokens)}</strong></span>
-      <span>{t('reserveNeed')} <strong>{exactTokens(capacity.requiredResumeHeadroom)} Token</strong></span>
-      <span>{t('reserveMax')} <strong>{exactTokens(capacity.resumeHeadroomLimit)} Token</strong></span>
-      <span>{t('observedGrowth')} <strong>{exactTokens(capacity.recentGrowth)} Token</strong></span>
-      <span>{t('incomingEstimate')} <strong>{exactTokens(capacity.incomingTokens)} Token</strong></span>
+      <span>{t('window')} <strong>{formatPercent(capacity.windowTokens, capacity.windowTokens)}</strong></span>
+      <span>{t('gate')} <strong>{formatPercent(capacity.admission, capacity.windowTokens)}</strong></span>
+      <span>{t('planUpper')} <strong>{formatPercent(capacity.upper, capacity.windowTokens)}</strong></span>
+      <span>{t('protectedContent')} <strong>{formatPercent(capacity.protectedTokens, capacity.windowTokens)}</strong></span>
+      <span>{t('continuationReserve')} <strong>{formatPercent(capacity.resumeHeadroom, capacity.windowTokens)}</strong></span>
+      <span>{t('reserveNeed')} <strong>{formatPercent(capacity.requiredResumeHeadroom, capacity.windowTokens)}</strong></span>
+      <span>{t('reserveMax')} <strong>{formatPercent(capacity.resumeHeadroomLimit, capacity.windowTokens)}</strong></span>
+      <span>{t('observedGrowth')} <strong>{formatPercent(capacity.recentGrowth, capacity.windowTokens)}</strong></span>
+      <span>{t('incomingEstimate')} <strong>{formatPercent(capacity.incomingTokens, capacity.windowTokens)}</strong></span>
     </div>}
     {data.efficiency && <EfficiencyLine efficiency={data.efficiency} t={t}/>}
     {data.reduction ? <ReductionLine reduction={data.reduction} t={t}/> : data.historical ? <p className="cmv-muted cmv-summary-usage">{t('histUnavailable')}</p> : null}

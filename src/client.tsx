@@ -230,8 +230,6 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           </div>
           <p className="cm-hint">当前协议：{draft.checkpointFormat === 'json' ? 'JSON 七字段（历史默认，兼容旧 checkpoint）' : 'Markdown 固定段落（模型输出转义负担更低）'}。切换只影响后续摘要；旧 JSON checkpoint 继续可读，不迁移或删除已保存配置。</p>
           {toggle('formatRepairEnabled', '本地结构修复', '结构校验失败且确定属于“单字符串误写为数组”时，由程序按原值包装后提交；不再重发模型，也不产生第二次收费。关闭后此类失败直接保留原文并终止。', !draft.enabled)}
-          {numeric('repairPercent', '格式修复输出上限（%）（兼容保留）', '旧配置字段，仅为可读与回退保留；当前修复在本地完成，不使用此额度，不产生额外模型调用。', true)}
-          {numeric('formatRepairMaxTokens', '格式修复输出上限（Token）（兼容保留）', '旧配置字段，仅为可读与回退保留；当前本地结构修复不调用模型，不使用此值。', true)}
           <div role="group" aria-label="压缩时限模式">
             {(['fixed', 'adaptive'] as const).map(summaryTimeoutMode => <Button key={summaryTimeoutMode} size="sm" aria-pressed={draft.summaryTimeoutMode === summaryTimeoutMode} disabled={disabled} onClick={() => edit({ summaryTimeoutMode })}>{summaryTimeoutMode === 'fixed' ? '固定总时限' : '按输出进展等待'}</Button>)}
           </div>

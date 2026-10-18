@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.0-local.11",
-  "runtimeDiagnosticVersion": "0.10.0-local.11",
+  "candidatePackageVersion": "0.10.0-local.12",
+  "runtimeDiagnosticVersion": "0.10.0-local.12",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "Scoped build and typechecks passed; package regression (397 passed, 4 skipped), same-package Loader integration (6/6) and final client UI regression (5/5) are recorded. This isolated candidate is not an accepted Release; natural-Host, upgrade, visual/native UI and real-provider checks remain pending.",
+  "candidateStatus": "Local.12 source snapshot carries the six accepted R2 UI files. R2 evidence: four targeted cases passed plus four reused unchanged cases (8 unique relevant cases), and a 14-check synthetic browser smoke using alpha.2 source primitives and synthetic fixtures. The local.11 package regression (397 passed, 4 skipped), same-package Loader (6/6), and final-client checks are historical local.11 evidence, not local.12 acceptance. This source snapshot contains no local.12 build/package or official rc.2 Loader result; use a separate acceptance receipt. Official rc.2 lacks compactionHost v1; preserve the native provider and read-only fallback, and do not force enhanced takeover.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
@@ -17,7 +17,11 @@
       "new-bindings-only",
       "future-selection-only"
     ],
-    "missingCapability": "Keep Host provider and every user preset unchanged; save Context policy without activating it."
+    "missingCapability": "Keep Host provider and every user preset unchanged; save Context policy without activating it.",
+    "officialRc2": {
+      "compactionHostV1Available": false,
+      "fallback": "Preserve the native provider and Context read-only view; do not force enhanced takeover."
+    }
   },
   "overlayContract": {
     "presetSnapshots": false,
@@ -36,7 +40,9 @@
       "passed": 397,
       "failed": 0,
       "skipped": 4,
-      "note": "Ran before the final client-only emergency epoch guard."
+      "note": "Ran before the final client-only emergency epoch guard.",
+      "evidencePackageVersion": "0.10.0-local.11",
+      "local12Acceptance": "historical local.11 evidence only; not rerun for local.12"
     },
     "samePackageLoader": {
       "total": 6,
@@ -48,7 +54,9 @@
         "oldCandidateReferences": 0,
         "duplicateHostIdentities": 0,
         "unresolvedImports": 0
-      }
+      },
+      "evidencePackageVersion": "0.10.0-local.11",
+      "local12Acceptance": "historical local.11 evidence only; not rerun for local.12"
     },
     "finalClient": {
       "build": "passed",
@@ -59,16 +67,47 @@
         "failed": 0,
         "environment": "JSDOM",
         "clientSha256": "a70bb21f23a2ff3b0a2fad8f617ff8e5e27bb1e6088274da2c133818eafdf638"
-      }
+      },
+      "evidencePackageVersion": "0.10.0-local.11",
+      "local12Acceptance": "historical local.11 evidence only; not rerun for local.12"
     },
     "pending": [
+      "Separate local.12 versioned package build and cached official rc.2 Context Loader acceptance receipt",
       "Independent natural Host runtime checks",
       "Package upgrade review",
-      "Browser visual review and public screenshots",
+      "Installed Host UI review and public screenshots",
       "Native Electron UI",
       "Real provider/model behavior and billing",
-      "Installation and Release"
-    ]
+      "Daily installation and Release"
+    ],
+    "r2UiCandidate": {
+      "status": "accepted UI source and synthetic browser evidence; no package acceptance",
+      "sourceFreezeDiffSha256": "791e207c5249fe171cfd5ce10cfea29c3673bc3e9271314cd7c0d6715ca06ab1",
+      "clientSha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad",
+      "targetedCases": {
+        "r2": {
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0
+        },
+        "r1UnchangedCasesReused": 4,
+        "uniqueRelevantCasesPassed": 8
+      },
+      "syntheticBrowserSmoke": {
+        "status": "passed",
+        "checks": 14,
+        "primitives": "0.2.1-alpha.2 source",
+        "fixtures": "synthetic",
+        "installedHostOrRealModelAcceptance": false
+      },
+      "algorithmUpgrade": "research only; not implemented"
+    },
+    "local12Acceptance": {
+      "record": "No local.12 build/package/official rc.2 Loader result is recorded in this source snapshot; consult a separate acceptance receipt.",
+      "officialRc2CompactionHostV1Available": false,
+      "fallback": "Native provider and read-only Context view; no forced enhanced takeover."
+    }
   },
   "compatibilityRanges": {
     "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",
@@ -90,7 +129,8 @@
   "plannedIntegrationTarget": {
     "hostCommit": "0ff7e27023e4791dacef8d55cfb90de962fb2a77",
     "sourceManifestSha256": "43fc7611117b4b2c096bb3170753fbd97ac442d71079d0b1e765c819e88b7737",
-    "state": "same-package Loader integration passed 6/6; independent natural-Host, upgrade and visual/native UI review pending"
+    "state": "Local.11 same-package Loader integration passed 6/6 as inherited baseline evidence; local.12 package build and official rc.2 Loader results are not recorded in this source snapshot.",
+    "evidencePackageVersion": "0.10.0-local.11"
   },
   "priorRollback": {
     "artifactVersion": "0.10.0-local.9",

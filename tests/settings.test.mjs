@@ -515,7 +515,7 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
 test('current context shows full-window percentages and keeps all original bucket measures', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced' },
+  const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' },
     pressure: {window:1000000,projected:320000,input:310000}, official: null, usage: null, model: {provider:'mock',model:'large',maxTokens:64000,effort:null},
     admission: {tokens:320000,logRevision:3,baseline:'usage',window:1000000,outputReserve:64000},
     parts: [{category:'summary',tokens:30000,count:1},{category:'tool',tokens:200000,count:1},{category:'user',tokens:50000,count:1},{category:'system',tokens:20000,count:1}],
@@ -525,7 +525,7 @@ test('current context shows full-window percentages and keeps all original bucke
   const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
   let inspected
   const ready = new Promise(resolve => { inspected = resolve })
-  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async () => { inspected(); return snapshot } }
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '', compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Idle enhanced' } }), inspect: async () => { inspected(); return snapshot } }
   const root = createRoot(document.getElementById('root'))
   try {
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'capacity', form, api, pulse })))
@@ -552,7 +552,7 @@ test('current context shows full-window percentages and keeps all original bucke
 test('request status uses live admission pressure, leaves unknown cuts unknown and preserves projection trends', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const base = { sessionId: 'admission', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced' },
+  const base = { sessionId: 'admission', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' },
     pressure: { window: 200000, projected: 100000, input: 99000 }, official: null, usage: null,
     model: { provider: 'offline', model: '200k', maxTokens: 8192, effort: null }, parts: [], rows: [],
     total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, compactions: [],
@@ -562,14 +562,18 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
   const form = { subscribe: () => () => {}, getSnapshot: () => formValue }
   const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
   const root = createRoot(document.getElementById('root'))
-  const render = async snapshot => {
-    const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async () => snapshot }
+  const render = async (snapshot, idleMode = null, idleCapacity = null) => {
+    const statusMode = idleMode ?? snapshot.compression?.mode ?? null
+    const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '', ...(statusMode ? { compression: { mode: statusMode, hostCapability: 'supported', reason: `idle ${statusMode}` } } : {}), ...(idleCapacity ? { capacity: idleCapacity } : {}) }), inspect: async () => snapshot }
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'admission', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
   }
   const status = () => document.querySelector('.cmv-quick')
+  const binding = () => document.querySelector('.cmv-binding-status')
   try {
     await render({ ...base, admission: reading })
+    assert.equal(binding().dataset.mode, 'enhanced')
+    assert.match(binding().textContent, /Context 增强（当前会话）/)
     assert.match(status().textContent, /预计先压缩，再执行/)
     assert.equal(status().querySelector('[data-admission-tokens]').dataset.admissionTokens, '170000')
     assert.match(status().textContent, /检查线 79\.00%/)
@@ -586,11 +590,42 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.match(status().textContent, /检查线 —/)
       if(snapshot.admission?.window===null)assert.equal(document.querySelector('.cmv-composition .cmv-number strong').textContent,'≈ —','current unknown route cannot borrow old pressure window')
     }
-    for (const mode of ['native', 'unknown']) {
-      await render({ ...base, compression: { mode }, admission: reading })
+    for (const mode of ['native', 'other', 'unconfigured', 'unavailable', 'unknown']) {
+      await render({ ...base, compression: { mode, hostCapability: 'supported', reason: `Inspection ${mode}` }, admission: reading })
       assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
       assert.match(status().textContent, /检查线 —/)
+      assert.equal(binding().dataset.mode, mode)
+      if (mode === 'native') assert.match(binding().textContent, /策略未用于此会话/)
     }
+    await render({ ...base, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' }, admission: reading }, 'native')
+    assert.equal(binding().dataset.mode, 'unknown', 'conflicting current reads fail closed')
+    assert.match(binding().textContent, /读数不一致/)
+    assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
+    const latestRequest = { seq: 3, time: 1001, turn: 1, step: 2, provider: 'offline', model: '200k', input: 43210, output: 800, cacheRead: null }
+    await render({ ...base, requests: [latestRequest] })
+    assert.match(status().textContent, /窗口比例未知/)
+    assert.match(status().querySelector('.cmv-request-detail').textContent, /43,210 Token/)
+    assert.doesNotMatch(status().querySelector('.cmv-request-detail').textContent, /99,000/)
+    await render({ ...base, requests: [latestRequest], pressureHistory: [{ seq: 3, time: 1001, kind: 'current', tokens: 80000, window: 100000 }] })
+    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a current point cannot supply a request denominator even at the same seq')
+    const requestWindowHistory = [
+      { seq: 2, time: 1000, kind: 'reply', tokens: 120000, window: 200000 },
+      { seq: 3, time: 1001, kind: 'reply', tokens: 80000, window: 100000 },
+      { seq: 4, time: 1002, kind: 'current', tokens: 300000, window: 400000 },
+    ]
+    await render({ ...base, model: { provider: 'offline', model: 'switched-model', maxTokens: 4096, effort: null },
+      requests: [{ ...latestRequest, seq: 2, time: 1000 }, latestRequest], pressureHistory: requestWindowHistory })
+    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /43\.21%/,'same-model requests use their own windows after the current model changes')
+    await render({ ...base, requests: [latestRequest], pressureHistory: requestWindowHistory.map(point => point.seq === 3 ? { ...point, time: 9999 } : point) })
+    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a mismatched event time is not treated as this request denominator')
+    await render({ ...base, requests: [latestRequest], pressureHistory: requestWindowHistory.map(point => point.seq === 3 ? { ...point, window: null } : point) })
+    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a reply without a recorded window stays unknown')
+    await render({ ...base, admission: reading }, null, { windowTokens: 200000, admission: 150000, upper: 130000, resumeHeadroom: 20000,
+      requiredResumeHeadroom: 10000, resumeHeadroomLimit: 30000, recentGrowth: 9000, protectedTokens: 25000, totalTokens: 160000, incomingTokens: 5000 })
+    const capacityDetails = document.querySelector('[data-compact-capacity]').textContent
+    assert.match(capacityDetails, /75\.00%/)
+    assert.match(capacityDetails, /100\.00%/)
+    assert.doesNotMatch(capacityDetails, /Token/,'capacity details use percentages while usage ledgers retain Token units')
     await render({...base,admission:{...reading,window:1000000}})
     assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
     await render({ ...base, pressure:null, admission: reading, historical: true, rows:[{id:'past',seq:1,title:'historical row',category:'user',current:true,source:'fixture',tokens:20000,images:0}], total:1 })
@@ -598,6 +633,72 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.match(status().textContent, /历史截面/)
     assert.match(status().textContent, /准入计量 未知/)
     assert.equal(status().querySelector('[data-admission-tokens]'), null)
+    assert.equal(binding().dataset.mode, 'enhanced')
+    assert.match(binding().textContent, /历史截面（不代表当前）/)
+    assert.doesNotMatch(binding().textContent, /当前会话/)
+    assert.equal(document.querySelector('[data-compact-capacity]'), null, 'historical cuts do not reuse current idle-plan capacity')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('binding badge does not present retained enhancement as current while refreshing or after a failed read', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const snapshot = { sessionId: 'binding-refresh', cursor: 1, cutSeq: 1, sampledAt: 10, historical: false,
+    compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Context active' }, pressure: null, official: null, usage: null,
+    admission: { tokens: 50000, logRevision: 1, baseline: 'usage', window: 200000, outputReserve: 8192 },
+    model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0,
+    requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
+  const formSnapshot = { revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => formSnapshot }
+  let pulseRevision = 1
+  const pulseListeners = new Set()
+  const pulse = { subscribe: callback => { pulseListeners.add(callback); return () => pulseListeners.delete(callback) }, getSnapshot: () => pulseRevision }
+  let behavior = 'success', idleBehavior = 'success', rejectPending
+  const api = {
+    idleStatus: async () => {
+      if (idleBehavior === 'failure') throw new Error('idle offline')
+      return { status: 'off', dueAt: null, message: '', compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Idle active' } }
+    },
+    inspect: async () => {
+      if (behavior === 'failure') throw new Error('offline')
+      if (behavior === 'pending') return new Promise((_, reject) => { rejectPending = reject })
+      return snapshot
+    },
+  }
+  const root = createRoot(document.getElementById('root'))
+  const binding = () => document.querySelector('.cmv-binding-status')
+  const wait = async ms => act(async () => new Promise(resolve => setTimeout(resolve, ms)))
+  const refreshPulse = async () => act(async () => { pulseRevision++; pulseListeners.forEach(callback => callback()) })
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'binding-refresh', form, api, pulse })))
+    await wait(230)
+    assert.equal(binding().dataset.mode, 'enhanced')
+    assert.match(document.querySelector('.cmv-quick').textContent, /预计可继续执行/)
+    idleBehavior = 'failure'
+    await refreshPulse(); await wait(230)
+    assert.equal(binding().dataset.mode, 'unknown', 'an idle polling failure cannot fall back to a retained Inspection binding')
+    assert.match(binding().textContent, /刷新失败，当前绑定未知/)
+    assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /预计可继续执行|预计先压缩/)
+    idleBehavior = 'success'
+    await refreshPulse(); await wait(230)
+    assert.equal(binding().dataset.mode, 'enhanced', 'a successful current idle read restores the actual binding')
+    assert.match(document.querySelector('.cmv-quick').textContent, /预计可继续执行/)
+    behavior = 'pending'
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '刷新数据').click())
+    await wait(230)
+    assert.equal(binding().dataset.mode, 'unknown')
+    assert.match(binding().textContent, /正在刷新绑定状态/)
+    assert.doesNotMatch(binding().textContent, /Context 增强/)
+    await act(async () => { rejectPending(new Error('offline')); await new Promise(resolve => setTimeout(resolve, 0)) })
+    assert.equal(binding().dataset.mode, 'unknown')
+    assert.match(binding().textContent, /刷新失败，当前绑定未知/)
+    assert.doesNotMatch(binding().textContent, /Context 增强/)
+    behavior = 'pending'
+    idleBehavior = 'failure'
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'other-session', form, api, pulse })))
+    assert.equal(binding().dataset.mode, 'unknown', 'switching sessions cannot carry over the previous Agent badge')
+    assert.doesNotMatch(binding().textContent, /Context 增强/)
+    rejectPending(new Error('cancelled'))
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
@@ -636,7 +737,7 @@ test('percentage settings require explicit legacy migration, preserve old fields
 test('settings: checkpoint protocol selector keeps JSON default and saves sections explicitly', async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'})
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
- const legacy={...defaults};delete legacy.checkpointFormat
+ const legacy={...defaults,repairPercent:8.5,formatRepairMaxTokens:777};delete legacy.checkpointFormat
  const writes=[],listeners=new Set()
  let snapshot={status:'ready',writable:true,mode:'host',revision:21,value:{policy:legacy}}
  const form={subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)},getSnapshot:()=>snapshot,async mutate(ops,revision){writes.push({ops,revision});snapshot={...snapshot,revision:snapshot.revision+1,value:{policy:ops[0].value}};listeners.forEach(cb=>cb());return true}}
@@ -646,6 +747,8 @@ test('settings: checkpoint protocol selector keeps JSON default and saves sectio
  try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
   assert.equal(button('JSON 七字段').getAttribute('aria-pressed'),'true','legacy config reads as JSON default without migration')
+  assert.equal(document.getElementById('context-manager-repairPercent'),null,'obsolete repair quota is hidden from settings')
+  assert.equal(document.getElementById('context-manager-formatRepairMaxTokens'),null,'obsolete repair Token cap is hidden from settings')
   assert.equal(writes.length,0)
   await click('Markdown 段落');await click('保存设置')
   assert.equal(writes[0].ops[0].value.checkpointFormat,'sections','the explicit UI choice is written to the policy')
@@ -966,7 +1069,7 @@ test('compact panel keeps long model, failures and exact content selection reach
   const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: reason }),
     inspect: async query => ({ ...query, cursor: 10, cutSeq: 10, sampledAt: 1000, historical: false, pressure: null, official: null, usage: null,
       model: { provider: 'synthetic', model, maxTokens: 8192, effort: null }, parts: [], rows, total: 7, pageSize: 50, activeCount: 7, archivedCount: 0,
-      requests: [{ seq: 9, turn: 9, step: 28, input: 8000000, output: null, cacheRead: null }], requestCount: 1, pressureHistory: [],
+      requests: [{ seq: 9, time: 1000, turn: 9, step: 28, provider: 'synthetic', model, input: 8000000, output: null, cacheRead: null }], requestCount: 1, pressureHistory: [],
       compactions: [{ id: 'failed', kind: 'compact', status: 'failed', startedAt: 1000, applied: false, error: reason }, { id: 'running', kind: 'compact', status: 'running', startedAt: 2000, applied: false }] }),
     content: async query => { readIds.push(query.id); return { ...query, text: 'selected original', totalChars: 17, nextOffset: null } } }
   const root = createRoot(document.getElementById('root'))
@@ -976,7 +1079,8 @@ test('compact panel keeps long model, failures and exact content selection reach
     assert.equal(document.querySelector('.cmv-context-title .cmv-model').textContent, `synthetic / ${model}`)
     assert.equal(document.querySelectorAll('.cmv-model').length, 1)
     assert.equal(document.querySelector('.cmv-quick .cmv-donut'), null)
-    assert.match(document.querySelector('.cmv-quick').textContent, /8.00M/)
+    assert.match(document.querySelector('.cmv-quick').textContent, /窗口比例未知/)
+    assert.match(document.querySelector('.cmv-quick').textContent, /8,000,000 Token/)
     assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /9 轮/)
     assert.match(document.querySelector('.cmv-data-basis').textContent, /9 轮 · 28 步/)
     assert.equal(document.querySelector('.cmv-record-detail .cmv-error').textContent, reason)
@@ -993,7 +1097,7 @@ test('compact panel keeps long model, failures and exact content selection reach
 test('manual emergency UI requires separate preview and explicit unknown-cost confirmation; zero dispatch is not unknown usage',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
  const snapshot={revision:1,value:{policy:defaults}},calls=[]
- const api={idleStatus:async()=>({status:'off',dueAt:null,message:'quota',compression:{mode:'enhanced'},emergency:{eligible:true,used:false,message:'旧调用费用未知'}}),
+ const api={idleStatus:async()=>({status:'off',dueAt:null,message:'quota',compression:{mode:'enhanced',hostCapability:'supported',reason:'Fixture enhanced'},emergency:{eligible:true,used:false,message:'旧调用费用未知'}}),
   inspect:async q=>({...q,cursor:10,cutSeq:10,sampledAt:1,historical:false,pressure:null,official:null,usage:null,model:null,parts:[],rows:[],total:0,pageSize:50,activeCount:0,archivedCount:0,requests:[],requestCount:0,pressureHistory:[],compactions:[{id:'denied',kind:'compact',status:'failed',startedAt:1,endedAt:2,applied:false,modelCallStatus:'not_dispatched'}]}),
   prepareEmergency:async()=>{calls.push('prepare');return {token:'token',expiresAt:Date.now()+120000,cycle:1,warning:'未知费用可能再次收费',model:'mock/large',deadline:'600s',estimatedInput:8000}},
   executeEmergency:async q=>{assert.equal(q.acceptUnknownCost,true);calls.push('execute');return {granted:true}}}

@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { Button, Checkbox, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { Policy } from './policy.ts'
-import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery } from './inspector-types.ts'
+import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery, type RequestRow } from './inspector-types.ts'
 import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, PressureTrend, UsageComposition, contextWindow, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
 import { inspectorText, type InspectorLocaleKey, type InspectorText } from './inspector-locales.ts'
 import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
+import type { CompactionReadout } from './compatibility.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
 import css from './inspector.css'
 
@@ -32,7 +33,58 @@ function compressionLabel(mode: NonNullable<Inspection['compression']>['mode']):
   }
 }
 
-function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void }) {
+type BindingSnapshot = { target: string; state: 'loading' | 'ready' | 'missing' | 'failed'; value: CompactionReadout | null }
+type BindingBadge = { mode: CompactionReadout['mode']; text: string; title: string }
+function bindingsDisagree(left: CompactionReadout, right: CompactionReadout): boolean {
+  if (left.mode !== right.mode || left.hostCapability !== right.hostCapability) return true
+  return (['agentPreset', 'generation', 'provider', 'source'] as const).some(key => left[key] !== undefined && right[key] !== undefined && left[key] !== right[key])
+}
+function inactivityReason(binding: CompactionReadout): InspectorLocaleKey | null {
+  switch (binding.mode) {
+    case 'enhanced': return null
+    case 'native': return 'reasonNative'
+    case 'other': return 'reasonOther'
+    case 'unconfigured': return 'reasonUnconfigured'
+    case 'unavailable': return 'reasonUnavailable'
+    default: return binding.hostCapability === 'unsupported' ? 'reasonHostUnsupported' : 'reasonUnknown'
+  }
+}
+function bindingBadge(data: Inspection | null, idle: BindingSnapshot | null, target: string, historical: boolean, stale: boolean, failed: boolean, t: InspectorText): BindingBadge {
+  if (historical) {
+    const binding = data?.compression
+    const label = binding?.mode === 'enhanced' ? t('enhancedHistorical') : binding ? t(compressionLabel(binding.mode)) : t('unknownBinding')
+    return { mode: binding?.mode ?? 'unknown', text: `${t('historicalBinding')} · ${label}`, title: binding?.reason ?? '' }
+  }
+  if (stale) {
+    return { mode: 'unknown', text: `${t('currentAgent')} · ${t(failed ? 'bindingRefreshFailed' : 'bindingRefreshing')}`, title: '' }
+  }
+  const currentIdle = idle?.target === target ? idle : null
+  if (!currentIdle || currentIdle.state === 'loading') {
+    return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingRefreshing')}`, title: '' }
+  }
+  if (currentIdle.state === 'failed') {
+    return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingRefreshFailed')}`, title: '' }
+  }
+  if (currentIdle.state === 'missing' || !currentIdle.value) {
+    return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingMissing')}`, title: '' }
+  }
+  const idleValue = currentIdle.value
+  const inspected = data?.compression ?? null
+  if (inspected && idleValue && bindingsDisagree(inspected, idleValue)) {
+    return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingConflict')}`, title: `${inspected.reason} / ${idleValue.reason}` }
+  }
+  const binding = inspected ?? idleValue
+  if (!binding) return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingMissing')}`, title: '' }
+  const reason = inactivityReason(binding)
+  return { mode: binding.mode, text: `${t('currentAgent')} · ${t(compressionLabel(binding.mode))}${reason ? ` · ${t(reason)}` : ''}`, title: binding.reason }
+}
+function requestWindow(data: Inspection, request: RequestRow | undefined): number | null {
+  if (!request) return null
+  const reply = data.pressureHistory?.find(point => point.kind === 'reply' && point.seq === request.seq && point.time === request.time)
+  return reply && typeof reply.window === 'number' && Number.isFinite(reply.window) && reply.window > 0 ? reply.window : null
+}
+
+function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity, onBinding }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void; onBinding: (value: BindingSnapshot) => void }) {
   const [state, setState] = useState<{ target: string; value: IdleStatus } | null>(null)
   const [error, setError] = useState(false)
   const [recovering, setRecovering] = useState(false)
@@ -46,10 +98,12 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     async function read() {
+      onBinding({ target, state: 'loading', value: null })
       try {
         const value = await api.idleStatus({ sessionId: target }, abort.signal)
         if (abort.signal.aborted) return
         setState({ target, value }); setError(false)
+        onBinding({ target, state: value.compression ? 'ready' : 'missing', value: value.compression ?? null })
         currentCompressionMode.current = value.compression?.mode ?? 'unknown'
         if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; setEmergencyPlan(null) }
         timer = setTimeout(() => { void read() }, value.status === 'compacting' ? 1000 : 5000)
@@ -58,6 +112,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
         if (!abort.signal.aborted) {
           setState(null)
           onCapacity(null)
+          onBinding({ target, state: 'failed', value: null })
           currentCompressionMode.current = 'unknown'; emergencyEpoch.current++
           action.current?.abort(); action.current = null
           setRecovering(false); setRecoveryResult(''); setEmergencyPlan(null)
@@ -68,7 +123,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     }
     void read()
     return () => { abort.abort(); clearTimeout(timer) }
-  }, [target, api, revision, settingsRevision, retry, onCapacity])
+  }, [target, api, revision, settingsRevision, retry, onCapacity, onBinding])
   const value = state?.target === target ? state.value : null
   useEffect(() => { onCapacity(value?.capacity ?? null) }, [onCapacity, value])
   const message = value?.status === 'scheduled' && value.dueAt !== null && !/background|busy/u.test(value.reasonCode ?? '')
@@ -96,6 +151,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
           || modeAtStart !== 'enhanced' || currentCompressionMode.current !== 'enhanced'
           || emergencyEpoch.current !== epochAtStart) return
         setState({ target, value: current }); setError(false)
+        onBinding({ target, state: current.compression ? 'ready' : 'missing', value: current.compression ?? null })
         currentCompressionMode.current = current.compression?.mode ?? 'unknown'
         if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; return }
         await api.executeEmergency({sessionId:target,token:plan.token,acceptUnknownCost:true},controller.signal)
@@ -110,7 +166,6 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     finally{if(!controller.signal.aborted)setRecovering(false)}
   }
   return <span role="status" aria-label={t('idle')}>{t('idle')} · {error ? t('idleUnknown') : message ?? t('idleWait')}
-    {value?.compression && <> · <span title={value.compression.reason}>{t(compressionLabel(value.compression.mode))}</span></>}
     {value?.deadline && <> · 当前设置：{value.deadline}</>}
     {value?.execution && <> · {value.execution}</>}
     {value?.capacity && <> · {t('gate')} {formatPercent(value.capacity.admission, value.capacity.windowTokens)} · {t('planUpper')} {formatPercent(value.capacity.upper, value.capacity.windowTokens)} · {t('continuationReserve')} {formatPercent(value.capacity.resumeHeadroom, value.capacity.windowTokens)}</>}
@@ -123,19 +178,20 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
   </span>
 }
 
-function RequestStatus({ data, policy, stale, t }: { data: Inspection; policy: Policy | undefined; stale: boolean; t: InspectorText }) {
-  const pressure = data.pressure
-  const reading = data.historical ? undefined : data.admission
-  const mode = data.compression?.mode ?? 'unknown'
-  const gate = mode === 'enhanced' ? admissionBudget(data, policy) : undefined
+function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspection; policy: Policy | undefined; stale: boolean; bindingMode: CompactionReadout['mode']; t: InspectorText }) {
+  const reading = stale || data.historical ? undefined : data.admission
+  const mode = stale ? 'unknown' : bindingMode
+  const gate = !stale && mode === 'enhanced' ? admissionBudget(data, policy) : undefined
   const status = stale ? 'stale' : data.historical ? 'historical' : mode !== 'enhanced' ? compressionLabel(mode)
     : policy && !policy.enabled ? 'off' : !gate || !reading ? 'unknown' : reading.tokens >= gate.admission ? 'compactFirst' : 'continue'
   const source = gate ? gate.admissionSource === 'absolute' ? t('gateAbsolute') : gate.admissionSource === 'hard' ? t('gateHard') : t('gatePercent') : ''
   const effectiveCapacity = policy && gate ? capacityTokens(policy,gate.window) : null
   const recent = data.requests.at(-1)
+  const recentWindow = requestWindow(data, recent)
+  const recentCapacity = !recent ? '—' : recent.input == null ? t('unknownUsage') : recentWindow === null ? t('requestWindowUnknown') : formatPercent(recent.input, recentWindow)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={mode === 'enhanced' ? t('admissionHint') : t('bindingHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · 近期原文 ${formatPercent(effectiveCapacity.recent,gate.window)} · 摘要 ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)} · 修复 ${formatPercent(Math.min(effectiveCapacity.repair,effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
-    <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{formatTokens(recent?.input ?? pressure?.input)} <small>Token</small></strong></div></div>
+  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={mode === 'enhanced' ? t('admissionHint') : t('bindingHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · ${t('recentBudget')} ${formatPercent(effectiveCapacity.recent,gate.window)} · ${t('summary')} ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
+    <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{recentCapacity}</strong><span className="cmv-muted cmv-request-detail">{recent ? `${t('requestInputDetail')} · ${recent.input == null ? t('unknownUsage') : `${exactTokens(recent.input)} Token`}` : t('noRequest')}</span></div></div>
     <div><h3>{t('cache')}</h3><div className="cmv-request-values"><strong>{hit === null ? '—' : `${Math.round(hit)}%`}</strong></div></div>
   </div>
 }
@@ -196,8 +252,9 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [selectedContent, setSelectedContent] = useState('')
   const [openLatest, setOpenLatest] = useState(0)
   const [idleCapacity, setIdleCapacity] = useState<CompactCapacity | null>(null)
+  const [idleBinding, setIdleBinding] = useState<BindingSnapshot | null>(null)
   const recordsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null) }, [target])
+  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null) }, [target])
   const scrollToContent = useRef(false)
   const [query, setQuery] = useState<InspectQuery>({ sessionId: target, ...defaultQuery })
   const [data, setData] = useState<{ value: Inspection; key: string } | null>(null)
@@ -210,6 +267,8 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const key = JSON.stringify(effective)
   const automatic = effective.atSeq === null ? revision : null
   const safeData = data?.key === key && data.value.sessionId === target ? data.value : null
+  const historical = effective.atSeq !== null || !!safeData?.historical
+  const binding = bindingBadge(safeData, idleBinding, target, historical, loading || !!error, !!error, t)
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true); setError('')
@@ -228,20 +287,20 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   function showCut(seq: number) { change({ ...defaultQuery, group: undefined, atSeq: seq }) }
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
-    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span></div><Tooltip label={t('settingsHint')} portal><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(retry + 1)}>{t('refresh')}</Button></header>
-      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
+    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span></div><Tooltip label={t('settingsHint')} portal><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => { setLoading(true); setError(''); setRetry(retry + 1) }}>{t('refresh')}</Button></header>
+      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
       {safeData?.goal?.blockedReason && !safeData.historical && <div className="cmv-notice"><span role="status">{t('goalStop')}：{safeData.goal.blockedReason.code} · {safeData.goal.blockedReason.message} · {safeData.goal.roundsStarted}/{safeData.goal.maxGoalRounds} {t('goalRounds')}。{t('goalIndependent')}</span></div>}
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')} portal><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
-      {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div>}
+      {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => { setLoading(true); setError(''); setRetry(retry + 1) }}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
-        <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={loading || !!error} t={t}/></div>
+        <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={loading || !!error} bindingMode={binding.mode} t={t}/></div>
         <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
         <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest}/></div>
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
           {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatPercent(row.tokens,contextWindow(safeData))}</b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
           {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
         </div>
-        <UsageDetails data={safeData} t={t} onCut={showCut} capacity={idleCapacity}/>
+        <UsageDetails data={safeData} t={t} onCut={showCut} capacity={safeData.historical ? null : idleCapacity}/>
         <footer className="cmv-footer"><span>{t('updated')} {formatTime(safeData.sampledAt)}</span><span>{t('readonly')} · {t('record')} {safeData.cutSeq}</span></footer>
       </>}
     </div>
