@@ -20,9 +20,11 @@ import { TextArchive, type ArchiveSummary } from './archive.ts'
 import type { ReductionReadout } from './inspector-types.ts'
 import { registerToolResultReduction, type ReductionStats } from './tool-results.ts'
 import { CONTEXT_ENGINE_MODULE, CONTEXT_MANAGER_ORIGIN, hostCapabilityReadout, isEnhancedBinding, readAgentCompaction, resolveCompactionHost,
-  type CompactionReadout, type ContextProviderRegistrationReadout, type HostCapabilityProbe } from './compatibility.ts'
+  CONTEXT_BASIC_IDLE_SIDECAR, isNativeBasicCompaction, type CompactionReadout, type ContextCooperationReadout,
+  type ContextProviderRegistrationReadout, type HostCapabilityProbe } from './compatibility.ts'
 import { registerContextCompaction } from './registration.ts'
 import { CONTEXT_MANAGER_VERSION } from './version.ts'
+import { ContextEngine } from './engine.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextManager: ContextManager } }
 export interface Config { policy: Volatile<Policy> }
@@ -67,6 +69,7 @@ export default class ContextManager extends Service {
   private registrationReadout: ContextProviderRegistrationReadout
   private reductionStats?: () => ReductionStats
   private pipelineReported?: () => boolean
+  private reductionAvailable?: () => boolean
   private reductionSessions?: () => ReadonlyMap<string, { published: number; reverted: number }>
   private archive?: TextArchive
   private archiveFailure?: string
@@ -78,6 +81,7 @@ export default class ContextManager extends Service {
   private readonly stops = new Map<string, { reasonCode: string; message: string }>()
   private readonly recoveries = new Map<string, (signal: AbortSignal) => Promise<void>>()
   private readonly drains = new Set<() => Promise<void>>()
+  private basicIdleSidecarState: 'inactive' | 'pending' | 'active' | 'failed' = 'inactive'
   static Config = z.object({
     policy: z.object({
       capacityMode: z.union([z.const('legacy'), z.const('percent')]).default('legacy'),
@@ -128,30 +132,31 @@ export default class ContextManager extends Service {
     this.registrationReadout = hostCapability.state === 'supported' ? { state: 'pending' }
       : { state: 'inactive', reason: hostCapability.reason }
     this.snapshot()
-    if (this.enhancementCapable) {
-      registerHistoryTools(ctx, () => {
-        const { archive, error } = this.archiveAccess(false)
-        const policy = this.snapshot()
-        return { ...(archive === undefined ? {} : { archive }), ...(error === undefined ? {} : { error }),
-          searchLimit: policy.archiveSearchLimit, readBudget: policy.archiveReadBudget }
-      })
-      ctx.inject(['sessionProjections'], child => {
-        child.sessionProjections.register(diagnosticsProjection)
-      })
-      const reduction = registerToolResultReduction(ctx, () => this.snapshot(), () => this.archive$(), agent => this.isEnhancedAgent(agent))
-      this.reductionStats = reduction.stats
-      this.pipelineReported = reduction.reported
-      this.reductionSessions = reduction.sessions
-    }
-    ctx.inject(['settings'], child => {
-      child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
+    registerHistoryTools(ctx, () => {
+      const { archive, error } = this.archiveAccess(false)
+      const policy = this.snapshot()
+      return { ...(archive === undefined ? {} : { archive }), ...(error === undefined ? {} : { error }),
+        searchLimit: policy.archiveSearchLimit, readBudget: policy.archiveReadBudget }
     })
+    ctx.inject(['sessionProjections'], child => {
+      child.sessionProjections.register(diagnosticsProjection)
+    })
+    const reduction = registerToolResultReduction(ctx, () => this.snapshot(), () => this.archive$(),
+      agent => this.isEnhancedAgent(agent) || this.isNativeBasicAgent(agent))
+    this.reductionStats = reduction.stats
+    this.pipelineReported = reduction.reported
+    this.reductionAvailable = reduction.available
+    this.reductionSessions = reduction.sessions
+    // Disable Basic's root automatic listener only when the Host can bind the
+    // Context provider. A stock RC.2 Host keeps its real Basic behavior.
+    if (this.enhancementCapable) {
+      ctx.inject(['settings'], child => {
+        child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
+      })
+    }
   }
 
   protected async [Service.init](): Promise<void> {
-    // A capability-free Host keeps the saved policy visible, but this service
-    // must not open stores, journals, history tools, or reduction listeners.
-    if (!this.enhancementCapable) return
     // The launcher owns this profile location. Never guess a user's storage
     // backend path or write directly to the Host's domain JSON documents.
     const profile = this.ctx.get('profileContext')
@@ -211,8 +216,26 @@ export default class ContextManager extends Service {
     // the provider to preset selection. The injected child is lifecycle-owned
     // by this Manager Context; registration itself remains owned by this exact
     // plugin Context so the Host retracts it when the Manager unloads.
-    this.ctx.inject(['agents', 'llm', 'sessions', 'tokenMeter'], () => {
-      registerContextCompaction(this.ctx, this.hostCapability, status => { this.registrationReadout = status })
+    this.ctx.inject(['agents', 'llm', 'sessions', 'tokenMeter'], child => {
+      if (this.hostCapability.state === 'supported') {
+        registerContextCompaction(this.ctx, this.hostCapability, status => { this.registrationReadout = status })
+        return
+      }
+      this.basicIdleSidecarState = 'pending'
+      let active = true
+      child.effect(() => () => {
+        active = false
+        this.basicIdleSidecarState = 'inactive'
+      })
+      const sidecar = child.isolate('compaction').extend({ [CONTEXT_BASIC_IDLE_SIDECAR]: true })
+      void Promise.resolve(sidecar.plugin(ContextEngine)).then(() => {
+        if (active) this.basicIdleSidecarState = 'active'
+      }).catch(error => {
+        if (!active) return
+        this.basicIdleSidecarState = 'failed'
+        const reason = error instanceof Error ? error.message : String(error)
+        this.ctx.logger.warn('context-manager: isolated Basic idle sidecar could not start: %s', reason)
+      })
     })
   }
 
@@ -223,7 +246,38 @@ export default class ContextManager extends Service {
 
   isEnhancedAgent(agent: { ctx?: Context } | undefined): boolean {
     if (!this.enhancementCapable || !agent?.ctx) return false
-    return isEnhancedBinding(readAgentCompaction(this.ctx, agent.ctx))
+    return isEnhancedBinding(readAgentCompaction(this.ctx, agent.ctx, agent))
+  }
+
+  isNativeBasicAgent(agent: { ctx?: Context } | undefined): boolean {
+    return isNativeBasicCompaction(this.ctx, agent?.ctx, agent)
+  }
+
+  /** Capability detail for each plugin-owned child behavior; native Basic stays the provider. */
+  cooperationReadout(agent?: { ctx?: Context }): ContextCooperationReadout {
+    const policy = this.snapshot()
+    const enhanced = this.isEnhancedAgent(agent)
+    const basic = this.isNativeBasicAgent(agent)
+    const mode = policy.toolResultsMode
+    const pipelineReported = this.pipelineReported?.() ?? false
+    const toolResults: ContextCooperationReadout['toolResults'] = mode === 'off' ? { state: 'off', finalResultSeen: pipelineReported }
+      : !enhanced && !basic ? { state: 'unsupported', finalResultSeen: pipelineReported }
+        : !this.reductionAvailable?.() ? { state: 'waiting', finalResultSeen: pipelineReported }
+          : mode === 'observe' ? { state: 'observe', finalResultSeen: pipelineReported }
+            : pipelineReported ? { state: 'active', finalResultSeen: true } : { state: 'waiting', finalResultSeen: false }
+    const { archive, error } = this.archiveAccess(false)
+    const originals: ContextCooperationReadout['originals'] = archive !== undefined
+      ? { state: archive.size > 0 ? 'ready' : 'empty', count: archive.size }
+      : error?.startsWith('尚未创建原文档案') ? { state: 'empty', count: 0 } : { state: 'unavailable', count: 0 }
+    const idleMaintenance: ContextCooperationReadout['idleMaintenance'] = !policy.enabled || !policy.idleEnabled ? 'off'
+      : enhanced || basic && this.basicIdleSidecarState === 'active' ? 'active'
+        : this.basicIdleSidecarState === 'pending' ? 'waiting' : 'unsupported'
+    const binding = readAgentCompaction(this.ctx, agent?.ctx, agent)
+    const requestPressure: ContextCooperationReadout['requestPressure'] = enhanced ? policy.enabled ? 'context' : 'off'
+      : basic ? !policy.enabled ? 'off' : this.basicIdleSidecarState === 'active' ? 'context'
+        : this.basicIdleSidecarState === 'pending' ? 'waiting' : this.basicIdleSidecarState === 'failed' ? 'unsupported' : 'native'
+        : binding.mode === 'other' || binding.mode === 'unconfigured' || binding.mode === 'unavailable' ? 'unsupported' : 'unknown'
+    return { toolResults, originals, idleMaintenance, requestPressure }
   }
 
   capabilityReadout() {
@@ -439,9 +493,11 @@ export default class ContextManager extends Service {
    */
   idleStatus(sessionId: string): IdleStatus {
     const agent = this.ctx.get('agents')?.get(SessionId(sessionId))
-    const compression: CompactionReadout = readAgentCompaction(this.ctx, agent?.ctx)
-    if (compression.mode !== 'enhanced') {
-      const message = compression.mode === 'native' ? '原生压缩 · Context 仅查看'
+    const compression: CompactionReadout = readAgentCompaction(this.ctx, agent?.ctx, agent)
+    const enhanced = this.isEnhancedAgent(agent)
+    const nativeSidecar = this.isNativeBasicAgent(agent) && this.basicIdleSidecarState === 'active'
+    if (!enhanced && !nativeSidecar) {
+      const message = compression.mode === 'native' ? '官方 Basic 仍是压缩 provider；Context 侧路能力见插件协作状态'
         : compression.mode === 'unavailable' ? 'Context 增强暂不可用；保留原文和队列，未回退或重绑'
           : compression.mode === 'other' ? '当前会话由其他压缩提供者处理；Context 仅查看'
             : compression.mode === 'unconfigured' ? '当前 preset 未配置压缩 provider；Context 仅查看'
@@ -455,13 +511,14 @@ export default class ContextManager extends Service {
     const status: IdleStatus = stop && base.status !== 'compacting' ? { ...base, ...stop } : base
     const policy = this.snapshot()
     const owner: IdleStatus['owner'] = 'context-manager'
-    const recovery = this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId))
-    const executableRecovery = recovery.available && !this.recoveries.has(sessionId)
+    const recovery = enhanced ? this.summaryOperations.recoveryStatus(sessionId, this.compactionCycles.records(sessionId)) : undefined
+    const executableRecovery = recovery?.available && !this.recoveries.has(sessionId)
       ? { ...recovery, available: false, message: '记录显示存在可恢复风险，但当前没有匹配的原计划执行器；保留原文，未提供收费授权。' }
       : recovery
-    return { ...status, owner, compression, emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)), execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
+    return { ...status, owner, compression, ...(enhanced ? { emergency: this.summaryOperations.emergencyStatus(sessionId,this.compactionCycles.records(sessionId)) } : {}),
+      execution: this.executions.get(sessionId), deadline: policy.summaryTimeoutMode === 'adaptive'
       ? `总限 ${policy.summaryTotalMs / 1000}s · 首输出 ${policy.summaryFirstOutputMs / 1000}s · 停滞 ${policy.summaryStallMs / 1000}s`
-      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, recovery: executableRecovery }
+      : `固定整事务上限 ${policy.timeoutMs / 1000}s`, ...(executableRecovery === undefined ? {} : { recovery: executableRecovery }) }
   }
 
   private readIdleStatus(sessionId: string): IdleStatus {

@@ -59,6 +59,27 @@ async function grantCurrent(ops) {
   await ops.grant('subject', status.authorizationToken)
 }
 
+test('operations: read-only preview accounts for pending calls and two disjoint segments share one cycle', async t => {
+  const h = await harness(t), ops = await h.boot()
+  assert.deepEqual(ops.preview(input()), { available: true })
+  assert.equal(ops.records('subject').length, 0, 'preview does not reserve or persist a permit')
+  const a = await ops.claim(input('segment-a', { compactionId: 'segment-a', sourceStart: 10, sourceEnd: 20 }))
+  const bInput = input('segment-b', { compactionId: 'segment-b', sourceStart: 30, sourceEnd: 40 })
+  assert.equal(ops.preview(bInput).available, false, 'an unresolved A blocks a second provider dispatch')
+  assert.equal(ops.records('subject').length, 1, 'a denied preview does not mutate the ledger')
+
+  await ops.settle('subject', a.operationId, 'committed')
+  assert.deepEqual(ops.preview(bInput), { available: true })
+  const b = await ops.claim(bInput)
+  assert.equal(a.cycle, b.cycle)
+  assert.equal(a.cycleWatermark, b.cycleWatermark)
+  assert.equal(a.ordinal, 1)
+  assert.equal(b.ordinal, 2)
+  assert.notEqual(a.requestHash, b.requestHash)
+  await ops.settle('subject', b.operationId, 'committed')
+  await assert.rejects(ops.claim(input('segment-c', { compactionId: 'segment-c', sourceStart: 50, sourceEnd: 60 })), /2 个主摘要/)
+})
+
 test('operations: exact replay is refused; authorized changed strategy then changed hash cannot obtain a third primary', async t => {
   const h = await harness(t); let ops = await h.boot()
   const original = input()

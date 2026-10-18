@@ -16,13 +16,13 @@ import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmAdapter, LlmError, createUserMessage, createMessage, createToolResultMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { apply as JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import ToolResultPruner from '@deepseek-ai/dsh-compaction-tool-result-pruner'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { mountAgentLoopTestDependencies } from './fixtures/agent-loop-dependencies.mjs'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -83,7 +83,9 @@ class Adapter extends LlmAdapter {
       yield { type: 'finish', reason: { kind: 'tool-calls' } }; return
     }
     yield { type: 'block-start', index: 0, blockType: 'text' }
-    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+    const responseText = typeof this.options.mainText === 'function'
+      ? this.options.mainText(options, this.requests.length) : this.options.mainText ?? 'done'
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: responseText } }
     yield { type: 'finish', reason: { kind: 'stop' } }
   }
 }
@@ -103,6 +105,69 @@ function history(length = 31600, asSession = false, seedPrefix = '') {
   return asSession ? session : session.snapshotEvents()
 }
 
+function pressureBatchHistory(ctx, sessionId = 'pressure-batch') {
+  const session = Session.create(SessionId(sessionId))
+  const sized = (make, marker, targetTokens) => {
+    let low = 0, high = targetTokens * 8
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2)
+      if (ctx.tokenMeter.estimateMessage(make(`${marker} ${'x'.repeat(middle)}`)) < targetTokens) low = middle + 1
+      else high = middle
+    }
+    return make(`${marker} ${'x'.repeat(low)}`)
+  }
+  const system = (marker, tokens) => session.append('system/message', { turn: 1, step: 1,
+    message: sized(text => createMessage({ role: 'system', content: [{ type: 'text', text }],
+      source: { kind: 'system-prompt' } }), marker, tokens) }, { surfaceOp: 'append' })
+  const user = (marker, tokens) => session.append('user/message', sized(text => createUserMessage({
+    content: [{ type: 'text', text }], source: { kind: 'user' },
+  }), marker, tokens), { surfaceOp: 'append' })
+  const assistant = (marker, tokens) => session.append('assistant/message', { turn: 1, step: 1, stream: [],
+    message: sized(text => createMessage({ role: 'assistant', content: [{ type: 'text', text }],
+      source: { kind: 'model', provider: 'mock', model: 'large' } }), marker, tokens) }, { surfaceOp: 'append' })
+  session.append('turn/start', { turn: 1 })
+  session.append('step/start', { turn: 1, step: 1 })
+  system('fixed request header', 36000)
+  user('batch source A', 17000)
+  assistant('A completed', 32)
+  system('fixed barrier between A and B', 4000)
+  user('batch source B', 12000)
+  assistant('B completed', 32)
+  assistant('recent retained history', 11000)
+  session.append('step/end', { turn: 1, step: 1 })
+  session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  const events = session.snapshotEvents()
+  return { events, watermark: events.at(-1).seq }
+}
+
+function sizedSystemPrompt(tokenMeter, marker, targetTokens) {
+  const make = text => createMessage({ role: 'system', content: [{ type: 'text', text }], source: { kind: 'system-prompt' } })
+  let low = 0, high = targetTokens * 8
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (tokenMeter.estimateMessage(make(`${marker} ${'x'.repeat(middle)}`)) < targetTokens) low = middle + 1
+    else high = middle
+  }
+  return `${marker} ${'x'.repeat(low)}`
+}
+
+function sizedToolOutput(tokenMeter, marker, targetTokens) {
+  const make = text => createMessage({ role: 'tool', toolCallId: ToolCallId('sized-tool-result'),
+    content: [{ type: 'text', text }], source: { kind: 'tool' } })
+  let low = 0, high = targetTokens * 8
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (tokenMeter.estimateMessage(make(`${marker} ${'g'.repeat(middle)}`)) < targetTokens) low = middle + 1
+    else high = middle
+  }
+  return `${marker} ${'g'.repeat(low)}`
+}
+
+const pressureBatchSystemPrompt = {
+  systemPromptConfig: { includeHarnessIdentity: false },
+  systemPromptSection: meter => sizedSystemPrompt(meter, 'fixed request header', 36000),
+}
+
 async function fixture(options = {}, policy = {}, seed = history()) {
   const ctx = new Context()
   const storageRoot = options.storageRoot ?? await mkdtemp(join(tmpdir(), 'dsh-context-loop-'))
@@ -111,11 +176,15 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(Storage)
   await ctx.plugin(StorageJson, { root: storageRoot })
   await ctx.plugin(StorageDomain, { backend: 'json' })
-  await mountAgentLoopTestDependencies(ctx)
+  await mountAgentLoopTestDependencies(ctx, { systemPrompt: options.systemPromptConfig ?? {} })
   await ctx.plugin(TypertRegistry)
   if (options.persistSession) await ctx.plugin(JsonlSessionPersistence, { root: join(storageRoot, 'sessions'), compression: 'none' })
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
+  if (options.systemPromptSection !== undefined) {
+    const text = typeof options.systemPromptSection === 'function' ? options.systemPromptSection(ctx.tokenMeter) : options.systemPromptSection
+    ctx.systemPrompt.section({ name: 'context-review:fixed-system', order: 0, text })
+  }
   await ctx.plugin(Retry)
   if (options.pruner) await ctx.plugin(ToolResultPruner, { thresholdChars: 2000, headChars: 600, tailChars: 400 })
   if (options.presets) {
@@ -134,7 +203,9 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
   ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; adapter.order.push('tool'); return [{ type: 'text', text: options.toolOutputs?.[adapter.work - 1] ?? options.toolOutput ?? 'tool complete' }] } }))
-  const { agent } = options.skipCreate ? {} : await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'large' },
+  const seedEvents = typeof seed === 'function' ? seed(ctx) : seed
+  const { agent } = options.skipCreate ? {} : await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed: seedEvents,
+    agentOptions: { provider: 'mock', model: 'large', ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }) },
     meta: { delegationDepth: options.seeded ? 1 : 0, ...(options.seeded ? { isSeeded: true, parentSession: SessionId('seed') } : {}) },
     ...(options.seeded ? { inheritedEventCount: SessionLogOffset(seed.length) } : {}),
     ...(options.presets ? { setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'one') } } : {}) })
@@ -399,6 +470,373 @@ test('real loop: summary settles before the first main call and tool; current ta
   } finally { await ctx.fiber.dispose() }
 })
 
+test('resume diagnostic separates fixed groups, this span estimate, and another eligible span', { timeout: 12000 }, async () => {
+  const sized = (make, marker, tokens) => make(`${marker} ${'x'.repeat(tokens * 4)}`)
+  const session = Session.create(SessionId('fixed-and-unselected'))
+  const addSystem = (marker, tokens) => session.append('system/message', { turn: 1, step: 1,
+    message: sized(value => createMessage({ role: 'system', content: [{ type: 'text', text: value }], source: { kind: 'system-prompt' } }), marker, tokens) }, { surfaceOp: 'append' })
+  const addUser = (marker, tokens) => session.append('user/message', sized(value => createUserMessage({
+    content: [{ type: 'text', text: value }], source: { kind: 'user' },
+  }), marker, tokens), { surfaceOp: 'append' })
+  session.append('turn/start', { turn: 1 }); session.append('step/start', { turn: 1, step: 1 })
+  addSystem('fixed protected header', 9500)
+  addUser('eligible selected span A', 2200)
+  addSystem('fixed protected barrier', 1000)
+  addUser('eligible but unselected span B', 1200)
+  session.append('assistant/message', { turn: 1, step: 1, stream: [], message: createMessage({ role: 'assistant',
+    content: [{ type: 'text', text: `recent retained tail ${'r'.repeat(5200)}` }], source: { kind: 'model', provider: 'mock', model: 'large' } }) }, { surfaceOp: 'append' })
+  session.append('step/end', { turn: 1, step: 1 }); session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 25000, maxTokens: 4000, tools: true,
+    systemPromptConfig: { includeHarnessIdentity: false },
+    systemPromptSection: meter => sizedSystemPrompt(meter, 'fixed protected header', 9500) }, { recentTokens: 1400,
+    summaryMaxTokens: 512 }, session.snapshotEvents())
+  try {
+    const task = message('在阈值下开始这一步；工具结果增长后检查续跑预留。')
+    adapter.options.toolOutput = sizedToolOutput(ctx.tokenMeter, '独有压力工具证据', 10000)
+    const initial = ctx.tokenMeter.measure(agent.session).totalTokens + ctx.tokenMeter.estimateMessage(task)
+    assert.ok(initial < budget(ctx.contextManager.snapshot(), 25000, 4000).admission,
+      `first request should remain below admission; measured=${initial}`)
+    agent.followup(task); await agent.whenIdle()
+    const end = agent.session.snapshotEvents().filter(event => event.type === 'turn/end').at(-1)
+    const error = end?.data?.reason?.error?.message ?? ''
+    assert.match(error, /续跑余量无法纳入当前单段规划/, JSON.stringify({ end, requests: adapter.requests.length,
+      summaries: adapter.summaries.length, pressure: ctx.sessionProjections.snapshot(agent.session).values.contextPressure }))
+    const fixedMatch = /固定内容约 (\d+) Token/u.exec(error)
+    const selectedMatch = /本次选区单段估算完成后约 (\d+) Token/u.exec(error)
+    assert.ok(fixedMatch, 'the diagnostic names the fixed composition')
+    assert.ok(selectedMatch, 'the diagnostic names the one-span estimate')
+    const metered = ctx.tokenMeter.measure(agent.session)
+    const fixedAndRequestTokens = metered.nodes.reduce((total, node) => {
+      const event = agent.session.eventAt(node.seq)
+      return event?.type === 'system/message' || event?.type === 'user/message' && event.data.id === task.id
+        ? total + node.tokens : total
+    }, 0)
+    assert.equal(Number(fixedMatch[1]), Math.ceil(fixedAndRequestTokens), 'reported fixed composition equals protected system groups plus the selected current request')
+    assert.notEqual(Number(fixedMatch[1]), Number(selectedMatch[1]), 'fixed occupancy is distinct from the estimate that still includes unselected history')
+    assert.match(error, /另有未选历史约 [1-9]\d* Token/)
+    assert.doesNotMatch(error, /受保护内容下界只能压到/)
+    assert.equal(adapter.requests.length, 1, 'an infeasible plan does not replay the blocked business request after its one tool step')
+    assert.equal(adapter.work, 1, 'the non-replayable tool side effect runs exactly once')
+    assert.equal(adapter.summaries.length, 0, 'planning failure does not call the summary adapter')
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real request-error batch: same-turn tool growth survives plan cleanup and blocks replay when after plus reserve exceeds custom target', { timeout: 15000 }, async () => {
+  const seed = ctx => {
+    const session = Session.create(SessionId('custom-55k-growth'))
+    const sized = (make, marker, targetTokens) => {
+      let low = 0, high = targetTokens * 8
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2)
+        if (ctx.tokenMeter.estimateMessage(make(`${marker} ${'x'.repeat(middle)}`)) < targetTokens) low = middle + 1
+        else high = middle
+      }
+      return make(`${marker} ${'x'.repeat(low)}`)
+    }
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
+    session.append('system/message', { turn: 1, step: 1, message: sized(text => createMessage({ role: 'system',
+      content: [{ type: 'text', text }], source: { kind: 'system-prompt' } }), 'fixed request-error header', 48000) }, { surfaceOp: 'append' })
+    session.append('user/message', sized(text => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
+      'single eligible old span', 20000), { surfaceOp: 'append' })
+    session.append('assistant/message', { turn: 1, step: 1, stream: [], message: createMessage({ role: 'assistant',
+      content: [{ type: 'text', text: 'prior synthetic work completed' }],
+      source: { kind: 'model', provider: 'mock', model: 'large' } }) }, { surfaceOp: 'append' })
+    session.append('step/end', { turn: 1, step: 1 })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    return session.snapshotEvents()
+  }
+  const policy = { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 65, earlyPercent: 0,
+    recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: false }
+  const fixtureOptions = { contextWindow: 100000, tools: true,
+    systemPromptConfig: { includeHarnessIdentity: false },
+    systemPromptSection: meter => sizedSystemPrompt(meter, 'fixed request-error header', 48000) }
+  const { ctx, adapter, agent } = await fixture(fixtureOptions, policy, seed)
+  try {
+    const initial = ctx.tokenMeter.measure(agent.session).totalTokens
+    assert.ok(initial > 65000 && initial < 72000, `seed should sit below the 75K gate with one eligible span; got ${initial}`)
+    const task = message('继续授权恢复检查。下一步读取独有工具证据；工具结果的实际增长应计入本轮续跑余量。')
+    const incomingPressure = initial + ctx.tokenMeter.estimateMessage(task)
+    assert.ok(incomingPressure < budget(policy, 100000, 0).admission,
+      `the first business request should start below its 75K admission gate; got ${incomingPressure}`)
+    fixtureOptions.toolOutput = sizedToolOutput(ctx.tokenMeter, '独有的已配对业务工具证据', 10000)
+    agent.followup(task); await agent.whenIdle()
+    const events = agent.session.snapshotEvents()
+    const end = events.filter(event => event.type === 'turn/end').at(-1)
+    const failure = end?.data.reason.error?.message ?? ''
+    const measuredAfter = ctx.tokenMeter.measure(agent.session).totalTokens
+    const records = ctx.contextManager.summaryOperations.allRecords(String(agent.id))
+    assert.match(failure, /自定义占用目标仍未达到/u)
+    const budgetMatch = /当前约 ([\d,]+) Token，续跑余量 ([\d,]+) Token，含续跑余量预计 ([\d,]+) Token \/ ([\d,]+) Token/u.exec(failure)
+    assert.ok(budgetMatch, `the error exposes actual post-summary pressure and the retained same-turn reserve: ${failure}`)
+    const [after, reserve, afterPlusReserve, target] = budgetMatch.slice(1).map(value => Number(value.replaceAll(',', '')))
+    assert.ok(after < target, `the committed single-span result is below target; after=${after}, target=${target}`)
+    assert.ok(after + reserve > target, `the actual retained reserve crosses the target; after=${after}, reserve=${reserve}, target=${target}`)
+    assert.equal(afterPlusReserve, after + reserve)
+    assert.ok(measuredAfter < target, `the live meter confirms after < target; measured=${measuredAfter}, target=${target}`)
+    assert.equal(adapter.summaries.length, 1, 'the actual same-turn REBUILD path dispatched exactly one summary')
+    assert.equal(events.filter(event => event.type === 'compaction/summary').length, 1, 'that span durably committed')
+    assert.equal(records.length, 1)
+    assert.equal(records[0].phase, 'committed')
+    assert.equal(records[0].ordinal, 1, 'maxPasses=1 permits only one legal segment in the real batch')
+    assert.equal(adapter.requests.length, 1, 'the business adapter receives only its initial tool-call request; no post-summary replay occurs')
+    assert.equal(adapter.work, 1, 'the business tool side effect is executed exactly once')
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1,
+      'the original task remains stored once for inspection and manual continuation')
+    assert.equal(events.filter(event => event.type === 'tool/result').length, 1, 'the growth evidence remains one paired result')
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real request-error batch: cancellation after committed A but before B claim never dispatches B', { timeout: 15000 }, async () => {
+  const policy = { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 55, earlyPercent: 0,
+    recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 2, idleEnabled: false }
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 100000, ...pressureBatchSystemPrompt }, policy,
+    current => pressureBatchHistory(current, 'cancel-before-b-claim').events)
+  const operations = ctx.contextManager.summaryOperations
+  const originalClaim = operations.claim.bind(operations)
+  const originalFlush = ctx.sessions.flush.bind(ctx.sessions)
+  let flushHeld = false, enterFlush, releaseFlush
+  const flushEntered = new Promise(resolve => { enterFlush = resolve })
+  const flushGate = new Promise(resolve => { releaseFlush = resolve })
+  let claimCalls = 0
+  operations.claim = async (...args) => {
+    claimCalls++
+    return originalClaim(...args)
+  }
+  ctx.sessions.flush = async session => {
+    const result = await originalFlush(session)
+    const events = agent.session.snapshotEvents()
+    if (!flushHeld && session === agent.session
+      && events.filter(event => event.type === 'compaction/summary').length === 1
+      && events.some(event => event.type === 'compaction/end' && !event.data.error)) {
+      flushHeld = true
+      enterFlush()
+      await flushGate
+    }
+    return result
+  }
+  try {
+    const task = message('A 提交后、B 领取前取消；保留原始任务。')
+    agent.followup(task)
+    const idle = agent.whenIdle()
+    const reachedFlush = await Promise.race([flushEntered.then(() => true), idle.then(() => false)])
+    assert.equal(reachedFlush, true, `A did not reach its durable flush gate; pressure=${ctx.tokenMeter.measure(agent.session).totalTokens}, requests=${adapter.requests.length}, summaries=${adapter.summaries.length}, events=${JSON.stringify(agent.session.snapshotEvents().map(event => ({ type: event.type, op: event.surfaceOp, seq: event.seq })))}`)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1,
+      'A summary reached its real session flush before cancellation')
+    agent.cancel({ kind: 'user' })
+    releaseFlush()
+    await idle
+    const id = String(agent.id)
+    const events = agent.session.snapshotEvents()
+    const rows = operations.records(id)
+    assert.equal(claimCalls, 1, 'production cancellation gate blocks B before its durable claim')
+    assert.equal(adapter.summaries.length, 1, 'only A reached the summary adapter')
+    assert.equal(adapter.requests.length, 0, 'the original business request never resumes after cancellation')
+    assert.equal(rows.length, 1, 'B was cancelled before any durable claim or charge')
+    assert.equal(rows[0].phase, 'committed', 'A remains durably committed')
+    assert.equal(events.filter(event => event.type === 'compaction/summary').length, 1)
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+    assert.equal(ctx.contextManager.summaryLedger.stats(id)?.attempts, 1)
+  } finally {
+    operations.claim = originalClaim
+    ctx.sessions.flush = originalFlush
+    releaseFlush?.()
+    await ctx.fiber.dispose()
+  }
+})
+
+test('real request-error batch: the current two-primary cycle budget lets A commit and refuses B', { timeout: 15000 }, async () => {
+  const policy = { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 55, earlyPercent: 0,
+    recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 2, idleEnabled: false }
+  let seedWatermark
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 100000, ...pressureBatchSystemPrompt }, policy, current => {
+    const seed = pressureBatchHistory(current, 'budget-before-b-claim')
+    seedWatermark = seed.watermark
+    return seed.events
+  })
+  try {
+    const id = String(agent.id)
+    const operations = ctx.contextManager.summaryOperations
+    const prior = await operations.claim({ sessionId: id, requestHash: 'a'.repeat(64), routeHash: 'b'.repeat(64),
+      sourceHash: 'c'.repeat(64), sourceWatermark: seedWatermark, recoveryRouteHash: 'd'.repeat(64),
+      strategyHash: 'e'.repeat(64), freshTokens: 0, minNewTokens: 5000,
+      confirmation: { hash: 'f'.repeat(64), model: 'mock/large', deadline: '600s', estimatedInput: 1000 },
+      purpose: 'summary', trigger: 'pressure', compactionId: 'fixture-cycle-primary-one', legacy: [], unboundManual: false })
+    await operations.settle(id, prior.operationId, 'committed')
+    const task = message('本周期只剩一个主摘要额度；A 成功后拒绝 B。')
+    agent.followup(task)
+    await agent.whenIdle()
+    const events = agent.session.snapshotEvents()
+    const rows = operations.records(id)
+    const end = events.filter(event => event.type === 'turn/end').at(-1)
+    const failure = end?.data.reason.error?.message ?? ''
+    assert.match(failure, /前 1 段已提交并落盘/u)
+    assert.match(failure, /2 个主摘要/u)
+    assert.equal(adapter.summaries.length, 1, 'A is the only newly dispatched provider call')
+    assert.equal(adapter.requests.length, 0, 'the request remains blocked after B budget refusal')
+    assert.equal(events.filter(event => event.type === 'compaction/summary').length, 1)
+    assert.equal(rows.length, 2, 'the denied B preview does not create a charge row')
+    assert.equal(rows[0].phase, 'committed', 'the prior primary remains committed')
+    assert.equal(rows[1].phase, 'committed', 'A stays committed when B is denied')
+    assert.equal(rows[1].ordinal, 2)
+    assert.equal(rows[0].cycle, rows[1].cycle)
+    assert.equal(rows[0].cycleWatermark, rows[1].cycleWatermark)
+    assert.equal(ctx.contextManager.summaryLedger.stats(id)?.attempts, 1,
+      'only A is added to the current cycle after the prior committed primary')
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real request-error batch: provider cancellation settles late usage without changing committed A', { timeout: 15000 }, async () => {
+  let enterB, releaseB
+  const enteredB = new Promise(resolve => { enterB = resolve })
+  let releaseLedger, enterLedger
+  const ledgerGate = new Promise(resolve => { releaseLedger = resolve })
+  const ledgerEntered = new Promise(resolve => { enterLedger = resolve })
+  let summaryRound = 0, finalSettleHeld = false
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 100000, ...pressureBatchSystemPrompt,
+    pause: async () => {
+      summaryRound++
+      if (summaryRound === 2) { enterB(); await new Promise(resolve => { releaseB = resolve }) }
+    } },
+    { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 55, earlyPercent: 0,
+      recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 2, idleEnabled: false },
+    current => pressureBatchHistory(current, 'cancel-b-after-dispatch').events)
+  const ledger = ctx.contextManager.summaryLedger
+  const finish = ledger.finish.bind(ledger)
+  ledger.finish = async (...args) => {
+    const result = await finish(...args)
+    if (args[2] === 'cancelled' && !finalSettleHeld) {
+      finalSettleHeld = true
+      enterLedger()
+      await ledgerGate
+    }
+    return result
+  }
+  try {
+    const task = message('B 已派发后取消；迟到用量必须进入 B 的账目，A 保持提交。')
+    agent.followup(task)
+    await enteredB
+    assert.equal(adapter.summaries.length, 2, 'A committed and B reached the actual provider stream')
+    agent.cancel({ kind: 'user' })
+    await ledgerEntered
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1)
+
+    releaseB()
+    const id = String(agent.id)
+    await drainUntil(() => {
+      const rows = ctx.contextManager.summaryOperations.records(id)
+      return rows[1]?.physicalEnded === true && rows[1]?.usageComplete === true
+    })
+    const duringFinalAwait = ledger.stats(id)
+    assert.equal(duringFinalAwait.attempts, 2)
+    assert.equal(duringFinalAwait.unknownAttempts, 0, 'late complete usage fills B before the pending final ledger await returns')
+    assert.equal(duringFinalAwait.input, 1500, 'summary-ledger billed input includes 500 uncached plus 250 cache-read for both A and late B usage')
+    assert.deepEqual(duringFinalAwait.recent.map(row => [row.input, row.cacheRead]), [[750, 250], [750, 250]])
+    assert.equal(duringFinalAwait.output, 40)
+    assert.equal(duringFinalAwait.cacheRead, 500)
+    releaseLedger()
+    await agent.whenIdle()
+
+    const rows = ctx.contextManager.summaryOperations.records(id)
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].phase, 'committed', 'B cancellation never flips A')
+    assert.equal(rows[1].phase, 'unknown_interrupted', 'late usage does not authorize applying B')
+    assert.equal(rows[1].usageComplete, true)
+    assert.equal(rows[1].physicalEnded, true)
+    assert.equal(adapter.summaries.length, 2, 'neither cancellation recovery nor later settlement resends B')
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1)
+  } finally {
+    releaseB?.()
+    releaseLedger()
+    ledger.finish = finish
+    await ctx.fiber.dispose()
+  }
+})
+
+test('real request-error batch: cancellation during B generated-ledger await keeps A and blocks B before commit', { timeout: 15000 }, async () => {
+  let generatedBEntered, releaseGeneratedB
+  const generatedB = new Promise(resolve => { generatedBEntered = resolve })
+  const generatedGate = new Promise(resolve => { releaseGeneratedB = resolve })
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 100000, ...pressureBatchSystemPrompt },
+    { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 55, earlyPercent: 0,
+      recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 2, idleEnabled: false },
+    current => pressureBatchHistory(current, 'cancel-b-after-generated').events)
+  const ledger = ctx.contextManager.summaryLedger
+  const finish = ledger.finish.bind(ledger)
+  let generatedCount = 0, generatedAwaitHeld = false
+  ledger.finish = async (...args) => {
+    const result = await finish(...args)
+    if (args[2] === 'generated' && ++generatedCount === 2 && !generatedAwaitHeld) {
+      generatedAwaitHeld = true
+      generatedBEntered()
+      await generatedGate
+    }
+    return result
+  }
+  try {
+    const task = message('B 摘要已生成并完成用量持久化；在生成态 ledger await 返回前取消，不得提交 B。')
+    agent.followup(task)
+    await generatedB
+    const id = String(agent.id)
+    assert.equal(adapter.summaries.length, 2, 'B reached and completed the offline summary provider')
+    assert.equal(ledger.stats(id)?.attempts, 2)
+    assert.equal(ledger.stats(id)?.unknownAttempts, 0, 'the generated wait begins after known usage is durable')
+    agent.cancel({ kind: 'user' })
+    releaseGeneratedB()
+    await agent.whenIdle()
+
+    const rows = ctx.contextManager.summaryOperations.records(id)
+    const events = agent.session.snapshotEvents()
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].phase, 'committed', 'B cancellation does not downgrade committed A')
+    assert.equal(rows[1].phase, 'generated_uncommitted', 'generated B remains explicitly unapplied')
+    assert.equal(rows[1].usageComplete, true)
+    assert.equal(events.filter(event => event.type === 'compaction/summary').length, 1, 'only A is applied to the session')
+    assert.equal(adapter.requests.length, 0, 'the business task is not resumed after B is cancelled')
+    assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === task.id).length, 1,
+      'the original task remains stored once')
+    assert.equal(adapter.summaries.length, 2, 'cancellation does not replay either summary call')
+  } finally {
+    releaseGeneratedB()
+    ledger.finish = finish
+    await ctx.fiber.dispose()
+  }
+})
+
+test('real request-error batch: A and B share one total deadline and B receives only its remaining time', { timeout: 15000 }, async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 100000, ...pressureBatchSystemPrompt,
+    progress: () => t.mock.timers.tick(70000) },
+    { capacityMode: 'percent', historyMode: 'custom', triggerPercent: 75, targetPercent: 55, earlyPercent: 0,
+      recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 2,
+      summaryTotalMs: 250000, idleEnabled: false },
+    current => pressureBatchHistory(current, 'shared-batch-deadline').events)
+  try {
+    const task = message('A 花费大部分总时限后，B 不得获得新的整段时限。')
+    agent.followup(task)
+    await agent.whenIdle()
+    const id = String(agent.id)
+    const rows = ctx.contextManager.summaryOperations.records(id)
+    const diagnostic = JSON.stringify({ order: adapter.order, summaries: adapter.summaries.length,
+      rows, usage: ctx.contextManager.summaryLedger.stats(id), final: agent.session.snapshotEvents().at(-1)?.data?.reason })
+    assert.equal(adapter.summaries.length, 2, `B must actually dispatch under the same transaction deadline; ${diagnostic}`)
+    assert.equal(adapter.requests.length, 0, 'total deadline timeout blocks the business request')
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].phase, 'committed', 'A remains committed after B consumes the remaining time')
+    assert.equal(rows[1].phase, 'unknown_interrupted', 'B stops at the batch deadline')
+    assert.equal(rows[1].reasonCode, 'total_timeout')
+    assert.equal(rows[0].cycle, rows[1].cycle, 'both segment permits share one bounded batch cycle')
+    assert.equal(ctx.contextManager.summaryLedger.stats(id)?.attempts, 2)
+    assert.equal(ctx.contextManager.summaryLedger.stats(id)?.unknownAttempts, 1)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1)
+  } finally { await ctx.fiber.dispose() }
+})
+
 test('real loop: later provider usage totals update known fields without adding the repeated input total', { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture({ summaryUsageSnapshots: [
     { inputTokens: 100, outputTokens: 0, cacheReadTokens: 5 },
@@ -600,11 +1038,15 @@ test('real loop: new image pricing participates in admission and its reference s
   } finally { await ctx.fiber.dispose() }
 })
 
-test('real loop: provider-confirmed overflow below the estimate uses bounded recovery', { timeout: 8000 }, async () => {
+test('real loop: arbitrary provider overflow remains under the provider error policy', { timeout: 8000 }, async () => {
   const { ctx, adapter, agent } = await fixture({ overflow: true }, {}, history(14000))
   try {
     agent.followup(message()); await agent.whenIdle()
-    assert.deepEqual(adapter.order, ['main', 'summary-start', 'summary-finish', 'main']); completed(agent)
+    assert.deepEqual(adapter.order, ['main', 'main'], 'the configured provider retry policy owns this overflow retry')
+    assert.equal(adapter.requests.length, 2)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/start').length, 0,
+      'the Context retry path only owns its dedicated pre-provider error code')
+    completed(agent)
   } finally { await ctx.fiber.dispose() }
 })
 

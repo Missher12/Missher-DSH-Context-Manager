@@ -1,6 +1,6 @@
 import type { CompactionEntry } from './diagnostics-types.ts'
 import type { IdleStatus } from './idle-types.ts'
-import type { CompactionReadout, HostCapabilityReadout } from './compatibility.ts'
+import type { CompactionReadout, ContextCooperationReadout, HostCapabilityReadout } from './compatibility.ts'
 
 export const categories = [
   { id: 'summary', label: '压缩摘要' }, { id: 'system', label: '系统指令' }, { id: 'tools', label: '工具定义' },
@@ -135,6 +135,8 @@ export interface Inspection {
   goal?: GoalReadout
   /** Current Agent's actual installed compaction binding; absent for historical cuts. */
   compression?: CompactionReadout
+  /** Current Context sidecar capability state; absent for historical cuts. */
+  cooperation?: ContextCooperationReadout
   pressureHistory: PressurePoint[]
   rows: ContentRow[]; total: number; offset: number; pageSize: number; activeCount: number; archivedCount: number
   requests: RequestRow[]; requestCount: number; compactions: InspectedCompaction[]

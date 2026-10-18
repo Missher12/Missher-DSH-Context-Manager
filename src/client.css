@@ -144,10 +144,27 @@
 .dsh-context-settings .cm-error { margin: 0 0 12px; color: var(--dsw-alias-label-error); font-size: 12px; line-height: 18px; }
 .dsh-context-settings .cm-feedback { margin-top: 10px; }
 
-/* Layout only; SettingsValueField and SettingsForm supply the native chrome. */
+/* Scoped layout for the plugin-owned settings controls. */
 .dsh-context-settings .cm-native-toggle { padding: 12px 0; font-size: 13px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
 .dsh-context-settings .cm-native-toggle .cm-hint { margin-top: 6px; }
 .dsh-context-settings .cm-native-presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0 0; }
 .dsh-context-settings .cm-native-advanced { padding: 12px 0; border-top: 0.5px solid var(--dsw-alias-border-l2); }
 .dsh-context-settings .cm-native-advanced > summary { font-size: 13px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
 .dsh-context-settings .cm-native-example { display: grid; gap: 6px; font-size: 13px; padding: 12px 0; }
+
+
+/* Plugin-owned form controls for target Hosts whose primitive package no longer includes SettingsForm atoms. */
+.dsh-context-settings .cm-settings-form { min-width: 0; }
+.dsh-context-settings .cm-native-value { display: grid; gap: 6px; padding: 12px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-context-settings .cm-native-value-control { flex-wrap: wrap; }
+.dsh-context-settings .cm-native-value-control input { flex: 1 1 140px; min-width: 0; padding: 7px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
+.dsh-context-settings .cm-native-value-control input:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
+.dsh-context-settings .cm-native-value-control input[aria-invalid='true'] { border-color: var(--dsw-alias-label-error); }
+.dsh-context-settings .cm-native-overridden { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.dsh-context-settings .cm-native-switch { width: 36px; height: 22px; flex: none; display: inline-flex; align-items: center; padding: 2px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; background: var(--dsw-alias-bg-module-platform); cursor: pointer; }
+.dsh-context-settings .cm-native-switch > span { width: 16px; height: 16px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); transition: transform 120ms ease, background-color 120ms ease; }
+.dsh-context-settings .cm-native-switch[aria-checked='true'] { justify-content: flex-end; border-color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-state-business-primary); }
+.dsh-context-settings .cm-native-switch[aria-checked='true'] > span { background: white; }
+.dsh-context-settings .cm-native-switch:disabled { opacity: .45; cursor: default; }
+.dsh-context-settings .cm-native-switch:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
+.dsh-context-settings .cm-native-save { display: flex; justify-content: flex-end; padding-top: 12px; }

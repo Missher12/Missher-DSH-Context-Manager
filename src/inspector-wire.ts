@@ -80,6 +80,12 @@ const reductionSchema = () => z.object({
     lastSkip: z.string().max(100).nullable(), lastReason: z.string().max(300).nullable() }).strict(),
   archiveError: z.string().max(400).optional(),
 }).strict()
+const cooperationSchema = () => z.object({
+  toolResults: z.object({ state: z.enum(['off', 'observe', 'active', 'waiting', 'unsupported']), finalResultSeen: z.boolean() }).strict(),
+  originals: z.object({ state: z.enum(['ready', 'empty', 'unavailable']), count: count() }).strict(),
+  idleMaintenance: z.enum(['active', 'off', 'waiting', 'unsupported']),
+  requestPressure: z.enum(['context', 'native', 'off', 'waiting', 'unsupported', 'unknown']),
+}).strict()
 export function inspectionSchema() { return z.object({
   sessionId: sessionId(), cursor: seq(), cutSeq: seq(), sampledAt: count(), historical: z.boolean(),
   pressure: z.object({ projected: count(), input: count(), window: count().nullable() }).nullable(),
@@ -93,6 +99,7 @@ export function inspectionSchema() { return z.object({
   contextGrowth: z.object({ sinceCompaction: contextDeltaSchema().nullable(), lastToolResult: contextDeltaSchema().nullable() }).strict().optional(),
   efficiency: efficiencySchema().optional(),
   reduction: reductionSchema().optional(),
+  cooperation: cooperationSchema().optional(),
   goal: goalReadoutSchema().optional(),
   compression: compactionReadoutSchema().optional(),
   pressureHistory: z.array(z.object({ seq: seq(), time: count(), tokens: count().nullable(), window: count().nullable(), kind: z.enum(['reply', 'replace', 'current']) })).max(40),

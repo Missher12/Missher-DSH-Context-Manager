@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setImmediate as immediate } from 'node:timers/promises'
@@ -11,19 +11,21 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { apply as JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
-import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import Manager from '../lib/index.js'
 import { ContextEngine as Engine } from '../lib/engine.js'
 import { defaults } from '../lib/policy.js'
 import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
+import { mountAgentLoopTestDependencies } from './fixtures/agent-loop-dependencies.mjs'
 
 const sessionId = SessionId('durable-idle-subject')
 const delay = defaults.idleMinutes * 60000
 const options = { provider: 'mock', model: 'large' }
+
 
 class Adapter extends LlmAdapter {
   mainCalls = 0
@@ -87,19 +89,24 @@ async function fixture(t) {
   })
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
 
-  async function boot({ manager = true, engine = manager } = {}) {
+  async function boot({ manager = true, engine = manager, nativeBasic = false, host = true } = {}) {
     const ctx = new Context()
     contexts.add(ctx)
     await ctx.plugin(Storage)
     await ctx.plugin(StorageJson, { root: join(root, 'storage') })
     await ctx.plugin(StorageDomain, { backend: 'json' })
+    const profile = join(root, 'profile')
+    await mkdir(profile, { recursive: true })
+    ctx.provide('profileContext', { dir: profile })
     await mountAgentLoopTestDependencies(ctx)
     // Dispose AgentLoop before its persistence backend, so every writer drains.
     await ctx.plugin(JsonlSessionPersistence, { root: join(root, 'sessions'), compression: 'none' })
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(TokenMeter)
     await ctx.plugin(Retry)
-    installTestCompactionHost(ctx)
+    if (host) installTestCompactionHost(ctx)
+    else ctx.provide('agentPresets', {})
+    if (nativeBasic) await ctx.plugin(BasicCompactionEngine)
     if (manager) await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512 } })
     if (engine) await ctx.plugin(Engine)
     const adapter = new Adapter()
@@ -114,6 +121,48 @@ async function fixture(t) {
 
   return { boot, stop }
 }
+
+test('idle sidecar: official Basic remains the provider while Context uses its own maintenance transaction', { timeout: 30000 }, async t => {
+  const { boot, stop } = await fixture(t)
+  const runtime = await boot({ engine: false, nativeBasic: true, host: false })
+  const { ctx, adapter } = runtime
+  try {
+    const basic = ctx.get('compaction')
+    assert.ok(basic instanceof BasicCompactionEngine)
+    const { agent } = await ctx.agents.create({ sessionId, seed: history(), agentOptions: options })
+    // Agent contexts inherit the installed official provider; re-providing the
+    // root service on the child would be a duplicate Cordis registration.
+    assert.equal(ctx.contextManager.isNativeBasicAgent(agent), true)
+    await drainUntil(() => ctx.contextManager.cooperationReadout(agent).idleMaintenance === 'active',
+      'the isolated idle sidecar should activate without replacing Basic')
+    assert.equal(ctx.contextManager.cooperationReadout(agent).requestPressure, 'context',
+      'the Context request gate runs as a sidecar while Basic remains the provider')
+    const installedAfterActivation = ctx.get('compaction')
+    assert.ok(installedAfterActivation instanceof BasicCompactionEngine)
+    assert.strictEqual(Object.getPrototypeOf(installedAfterActivation), BasicCompactionEngine.prototype)
+    agent.followup(message())
+    await agent.whenIdle()
+    assert.equal(agent.session.snapshotEvents().findLast(event => event.type === 'turn/end').data.reason.kind, 'completed')
+    assert.equal(await ctx.sessions.flush(agent.session), true)
+    await drainUntil(() => state(ctx, agent).status === 'scheduled', 'the Basic sidecar must persist eligibility before scheduling')
+    assert.equal(state(ctx, agent).status, 'scheduled')
+    const dueAt = state(ctx, agent).dueAt
+    t.mock.timers.tick(dueAt - Date.now())
+    await drainUntil(() => ctx.contextManager.idleStore.get(sessionId)?.status === 'completed',
+      'the Context transaction should run through Agent maintenance')
+    await agent.whenIdle()
+    assert.equal(adapter.mainCalls, 1)
+    assert.equal(adapter.summaryCalls, 1)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1)
+    assert.equal(ctx.contextManager.summaryLedger.stats(String(agent.id))?.attempts, 1)
+    const installedAfterMaintenance = ctx.get('compaction')
+    assert.ok(installedAfterMaintenance instanceof BasicCompactionEngine)
+    assert.strictEqual(Object.getPrototypeOf(installedAfterMaintenance), BasicCompactionEngine.prototype,
+      'the isolated provider must leave Basic registered in the root scope')
+  } finally {
+    await stop(ctx)
+  }
+})
 
 async function completeNewTurn(ctx) {
   const { agent } = await ctx.agents.create({ sessionId, seed: history(), agentOptions: options })

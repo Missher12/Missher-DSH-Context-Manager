@@ -60,6 +60,11 @@ for (const member of members.filter(p => p.startsWith('package/lib/'))) {
   assert.ok(!/dsh-session-bridge|dsh-sbc-|session-bridge/.test(read(member.slice('package/'.length))),
     `Foreign plugin reference in ${member}`)
 }
+const localBuildPath = /(?:\/home\/[^/]+\/Projects\/|\/Users\/[^/]+\/|(?:\.\.\/)+coordinator\/|node_modules\/\.pnpm\/|candidate-plugin-[^/\s]+)/u
+for (const member of members) {
+  assert.ok(!localBuildPath.test(read(member.slice('package/'.length))),
+    `Local workspace or dependency-cache path leaked in ${member}`)
+}
 const result = {
   package: archive, sha256: createHash('sha256').update(readFileSync(archive)).digest('hex'),
   fileCount: members.length, containsBridgeCode: false, dependsOnBridge: false, lifecyclePatchHooks: false,

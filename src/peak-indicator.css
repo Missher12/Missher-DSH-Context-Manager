@@ -35,3 +35,5 @@
 .dsh-context-settings .cmi-price-source a { color: var(--dsw-alias-link); text-decoration: none; }
 .dsh-context-settings .cmi-price-source a:hover { text-decoration: underline; }
 .dsh-context-settings.cmi-price-panel .cmi-price-unavailable { margin: 18px 0; }
+
+.dsh-context-settings.cmi-peak .cmi-clock { font-size: 16px; line-height: 1; }

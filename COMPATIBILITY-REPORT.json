@@ -1,27 +1,35 @@
 {
-  "schemaVersion": 5,
-  "packageName": "@missher/dsh-context-manager",
-  "packageVersion": "0.10.0-local.12",
-  "compatibilityPolicy": "One neutral Bundle, broad dependency ranges and public runtime capability checks. A version range is not proof that every version implements enhanced compaction.",
-  "bundleEntries": [
-    "context-manager",
-    "context-manager-inspector"
-  ],
-  "hostCapability": {
-    "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
-    "supportedVersion": 1,
-    "requiredMethods": [
-      "register",
-      "bindingFor",
-      "retained"
-    ],
-    "enhancementRequires": "supported capability plus this provider actually bound to the current Agent",
-    "missingCapability": "read-only inspection and settings persistence; preserve native compactor and user presets",
-    "presetSnapshots": false,
-    "disablesBasic": false,
-    "rootEngineEntry": false
+  "schemaVersion": 1,
+  "product": "@missher/dsh-context-manager",
+  "version": "0.10.0-local.13",
+  "status": "local-packaging-candidate; not released or installed",
+  "pluginBoundary": {
+    "bundleMode": "neutral-runtime-capability",
+    "presetMode": "host-declared-provider-with-read-only-fallback",
+    "nativeBasicOwnership": "Native Basic retains its threshold, overflow recovery and usage accounting. Context call limits and ledger cover only the separate Context sidecar path.",
+    "hostCapability": {
+      "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
+      "version": 1,
+      "requiredMethods": [
+        "register",
+        "bindingFor",
+        "retained"
+      ],
+      "selectionSemantics": [
+        "new-bindings-only",
+        "future-selection-only"
+      ],
+      "missingCapability": "Keep the Host provider and user presets unchanged. Host API v1 is needed to register an enhanced Context provider; when an Agent uses native Basic, a separate Context sidecar may report its own request/idle behavior. Native Basic keeps its threshold, overflow recovery and usage accounting."
+    },
+    "overlayContract": {
+      "presetSnapshots": false,
+      "disablesBasicProvider": false,
+      "insertsEngineAtRoot": false,
+      "runtimeCapabilityDetection": true,
+      "runtimeCompatibilityIsNotProvenByGeneration": true
+    }
   },
-  "peerDependencies": {
+  "declaredCompatibilityRanges": {
     "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",
     "@deepseek-ai/dsh-agent": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
     "@deepseek-ai/dsh-compaction": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
@@ -38,72 +46,153 @@
     "@deepseek-ai/dsh-storage-domain": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
     "@deepseek-ai/schemastery": "^3.18.4 || 3.18.5-alpha.1"
   },
-  "validatedRuntimeReference": {
-    "archiveSha256": "cf0741d238b9864ad1b74e36a49d45a089fa96a740c89c8a70260c4fe9b083d0",
-    "clientSha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad",
-    "sourceFreezeSha256": "482a20f15187002ba477ee52dd355e18b050bfebef9b92f3f4dd6086f53a5f50",
-    "rootDeliveryDiffSha256": "f46ad039fdf45ed34f3e076ae3937d6a3dbe71fbaa19c8d1945e140c33f1a2b8"
+  "acceptedSourceEvidence": {
+    "acceptanceReceiptSha256": "9c4ee7266d435b8ffa259408dd80749866cd6b88d9704eb8ec538172fe97302f",
+    "sourceReadySha256": "825cd57f6aa99d679060ab349686c2c9563100d8ad0c3a9cc9628c5087964501",
+    "validationLogSha256": "d03a35973e5540349ae7d9f3146645930a2ff38da1a4d7dacb5cea82889a1f53",
+    "boundFileCount": 118,
+    "settings": {
+      "passed": 26,
+      "total": 26
+    },
+    "summarySource": {
+      "passed": 10,
+      "total": 10,
+      "note": "Some DOM fixtures were compiled from source memory and are not all packaged-client tests."
+    },
+    "wireAndWorkingSet": {
+      "passed": 37,
+      "total": 37
+    },
+    "loopScenarios": {
+      "passed": 7,
+      "total": 7
+    },
+    "rc2LoaderScenarios": {
+      "passed": 6,
+      "total": 6,
+      "scenarios": [
+        "D",
+        "F",
+        "E",
+        "100K",
+        "defaultBasic",
+        "C"
+      ]
+    },
+    "inheritedLegacySkips": {
+      "total": 21,
+      "groups": {
+        "requestErrorHandoff": 1,
+        "protectedPruning": 9,
+        "maintenanceRange": 1,
+        "agentLoopHandoff": 2,
+        "compactionHostV1": 6,
+        "electronArchive": 1,
+        "historicalLocal3Persistence": 1
+      }
+    },
+    "readbackBoundary": "Settings reload was same-page in-memory form state, not F5 or Host persistence."
   },
-  "validation": {
-    "versionedBuildAndPack": "passed one run",
-    "backendDifference": "Only index/engine diagnostic version constants differ;14 other backend files unchanged",
-    "uiRegression": {
-      "uniquePassed": 8,
-      "failed": 0,
-      "r2AffectedCases": 4,
-      "r1UnchangedCasesReused": 4,
-      "clientBuildAndTypecheck": "passed, exact client/source evidence reused"
-    },
-    "syntheticBrowser": {
-      "checksPassed": 14,
-      "viewports": [
-        [
-          1280,
-          900
-        ],
-        [
-          390,
-          844
-        ]
-      ],
-      "themes": [
-        "light",
-        "dark"
-      ],
-      "primitives": "alpha.2 source",
-      "scope": "binding modes, failures, historical view, request-window matching, percentage settings and in-memory save"
-    },
-    "officialRc2": {
-      "runtimeVersion": "0.2.1-rc.2",
-      "assertionsPassed": 70,
-      "assertionsFailed": 0,
-      "actualLoader": "core+inspector active; native declaration unchanged",
-      "compactionHostV1Available": false,
-      "enhancementCapable": false,
-      "integration": "unsupported/inactive",
-      "modelNetworkChildAgentAttempts": {
-        "networkAttempts": 0,
-        "childAttempts": 0,
-        "modelAttempts": 0,
-        "agentCreateAttempts": 0
+  "local13PackageChecks": {
+    "build": "passed; 17 runtime bundles generated; 80 dependency-cache source comments normalized without changing executable bytes",
+    "typecheck": "passed; server and client TypeScript checks exited 0 under the isolated resource scope",
+    "packageBoundary": "passed on final 24-member doc-refresh archive 2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc; neutral overlay, no Bridge code/dependency/hooks, no local workspace/cache path strings",
+    "extractedArchiveSmoke": {
+      "currentCandidateStatus": "not-run for documentation-only candidate",
+      "currentCandidateSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "evidenceArtifactSha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+      "settings": {
+        "passed": 2,
+        "total": 2,
+        "environment": "synthetic DOM and form/session fixture",
+        "logSha256": "abe63f284f1f5362d4b41d4749f53b7a49b96220c1c03108d7f4ef980ba11f4b"
       },
-      "cleanup": "passed; no live sessions/Agents, preserved synthetic cold session/storage bytes"
+      "rc2Loader": {
+        "passed": 1,
+        "total": 1,
+        "environment": "frozen RC.2 packages with synthetic Host fixture",
+        "logSha256": "c071a010f712e4de1ec6866d6371335489fc74dc64f23721f4923dec2fa08a96"
+      }
     },
-    "modelRequests": 0,
-    "fullSuiteRerun": false
+    "generatorFixtureFollowup": {
+      "status": "passed",
+      "passed": 2,
+      "total": 2,
+      "testFile": "tests/compatibility.test.mjs",
+      "testLogSha256": "1fc47a1c38b966311c406f062fc67df202860191ec65eab79b6c709eb6d6de1d",
+      "scope": "neutral overlay and metadata preservation only; no archive rebuild"
+    }
   },
-  "inheritedEvidence": {
-    "version": "0.10.0-local.11",
-    "report": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/v0.10.0-local.11/COMPATIBILITY-REPORT.json",
-    "note": "Historical evidence only; not counted as local.12 reruns"
+  "semanticTestScope": {
+    "budgetWindows": [
+      32000,
+      64000,
+      100000,
+      200000,
+      1000000
+    ],
+    "oracleWindow": 100000,
+    "oracle": "Fixed semantic facts with synthetic summaries and multi-round continuation.",
+    "notProven": [
+      "Arbitrary real-model summary quality",
+      "Every intermediate snapshot under 4K",
+      "Every tokenizer",
+      "Real provider cost"
+    ]
   },
-  "limitations": [
-    "Official 0.2.1-rc.2 lacks compactionHost v1: Context enhanced compaction remains inactive; native provider and user presets are preserved.",
-    "Browser checks use synthetic fixtures and alpha.2 source primitives; not installed rc.2 or native Electron UI proof.",
-    "No real provider/model quality, latency or billing validation; no daily or other-device installation.",
-    "Smaller total working-set algorithm remains research only.",
-    "Historic local.11 regression and other-host evidence is inherited, not rerun for local.12."
+  "pendingAcceptance": [
+    "Natural Host runtime and upgrade flow",
+    "Host-native settings persistence and native Electron UI",
+    "Real provider/model quality and billing",
+    "Formal Release, anonymous download and installation"
   ],
-  "publicationNotes": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/v0.10.0-local.12/PUBLICATION.md",
-  "recordRole": "Scoped release acceptance for exact local.12 archive; generated COMPATIBILITY.json remains a frozen source-stage contract."
+  "limitations": [
+    "Declared version ranges are package metadata and do not prove natural Host compatibility.",
+    "The 100K semantic oracle uses fixed facts and synthetic summaries; arbitrary real-model quality is not established.",
+    "The final documentation-only archive was not extracted-smoke tested. Historical synthetic settings and RC.2 Loader checks apply to the preserved original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359 only; neither establishes native UI, Host persistence, real-provider behavior, Release or installation."
+  ],
+  "documentationRefresh": {
+    "checkedAtUtc": "2026-10-18T19:41:57Z",
+    "purpose": "Documentation-only final local.13 candidate; English README historical appendix is explicitly superseded by the current policy.",
+    "artifact": {
+      "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
+      "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
+      "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "sizeBytes": 347254,
+      "memberCount": 24
+    },
+    "supersedesStagedDocumentationCandidates": [
+      {
+        "sha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+        "status": "original accepted archive; preserved unchanged"
+      },
+      {
+        "sha256": "05ecf8b8f2cfa2d4750ba828d6c1f17926c6be5d7454794c30a67fd5b1c733fd",
+        "status": "intermediate bilingual documentation candidate; preserved unchanged"
+      }
+    ],
+    "changedMembersComparedWithPreviousDocumentationCandidate": [
+      "package/README.en.md"
+    ],
+    "changedMembersComparedWithOriginalAcceptedArchive": [
+      "package/README.en.md",
+      "package/README.md"
+    ],
+    "runtimeLibMemberCount": 17,
+    "runtimeLibMembersByteIdenticalToOriginalArchive": true,
+    "packageBoundary": {
+      "status": "passed",
+      "logSha256": "5d0e6fdd6cb5891581a4fec3403f27e3940c47e69f6bbf728786e3e6f722893f",
+      "archiveSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "memberCount": 24,
+      "containsBridgeCode": false,
+      "dependsOnBridge": false,
+      "lifecyclePatchHooks": false,
+      "hostConfigTargets": [],
+      "verificationFilesBundled": false
+    },
+    "extractedSettingsAndLoaderSmoke": "not rerun on this documentation-only candidate; synthetic 2/2 settings and 1/1 RC.2 Loader smoke applies only to original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+    "releaseInstallHostOrRealProviderAcceptance": false
+  }
 }

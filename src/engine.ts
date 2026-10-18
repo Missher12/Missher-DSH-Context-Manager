@@ -4,9 +4,9 @@ import type { EmergencyPlan, RecoverySelection } from './summary-operations.ts'
 import { randomUUID, createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import { BasicCompactionEngine, type BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
-import type { SummarizationInput } from '@deepseek-ai/dsh-compaction-basic/src/summarizer.ts'
+import { CONTEXT_BASIC_IDLE_SIDECAR } from './compatibility.ts'
 import { ManualCompactionError, toolPairingBalancedBefore, toolPairingBalancedAfter } from '@deepseek-ai/dsh-compaction'
-import { BlockAssembler, isAgentLoopRequest, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler, isAgentLoopRequest, LlmError, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, Message, ToolSchema, ContentBlock, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { TokenMeasurement } from '@deepseek-ai/dsh-token-meter'
@@ -24,7 +24,7 @@ import { OperationStateError, routeHashOf, type OperationPhase } from './summary
 /** A terminal phase; a settled call is never left `recorded`. */
 type SettledPhase = Exclude<OperationPhase, 'recorded'>
 import { prepareContextInput, compactContextRegion } from './transaction.ts'
-import { continuationHeadroom, planWorkingSet, validateWorkingCandidate, type WorkingPlan } from './working-set.ts'
+import { checkpointOutputBudget, continuationHeadroom, planWorkingSet, selectableWorkingSpans, validateWorkingCandidate, type WorkingNode, type WorkingPlan } from './working-set.ts'
 import { CONTEXT_MANAGER_VERSION } from './version.ts'
 
 export const REBUILD = 'CONTEXT_MANAGER_REBUILD_REQUIRED'
@@ -48,13 +48,18 @@ interface Admission {
   previousPressure?: number
   /** Positive net growth observations from the last four comparable steps. */
   growthSamples: number[]
+  /** Request-only prompt material that is not represented by the public Session surface. */
+  requestOverhead?: number
 }
-type SummaryInput = SummarizationInput
+// RC.2 declares this on BasicCompactionEngine's protected hook but does not
+// export the source-only SummarizationInput type from its published package.
+type SummaryInput = { readonly tools?: readonly ToolSchema[]; readonly messages: readonly Message[] }
 import type { CompactCapacity, CompactPhase } from './idle-types.ts'
 /** Read-only planning facts for the inspector; never used to admit work. */
 export type PlanDiagnostic = CompactCapacity
 interface Receipt {
   id: string
+  compactionId: string
   /** The provider stream was actually started; proves a permit was consumed. */
   dispatched: boolean
   /** The provider stream ended by itself (not aborted, not still draining). */
@@ -128,6 +133,7 @@ export class ContextEngine extends BasicCompactionEngine {
   static inject = [...BasicCompactionEngine.inject, 'agents', 'contextManager']
   /** Public stable identity survives Cordis service context binding. */
   readonly contextManagerOwner = randomUUID()
+  private readonly basicIdleSidecar: boolean
   private readonly admissions = new WeakMap<Agent, Admission>()
   private readonly plans = new WeakMap<Agent, WorkingPlan>()
   private readonly planDiagnostics = new WeakMap<Agent, CompactCapacity>()
@@ -169,11 +175,13 @@ export class ContextEngine extends BasicCompactionEngine {
     this.emergencyIntent.set(agent,{kind:'execute',token})
     try {if(!await this.compactNow(agent,signal)) throw new Error('急救计划已不再需要压缩')} finally {this.emergencyIntent.delete(agent)}
   }
-  private readonly executionIds = new WeakMap<Agent, string>()
+  private readonly executionIds = new WeakMap<Agent, string[]>()
   private readonly transactionPolicies = new WeakMap<Agent, Readonly<Policy>>()
   private readonly outerDeadlines = new WeakMap<Agent, SummaryDeadline>()
   /** One receipt per recorded call, with in-process dispatch evidence. */
   private readonly operationRefs = new WeakMap<Agent, Receipt[]>()
+  /** Segment IDs whose complete public Session bracket was successfully flushed. */
+  private readonly flushedSegments = new WeakMap<Agent, Set<string>>()
   /** Every member is pre-raced with its own deadline, so disposal stays bounded. */
   private readonly physical = new Set<Promise<unknown>>()
   private readonly idlePreflights = new WeakMap<Agent, (allowBelow?: boolean) => Promise<void>>()
@@ -186,10 +194,12 @@ export class ContextEngine extends BasicCompactionEngine {
 
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx, { ...config, auto: false })
+    this.basicIdleSidecar = (ctx as unknown as Record<symbol, unknown>)[CONTEXT_BASIC_IDLE_SIDECAR] === true
     this.fallbackTransportScope=rootScopes.get(ctx.root)??randomUUID();rootScopes.set(ctx.root,this.fallbackTransportScope)
     this.startupReady=startupProof(import.meta.url,ctx.get('profileContext'))
     const engine = this
-    const idle = new IdleCompactor(ctx, agent => engine.owns(agent), (agent, signal, preflight, pruned, deadline) => {
+    const idle = new IdleCompactor(ctx, agent => engine.owns(agent)
+      || engine.basicIdleSidecar && ctx.contextManager.isNativeBasicAgent(agent), (agent, signal, preflight, pruned, deadline) => {
       engine.outerDeadlines.set(agent, deadline)
       engine.idlePreflights.set(agent, preflight)
       engine.idlePruned.set(agent, pruned)
@@ -253,7 +263,9 @@ export class ContextEngine extends BasicCompactionEngine {
         const limits = budget(policy, window, options.maxTokens ?? model.defaultMaxTokens ?? 0)
         if (limits.hard <= 0) throw new Error(`最大输出预留与安全空间已占满 ${window} Token 窗口；请降低最大输出设置。任务原文保留，未调用摘要模型。`)
         const measurement = ctx.tokenMeter.measure(agent.session)
-        const pressure = measurement.totalTokens
+        const requestTokens = engine.requestTokens(options)
+        const requestOverhead = Math.max(0, requestTokens - measurement.totalTokens)
+        const pressure = measurement.totalTokens + requestOverhead
         const step = agent.session.snapshotEvents().findLast(e => e.type === 'step/start')
         if (step?.type !== 'step/start') throw new Error('缺少当前步骤记录')
         const previous = engine.admissions.get(agent)
@@ -270,7 +282,7 @@ export class ContextEngine extends BasicCompactionEngine {
           if (growthSamples.length > 4) growthSamples.splice(0, growthSamples.length - 4)
         }
         engine.admissions.set(agent, { turn: step.data.turn, step: step.data.step, passes, policy, budget: limits,
-          pressure, previousPressure, growthSamples })
+          pressure, previousPressure, growthSamples, requestOverhead })
         if ((policy.enabled && pressure >= limits.admission) || pressure >= limits.hard) {
           const canCompact = policy.enabled && passes < policy.maxPasses
           const source = limits.admissionSource === 'absolute' ? '（绝对软预算）' : limits.admissionSource === 'hard' ? '（硬上限）' : ''
@@ -294,8 +306,10 @@ export class ContextEngine extends BasicCompactionEngine {
     ctx.on('agent/request-error', async ({ agent, failure, signal }, next) => {
       if (!engine.owns(agent)) return next()
       if (failure.code === BLOCKED) return undefined
-      const overflow = failure.code === CONTEXT_WINDOW_EXCEEDED_CODE
-      if (failure.code !== REBUILD && !overflow) return next()
+      // Only this plugin's dedicated pre-provider failures enter its retry path.
+      // Provider overflow codes belong to the active provider and must keep the
+      // Host's ordinary error handling and retry policy.
+      if (failure.code !== REBUILD) return next()
       const state = engine.admissions.get(agent)
       if (!state || !state.policy.enabled || signal.aborted || state.passes >= state.policy.maxPasses) return undefined
       if (engine.hasQueuedInput(agent)) {
@@ -310,23 +324,63 @@ export class ContextEngine extends BasicCompactionEngine {
         await ctx.sessions.flush(agent.session)
         signal.throwIfAborted()
         const after = ctx.tokenMeter.measure(agent.session)
-        if (after.totalTokens < measure.totalTokens && after.totalTokens < state.budget.admission && !overflow) {
+        if (after.totalTokens < measure.totalTokens
+          && after.totalTokens + (state.requestOverhead ?? 0) < state.budget.admission) {
           state.passes += 1
           return { kind: 'retry' }
         }
         measure = after
       }
-      const selection = engine.select(agent, measure, state, overflow)
-      if (!selection) throw new LlmError('没有可安全压缩的历史；最新任务、系统指令或附件本身占用过大。任务原文已保留。', BLOCKED)
+      const aggregateCheckpointBudget = engine.summaryCap(state.policy, state.budget.window)
+      if (checkpointOutputBudget(aggregateCheckpointBudget, 1) < 256) {
+        throw new LlmError(`摘要预算仅 ${aggregateCheckpointBudget} Token，不足以容纳 256 Token 正文与 128 Token framing；未调用摘要模型，任务原文已保留。`, BLOCKED)
+      }
+      const maxSegments = Math.min(2, state.policy.maxPasses)
+      // First discover a viable span against the actual current checkpoint
+      // occupancy. Only split G when another legal source span can release its
+      // own existing checkpoint; a guessed second segment must not reject A.
+      const firstSelection = engine.select(agent, measure, state, false, aggregateCheckpointBudget, new Set(),
+        aggregateCheckpointBudget, 0)
+      if (!firstSelection) throw new LlmError('没有可安全压缩的历史；最新任务、系统指令或附件本身占用过大。任务原文已保留。', BLOCKED)
+      const firstPlan = engine.plans.get(agent)
+      if (!firstPlan) throw new LlmError('缺少可核验压缩计划；任务原文已保留。', BLOCKED)
+      const mapped = engine.selectionNodes(agent, measure)
+      const spans = selectableWorkingSpans(mapped, firstPlan.retainedTokens)
+      const anotherSpan = spans.filter(span => span.start !== firstSelection.start || span.end !== firstSelection.end)
+        .sort((a, b) => b.tokens - a.tokens)[0]
+      const minGain = Math.min(1024, Math.max(128, measure.totalTokens * 0.005))
+      let segmentLimit = maxSegments > 1 && aggregateCheckpointBudget >= 768 && anotherSpan
+        && anotherSpan.tokens >= 256 + 128 + minGain ? 2 : 1
+      let plannedCheckpointBudget = Math.min(aggregateCheckpointBudget, Math.max(0,
+        aggregateCheckpointBudget - firstPlan.checkpoints.retained + (segmentLimit > 1 ? anotherSpan!.checkpointTokens : 0)))
+      let segmentOutputBudget = checkpointOutputBudget(plannedCheckpointBudget, segmentLimit)
+      if (segmentLimit > 1 && segmentOutputBudget < 256) {
+        segmentLimit = 1
+        plannedCheckpointBudget = Math.min(aggregateCheckpointBudget,
+          Math.max(0, aggregateCheckpointBudget - firstPlan.checkpoints.retained))
+        segmentOutputBudget = checkpointOutputBudget(plannedCheckpointBudget, segmentLimit)
+      }
+      const selection = engine.select(agent, measure, state, false, segmentOutputBudget, new Set(),
+        aggregateCheckpointBudget, 0)
+      if (!selection) throw new LlmError('当前活动摘要预算不足以安全生成 checkpoint；未调用摘要模型，任务原文已保留。', BLOCKED)
       state.passes += 1
       const generation = agent.session.surface.replaceGeneration
       try {
-        engine.summaryTriggers.set(agent, overflow ? 'overflow' : 'pressure')
-        await engine.compactRegion(selection.start, selection.end, agent, signal)
+        engine.summaryTriggers.set(agent, 'pressure')
+        const finalBudget = await engine.compactPressureBatch(selection, agent, signal, state, segmentLimit, segmentOutputBudget)
         signal.throwIfAborted()
         await ctx.sessions.flush(agent.session)
         signal.throwIfAborted()
         const after = ctx.tokenMeter.measure(agent.session).totalTokens
+        const afterPressure = after + (state.requestOverhead ?? 0)
+        const checkedPressure = Math.max(afterPressure, finalBudget.afterPressure)
+        if (state.policy.historyMode === 'custom' && (finalBudget.resumeHeadroom === null
+          || checkedPressure + finalBudget.resumeHeadroom > finalBudget.completionTarget)) {
+          const headroom = finalBudget.resumeHeadroom === null
+            ? `续跑余量不可核验（需求 ${finalBudget.requiredResumeHeadroom} Token / 当前可用上限 ${finalBudget.resumeHeadroomLimit} Token）`
+            : `续跑余量 ${finalBudget.resumeHeadroom} Token，含续跑余量预计 ${checkedPressure + finalBudget.resumeHeadroom} Token`
+          throw new LlmError(`自定义占用目标仍未达到（当前约 ${checkedPressure} Token，${headroom} / ${finalBudget.completionTarget} Token）；摘要已安全保存，当前任务未重放，请先检查并调整占用目标。`, BLOCKED)
+        }
         if (agent.session.surface.replaceGeneration <= generation || after >= measure.totalTokens) {
           throw new Error('压缩未降低上下文占用')
         }
@@ -355,13 +409,119 @@ export class ContextEngine extends BasicCompactionEngine {
   private owns(agent: Agent): boolean {
     const backend = this.ctx.get('agentPresets')?.serviceFor?.(agent, 'compaction') ?? agent.ctx.get('compaction')
     return backend instanceof ContextEngine && backend.contextManagerOwner === this.contextManagerOwner
+      || this.basicIdleSidecar && this.ctx.contextManager.isNativeBasicAgent(agent)
+  }
+
+  /** Count the exact loop-built prompt, including attachment blocks and tool schemas. */
+  private requestTokens(options: GenerateOptions): number {
+    // RequestUserInput is the same model-visible role/content shape without
+    // durable Session id/source fields; the public meter only reads role/content.
+    const messages = options.messages.reduce((sum, message) => sum + this.ctx.tokenMeter.estimateMessage(message as Message), 0)
+    const tools = options.tools?.length ? Math.ceil(JSON.stringify(options.tools).length / 3) : 0
+    return messages + tools
   }
 
   override compactRegion(start: SessionSeq, end: SessionSeq, agent: Agent, signal?: AbortSignal) {
     return this.withTransaction(agent, signal, async active => {
       await this.ensureRegionPlan(agent, start, end, active)
-      return compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false, flush: async () => { await this.ctx.sessions.flush(agent.session) } }, active)
+      return compactContextRegion(this.transactionDependencies(), agent, start, end, { idle: false, flush: () => this.flushCompaction(agent) }, active)
     })
+  }
+
+  /** Batch at most two disjoint spans under one durable cycle and one outer deadline. */
+  private compactPressureBatch(initial: { start: SessionSeq; end: SessionSeq }, agent: Agent, signal: AbortSignal,
+    state: Admission, maxSegments: number, summaryBudget: number) {
+    return this.withTransaction(agent, signal, async active => {
+      let range = initial
+      let completed = 0
+      const covered = new Set<number>()
+      const excludedSeqs = new Set<number>()
+      try {
+        while (completed < maxSegments) {
+          active.throwIfAborted()
+          const plan = this.plans.get(agent)
+          if (!plan || plan.start !== range.start || plan.end !== range.end) throw new Error('压缩计划已失效，原文保留')
+          const coverage = this.sourceCoverage(agent, range.start, range.end)
+          if ([...coverage].some(seq => covered.has(seq))) {
+            if (completed === 0) throw new Error('首段压缩来源重复，原文保留')
+            break
+          }
+          const result = await compactContextRegion(this.transactionDependencies(), agent, range.start, range.end,
+            { idle: false, flush: () => this.flushCompaction(agent) }, active)
+          completed++
+          for (const seq of coverage) covered.add(seq)
+          const checkpoint = agent.session.snapshotEvents().findLast(event => event.type === 'user/message'
+            && event.data.source.kind === 'compact-checkpoint' && 'compactionId' in event.data.source
+            && String(event.data.source.compactionId) === String(result.compactionId))
+          if (checkpoint?.type === 'user/message') excludedSeqs.add(checkpoint.seq)
+          if (completed >= maxSegments) break
+
+          // Re-measure after A has flushed. B is planned only if the completion
+          // target is still missed, and receives only its preallocated share of G.
+          const after = this.ctx.tokenMeter.measure(agent.session)
+          const pressure = after.totalTokens + (state.requestOverhead ?? 0)
+          state.pressure = pressure
+          const customTarget = state.policy.historyMode === 'custom'
+          if ((plan.completionTargetCertain || customTarget) && pressure + plan.resumeHeadroom <= plan.completionTarget) break
+          if (!plan.completionTargetCertain && !customTarget) break
+          let next: { start: SessionSeq; end: SessionSeq } | undefined
+          try { next = this.select(agent, after, state, false, summaryBudget, excludedSeqs,
+            this.summaryCap(state.policy, state.budget.window), 0) }
+          catch { break }
+          if (!next) break
+          const nextCoverage = this.sourceCoverage(agent, next.start, next.end)
+          if ([...nextCoverage].some(seq => covered.has(seq))) break
+          range = next
+        }
+        const measured = this.ctx.tokenMeter.measure(agent.session)
+        const afterPressure = measured.totalTokens + (state.requestOverhead ?? 0)
+        const reserve = this.continuationReserve(agent, { ...measured, totalTokens: afterPressure }, state.budget,
+          state.previousPressure, state.growthSamples)
+        state.pressure = afterPressure
+        return {
+          completed,
+          afterPressure,
+          completionTarget: state.budget.target,
+          resumeHeadroom: reserve.sufficient ? reserve.tokens : null,
+          requiredResumeHeadroom: reserve.required,
+          resumeHeadroomLimit: reserve.limit,
+        }
+      } catch (error) {
+        if (completed > 0) throw new Error(`前 ${completed} 段已提交并落盘；后续段未完成，已保留未处理原文。${error instanceof Error ? ` ${error.message}` : ''}`, { cause: error })
+        throw error
+      }
+    })
+  }
+
+  /** Resolve replacement lineage to leaf event sequences for strict batch disjointness. */
+  private sourceCoverage(agent: Agent, start: SessionSeq, end: SessionSeq): Set<number> {
+    const nodes = agent.session.surface.nodes
+    const first = nodes.indexOf(start), last = nodes.indexOf(end)
+    if (first < 0 || last < first) throw new Error('压缩来源范围已改变，原文保留')
+    const queue = [...nodes.slice(first, last + 1)]
+    const seen = new Set<number>(), leaves = new Set<number>()
+    while (queue.length) {
+      const seq = queue.pop()!
+      if (seen.has(seq)) continue
+      seen.add(seq)
+      if (seen.size > 50000) throw new Error('压缩来源链超过安全读取范围，原文保留')
+      const event = agent.session.eventAt(seq)
+      if (!event) throw new Error('压缩来源不可读取，原文保留')
+      if (event.surfaceOp !== 'append' && 'sourceEventSeqs' in event && event.sourceEventSeqs?.length) {
+        queue.push(...event.sourceEventSeqs)
+      } else leaves.add(seq)
+    }
+    return leaves
+  }
+
+  private async flushCompaction(agent: Agent): Promise<void> {
+    await this.ctx.sessions.flush(agent.session)
+    const end = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/end')
+    if (end?.type === 'compaction/end' && !end.data.error) {
+      const flushed = this.flushedSegments.get(agent) ?? new Set<string>()
+      flushed.add(String(end.data.compactionId))
+      this.flushedSegments.set(agent, flushed)
+    }
   }
 
   /** Public explicit-region calls must pass the same before/after pressure check. */
@@ -379,22 +539,30 @@ export class ContextEngine extends BasicCompactionEngine {
     const first = measurement.nodes.findIndex(n => n.seq === start)
     const last = measurement.nodes.findIndex(n => n.seq === end)
     if (first < 0 || last < first) throw new Error('压缩选区已经改变，原文保留')
-    const nodes = measurement.nodes.slice(first, last + 1)
-    const mapped = nodes.map(n => ({ seq: n.seq, tokens: n.tokens,
-      protected: agent.session.eventAt(n.seq)?.type === 'system/message',
-      balancedBefore: toolPairingBalancedBefore(agent.session, n.seq), balancedAfter: toolPairingBalancedAfter(agent.session, n.seq),
-    }))
+    const mapped = measurement.nodes.map(n => {
+      const event = agent.session.eventAt(n.seq)
+      return { seq: n.seq, tokens: n.tokens,
+        protected: n.seq < start || n.seq > end || event?.type === 'system/message',
+        checkpoint: event?.type === 'user/message' && event.data.source.kind === 'compact-checkpoint',
+        balancedBefore: toolPairingBalancedBefore(agent.session, n.seq), balancedAfter: toolPairingBalancedAfter(agent.session, n.seq),
+      }
+    })
     const previousAdmission = this.admissions.get(agent)
     const reserve = this.continuationReserve(agent, measurement, limits, previousAdmission?.pressure, previousAdmission?.growthSamples)
     if (!reserve.sufficient) throw new Error(`续跑增长估算需求 ${reserve.required} Token 已超过触发线下可用余量 ${reserve.limit} Token；未调用摘要模型，原文保留`)
     const resumeHeadroom = reserve.tokens
+    const aggregateCheckpointTokens = this.summaryCap(policy, limits.window)
+    const activeCheckpointTokens = measurement.nodes.reduce((sum, node) => {
+      const event = agent.session.eventAt(node.seq)
+      return sum + (event?.type === 'user/message' && event.data.source.kind === 'compact-checkpoint' ? node.tokens : 0)
+    }, 0)
     const regionLimits = { total: measurement.totalTokens, admission: limits.admission, hard: limits.hard,
-      recentTokens: 0, summaryTokens: this.summaryCap(policy, limits.window),
-      ...(policy.historyMode === 'custom' ? { target: limits.target } : {}) }
+      recentTokens: 0, summaryTokens: aggregateCheckpointTokens, aggregateCheckpointTokens, activeCheckpointTokens,
+      ...(policy.historyMode === 'custom' ? { completionTarget: limits.target } : {}) }
     const plan = planWorkingSet(mapped, { ...regionLimits, resumeHeadroom })
     if (!plan && resumeHeadroom > 0) {
       const bare = planWorkingSet(mapped, { ...regionLimits, resumeHeadroom: 0 })
-      if (bare) throw new Error(`受保护内容下界只能压到约 ${Math.ceil(bare.estimatedAfter)} Token；规划余量 ${resumeHeadroom} Token（近期峰值估算需求 ${reserve.required}，策略上限 ${reserve.limit}），无法满足续跑规划；未调用摘要模型，任务原文保留`)
+      if (bare) throw new Error(`续跑余量无法纳入当前单段规划；固定内容约 ${Math.ceil(bare.composition.fixed)} Token，近期保留约 ${Math.ceil(bare.composition.recent)} Token，本次选区单段估算完成后约 ${Math.ceil(bare.estimatedAfter)} Token，另有未选历史约 ${Math.ceil(bare.composition.unselected)} Token（可能由后续选区整理；测量差 ${Math.ceil(bare.composition.uncertaintyDelta)} Token）。所需续跑余量 ${resumeHeadroom} Token（近期峰值估算需求 ${reserve.required}，策略上限 ${reserve.limit}）；未调用摘要模型，任务原文保留`)
     }
     if (!plan || plan.start !== start || plan.end !== end) throw new Error('所选历史无法安全释放足够空间，原文保留')
     this.plans.set(agent, plan)
@@ -416,7 +584,7 @@ export class ContextEngine extends BasicCompactionEngine {
             if (!range) return null
             return await compactContextRegion(this.transactionDependencies(), agent, range.start, range.end, {
               idle: true, ...(sourceCommandId === undefined ? {} : { sourceCommandId }),
-              flush: async () => { await this.ctx.sessions.flush(agent.session) },
+              flush: () => this.flushCompaction(agent),
             }, operation)
           } catch (error) {
             if (maintenance.aborted && operation.reason === maintenance.reason) {
@@ -443,7 +611,7 @@ export class ContextEngine extends BasicCompactionEngine {
         this.outerDeadlines.get(agent)?.assertAlive()
         const plan = this.plans.get(agent)
         if (!plan || plan.start !== start || plan.end !== end) throw new Error('压缩计划已失效，原文保留')
-        if (before.totalTokens !== plan.before) throw new Error('压缩计划的压力已变化，原文保留')
+        if (before.totalTokens + (this.admissions.get(agent)?.requestOverhead ?? 0) !== plan.before) throw new Error('压缩计划的压力已变化，原文保留')
         validateWorkingCandidate(plan, this.ctx.tokenMeter.estimateMessage(checkpoint))
       },
       summarize: (input, agent, signal) => this.summarize(input, agent, signal),
@@ -487,13 +655,12 @@ export class ContextEngine extends BasicCompactionEngine {
     const execution = `Context ${CONTEXT_MANAGER_VERSION} · ${new Date().toISOString()} · ${existing ? 'idle预检' : '事务开始'} · 总限${outer.limits.totalMs / 1000}s/首输出${outer.limits.firstOutputMs / 1000}s/停滞${outer.limits.stallMs / 1000}s`
     this.ctx.contextManager.reportExecution(String(agent.id), `执行中：${execution}`)
     const active = outer.signal
-    const generation = agent.session.surface.replaceGeneration
     const operation = (async () => {
       active.throwIfAborted()
       try {
         const result = await work(active)
         await this.finishRun(agent,'completed')
-        await this.settleOperations(agent, generation, undefined)
+        await this.settleOperations(agent, undefined)
         this.ctx.contextManager.reportExecution(String(agent.id), `已完成：${execution}`)
         return result
       } catch (error) {
@@ -501,7 +668,7 @@ export class ContextEngine extends BasicCompactionEngine {
         this.ctx.contextManager.reportExecution(String(agent.id), `本次停止 ${code}：${execution}`)
         if (error instanceof Error) error.message += ` [${code}；${execution}]`
         await this.finishRun(agent,code)
-        await this.settleOperations(agent, generation, error)
+        await this.settleOperations(agent, error)
         this.ctx.contextManager.reportStop(String(agent.id), code)
         throw error
       }
@@ -518,6 +685,7 @@ export class ContextEngine extends BasicCompactionEngine {
       this.planDiagnostics.delete(agent)
       this.recovering.delete(agent)
       this.executionIds.delete(agent)
+      this.flushedSegments.delete(agent)
       this.transactionPolicies.delete(agent)
       this.transactionCalls.delete(agent)
       this.transactionRepairs.delete(agent)
@@ -615,72 +783,103 @@ export class ContextEngine extends BasicCompactionEngine {
     return { ...estimate, growth, incomingTokens }
   }
 
-  private select(agent: Agent, m: TokenMeasurement, state: Admission, overflow = false): { start: SessionSeq; end: SessionSeq } | undefined {
+  /** Map the current effective surface using the same protection rules as selection. */
+  private selectionNodes(agent: Agent, m: TokenMeasurement, excludedSeqs: ReadonlySet<number> = new Set()): WorkingNode[] {
+    const session = agent.session
+    const latestUser = m.nodes.findLast(n => {
+      const event = session.eventAt(n.seq)
+      return event?.type === 'user/message' && event.data.source.kind === 'user'
+    })?.seq
+    const stepStart = session.snapshotEvents().findLast(e => e.type === 'step/start')?.seq ?? Infinity
+    return m.nodes.map(node => {
+      const event = session.eventAt(node.seq)
+      const currentInput = node.seq > stepStart && event?.type === 'user/message'
+        && event.data.source.kind !== 'compact-checkpoint'
+      return { seq: node.seq, tokens: node.tokens,
+        protected: excludedSeqs.has(node.seq) || node.seq === latestUser || currentInput || event?.type === 'system/message',
+        checkpoint: event?.type === 'user/message' && event.data.source.kind === 'compact-checkpoint',
+        balancedBefore: toolPairingBalancedBefore(session, node.seq), balancedAfter: toolPairingBalancedAfter(session, node.seq),
+      }
+    })
+  }
+
+  private select(agent: Agent, m: TokenMeasurement, state: Admission, overflow = false,
+    summaryBudget = this.summaryCap(state.policy, state.budget.window), excludedSeqs: ReadonlySet<number> = new Set(),
+    aggregateCheckpointTokens = this.summaryCap(state.policy, state.budget.window), reservedCheckpointTokens = 0): { start: SessionSeq; end: SessionSeq } | undefined {
     const session = agent.session
     const nodes = m.nodes
-    const latestUserIndex = nodes.findLastIndex(n => {
-      const e = session.eventAt(n.seq)
-      return e?.type === 'user/message' && e.data.source.kind === 'user'
-    })
-    // Replacements get new log sequence IDs at their original surface position.
-    const latestUser = nodes[latestUserIndex]?.seq
-    const stepStart = session.snapshotEvents().findLast(e => e.type === 'step/start')?.seq ?? Infinity
-    const protectedUsers = new Set(nodes.filter((n, index) => {
-      const event = session.eventAt(n.seq)
-      return n.seq === latestUser || (n.seq > stepStart && event?.type === 'user/message' && event.data.source.kind !== 'compact-checkpoint')
-    }).map(n => n.seq))
-    const summaryBudget = this.summaryCap(state.policy, state.budget.window)
-    const mapped = nodes.map(node => ({ seq: node.seq, tokens: node.tokens,
-      protected: protectedUsers.has(node.seq) || session.eventAt(node.seq)?.type === 'system/message',
-      balancedBefore: toolPairingBalancedBefore(session, node.seq), balancedAfter: toolPairingBalancedAfter(session, node.seq),
-    }))
-    const reserve = this.continuationReserve(agent, m, state.budget, state.previousPressure, state.growthSamples)
+    const pressureMeasurement = state.requestOverhead
+      ? { ...m, totalTokens: m.totalTokens + state.requestOverhead } : m
+    const actualSummaryBudget = summaryBudget
+    const mapped = this.selectionNodes(agent, m, excludedSeqs)
+    const reserve = this.continuationReserve(agent, pressureMeasurement, state.budget, state.previousPressure, state.growthSamples)
     if (!reserve.sufficient) {
       this.plans.delete(agent)
       this.planDiagnostics.delete(agent)
       throw new LlmError(`续跑增长估算需求 ${reserve.required} Token 已超过触发线下可用余量 ${reserve.limit} Token；未调用摘要模型，任务原文保留。`, BLOCKED)
     }
     const resumeHeadroom = reserve.tokens
-    const limits = { total: m.totalTokens, admission: state.budget.admission, hard: state.budget.hard,
-      recentTokens: Math.min(state.budget.recentTokens, Math.floor(state.budget.hard * 0.2)), summaryTokens: summaryBudget, overflow,
-      ...(state.policy.historyMode === 'custom' ? { target: state.budget.target } : {}) }
+    const activeCheckpointTokens = nodes.reduce((sum, node) => {
+      const event = session.eventAt(node.seq)
+      return sum + (event?.type === 'user/message' && event.data.source.kind === 'compact-checkpoint' ? node.tokens : 0)
+    }, 0)
+    const limits = { total: pressureMeasurement.totalTokens, admission: state.budget.admission, hard: state.budget.hard,
+      recentTokens: Math.min(state.budget.recentTokens, Math.floor(state.budget.hard * 0.2)), summaryTokens: actualSummaryBudget, overflow,
+      aggregateCheckpointTokens, activeCheckpointTokens, reservedCheckpointTokens,
+      ...(state.policy.historyMode === 'custom' ? { completionTarget: state.budget.target } : {}) }
     const plan = planWorkingSet(mapped, { ...limits, resumeHeadroom })
     if (!plan) {
       this.plans.delete(agent)
       this.planDiagnostics.delete(agent)
       const bare = resumeHeadroom > 0 ? planWorkingSet(mapped, { ...limits, resumeHeadroom: 0 }) : undefined
-      if (bare) throw new LlmError(`受保护内容下界只能压到约 ${Math.ceil(bare.estimatedAfter)} Token；规划余量 ${resumeHeadroom} Token（近期峰值估算需求 ${reserve.required}，策略上限 ${reserve.limit}），无法满足续跑规划；未调用摘要模型，任务原文保留。`, BLOCKED)
+      if (bare) throw new LlmError(`续跑余量无法纳入当前单段规划；固定内容约 ${Math.ceil(bare.composition.fixed)} Token，近期保留约 ${Math.ceil(bare.composition.recent)} Token，本次选区单段估算完成后约 ${Math.ceil(bare.estimatedAfter)} Token，另有未选历史约 ${Math.ceil(bare.composition.unselected)} Token（可能由后续选区整理；测量差 ${Math.ceil(bare.composition.uncertaintyDelta)} Token）。所需续跑余量 ${resumeHeadroom} Token（近期峰值估算需求 ${reserve.required}，策略上限 ${reserve.limit}）；未调用摘要模型，任务原文保留。`, BLOCKED)
       return
     }
     this.plans.set(agent, plan)
     this.planDiagnostics.set(agent, { windowTokens: state.budget.window, admission: plan.admission, upper: plan.upper, resumeHeadroom: plan.resumeHeadroom,
-      protectedTokens: mapped.filter(node => node.protected).reduce((sum, node) => sum + node.tokens, 0), totalTokens: m.totalTokens,
+      protectedTokens: plan.composition.fixed, totalTokens: pressureMeasurement.totalTokens,
       incomingTokens: reserve.incomingTokens, recentGrowth: reserve.growth,
       requiredResumeHeadroom: reserve.required, resumeHeadroomLimit: reserve.limit })
     return { start: plan.start as SessionSeq, end: plan.end as SessionSeq }
   }
 
   private async finishRun(agent:Agent,code:string) {
-    const id=this.executionIds.get(agent)
-    if(id)await this.ctx.contextManager.summaryOperations.endRun(String(agent.id),id,code,(this.operationRefs.get(agent)??[]).filter(row=>row.dispatched).length)
+    const ids=this.executionIds.get(agent) ?? []
+    for (const id of ids) {
+      const dispatched=(this.operationRefs.get(agent)??[]).filter(row=>row.compactionId===id&&row.dispatched).length
+      await this.ctx.contextManager.summaryOperations.endRun(String(agent.id),id,code,dispatched)
+    }
   }
-  private async settleOperations(agent: Agent, generation: number, error: unknown): Promise<void> {
+  private segmentCommitted(agent: Agent, compactionId: string): boolean {
+    const events = agent.session.snapshotEvents()
+    const start = events.find(event => event.type === 'compaction/start' && String(event.data.compactionId) === compactionId)
+    const summary = events.find(event => event.type === 'compaction/summary' && String(event.data.compactionId) === compactionId)
+    const replacement = summary && events.find(event => event.type === 'user/message'
+      && event.data.source.kind === 'compact-checkpoint' && 'compactionId' in event.data.source
+      && String(event.data.source.compactionId) === compactionId
+      && event.sourceEventSeqs?.includes(summary.seq))
+    const end = events.find(event => event.type === 'compaction/end' && String(event.data.compactionId) === compactionId && !event.data.error)
+    return !!start && !!summary && !!replacement && !!end
+      && start.seq < summary.seq && summary.seq < replacement.seq && replacement.seq < end.seq
+      && replacement.sourceEventSeqs?.includes(start.seq) === true
+      && this.flushedSegments.get(agent)?.has(compactionId) === true
+  }
+  private async settleOperations(agent: Agent, error: unknown): Promise<void> {
     const refs = this.operationRefs.get(agent) ?? []
     this.operationRefs.delete(agent)
-    // A generation change alone can be a different consumer. Verify this exact compaction.
-    const ends = agent.session.snapshotEvents().filter(event => event.type === 'compaction/end' && !event.data.error)
     const records = this.ctx.contextManager.summaryOperations.allRecords(String(agent.id))
     for (const receipt of refs) {
       if (receipt.settled) continue
       const row = records.find(row => row.operationId === receipt.id)
-      const applied = error === undefined && agent.session.surface.replaceGeneration > generation
-        && ends.some(event => event.type === 'compaction/end' && String(event.data.compactionId) === row?.compactionId)
+      // A later batch member can fail without downgrading an earlier flushed segment.
+      const applied = row !== undefined && this.segmentCommitted(agent, row.compactionId)
       const phase: SettledPhase = !receipt.dispatched ? 'not_dispatched' : receipt.failedProof ? 'known_failed_unapplied'
         : applied ? 'committed' : receipt.generated ? 'generated_uncommitted' : 'unknown_interrupted'
       try { await this.ctx.contextManager.summaryOperations.settle(String(agent.id), receipt.id, phase,
-        { reasonCode: receipt.deterministicRepair ? 'deterministic_repair' : error === undefined ? undefined : this.reasonCodeOf(error),
+        { reasonCode: receipt.deterministicRepair ? 'deterministic_repair' : applied || error === undefined ? undefined : this.reasonCodeOf(error),
           usageComplete: receipt.usageComplete, ...(receipt.physical ? { physicalEnded: true } : {}) }) }
-      catch (persist) { this.ctx.logger.warn('压缩调用终态未持久化，保持未知以免重复收费：%s', persist) }
+      catch (persist) { this.ctx.logger.warn('压缩调用终态未持久化，保持未知以免重复收费：%s', persist); continue }
+      receipt.settled = true
     }
   }
 
@@ -758,7 +957,7 @@ export class ContextEngine extends BasicCompactionEngine {
           const operation = AbortSignal.any([active, maintenance])
           await this.ensureRegionPlan(agent, plan.start as SessionSeq, plan.end as SessionSeq, operation)
           await compactContextRegion(this.transactionDependencies(), agent, plan.start as SessionSeq, plan.end as SessionSeq,
-            { idle: true, flush: async () => { await this.ctx.sessions.flush(agent.session) } }, operation)
+            { idle: true, flush: () => this.flushCompaction(agent) }, operation)
         }))
       } finally { this.recoveryIdentity.delete(agent); this.recovering.delete(agent) }
     })
@@ -769,7 +968,8 @@ export class ContextEngine extends BasicCompactionEngine {
   private async claimSummaryCall(agent: Agent, options: GenerateOptions, purpose: 'summary' | 'repair' | 'recovery', trigger: SummaryTrigger, compactionId: string, estimatedInput: number): Promise<Receipt> {
     this.assertTransportIdle(agent)
     if(this.emergencyIntent.get(agent)?.kind!=='prepare') {
-      this.executionIds.set(agent,compactionId)
+      const ids=this.executionIds.get(agent) ?? []
+      if (!ids.includes(compactionId)) this.executionIds.set(agent,[...ids,compactionId])
       await this.ctx.contextManager.summaryOperations.startRun(String(agent.id),compactionId,this.outerDeadlines.get(agent)!.limits)
     }
     const calls = this.transactionCalls.get(agent) ?? 0
@@ -789,7 +989,11 @@ export class ContextEngine extends BasicCompactionEngine {
       if (summary && replacement && end && summary.seq < replacement.seq && replacement.seq < end.seq) {
         await this.ctx.sessions.flush(agent.session)
         this.outerDeadlines.get(agent)?.assertAlive()
+        const flushed=this.flushedSegments.get(agent) ?? new Set<string>()
+        flushed.add(row.compactionId)
+        this.flushedSegments.set(agent,flushed)
         await operations.settle(sessionId, row.operationId, 'committed')
+        for (const receipt of this.operationRefs.get(agent) ?? []) if (receipt.id === row.operationId) receipt.settled = true
       }
     }
     const legacy = this.ctx.contextManager.compactionCycles.records(sessionId)
@@ -862,14 +1066,29 @@ export class ContextEngine extends BasicCompactionEngine {
         deadline:`总限${this.outerDeadlines.get(agent)!.limits.totalMs/1000}s · 首输出${this.outerDeadlines.get(agent)!.limits.firstOutputMs/1000}s · 停滞${this.outerDeadlines.get(agent)!.limits.stallMs/1000}s`,
         estimatedInput}}
     const emergency=this.emergencyIntent.get(agent)
+    const recoveryIdentity = { requestHash, sourceHash, routeHash: routeHashOf(options), sourceWatermark, strategyHash,
+      maxTokens: options.maxTokens ?? 0, provider: options.provider, model: options.model,
+      reasoningEffort: options.reasoningEffort ?? '', toolsHash }
     if(emergency) {
       this.assertTransportIdle(agent)
       if(calls!==0 || purpose==='repair') throw new Error('人工急救仅允许一次实际调用，不允许重试或修复')
       if(emergency.kind==='prepare') {emergency.plan=operations.prepareEmergency(permitInput);throw new EmergencyPrepared()}
     }
-    const recoveryIdentity = { requestHash, sourceHash, routeHash: routeHashOf(options), sourceWatermark, strategyHash,
-      maxTokens: options.maxTokens ?? 0, provider: options.provider, model: options.model,
-      reasoningEffort: options.reasoningEffort ?? '', toolsHash }
+    if (!emergency) {
+      const preview = operations.preview(permitInput)
+      if (!preview.available) {
+        // A changed request can be the exact A+B source the user must authorize
+        // after an earlier unknown call. Refresh the bound recovery callback
+        // here too; preview refuses dispatch before claim() can register it.
+        operations.recordBlockedRequest(permitInput)
+        if (purpose !== 'repair') {
+          const target = operations.recoveryTarget(permitInput)
+          if (target) this.registerRecoveryForPlan(agent, options, plan, recoveryIdentity, target)
+          else { this.recoveryReaders.get(agent)?.(); this.recoveryReaders.delete(agent) }
+        }
+        throw new OperationStateError(preview.reason ?? '当前压缩周期的调用额度或来源状态不可用')
+      }
+    }
     let row
     try {
       row = emergency?.kind === 'execute' ? await operations.claimEmergency(permitInput, emergency.token) : await operations.claim(permitInput)
@@ -886,7 +1105,7 @@ export class ContextEngine extends BasicCompactionEngine {
       if (target) this.registerRecoveryForPlan(agent, options, plan, recoveryIdentity, target)
       else { this.recoveryReaders.get(agent)?.(); this.recoveryReaders.delete(agent) }
     }
-    const receipt: Receipt = { id: row.operationId, dispatched: false, physical: false, generated: false, failedProof: false, settled: false,
+    const receipt: Receipt = { id: row.operationId, compactionId, dispatched: false, physical: false, generated: false, failedProof: false, settled: false,
       candidateValid: false, deterministicRepair: false, usageComplete: false }
     this.operationRefs.set(agent, [...(this.operationRefs.get(agent) ?? []), receipt])
     this.transactionCalls.set(agent, calls + 1)
@@ -896,7 +1115,7 @@ export class ContextEngine extends BasicCompactionEngine {
   }
 
   /** Same routed model/effort; the plugin transaction checks shrink, replay and cancellation. */
-  protected override summarize(input: SummarizationInput, agent: Agent, signal?: AbortSignal) {
+  protected override summarize(input: SummaryInput, agent: Agent, signal?: AbortSignal) {
     // No blind replay of the same large history: a physically complete but
     // unapplied call settles as known_failed_unapplied with its usage, and any
     // later paid attempt must come from an explicit, changed plan.
@@ -939,7 +1158,7 @@ export class ContextEngine extends BasicCompactionEngine {
     let observedUsage: PartialTokenUsage | undefined
     deadline?.beginCall()
     deadline?.assertAlive()
-    await this.ctx.contextManager.summaryOperations.dispatchRun(String(agent.id),this.executionIds.get(agent)!)
+    await this.ctx.contextManager.summaryOperations.dispatchRun(String(agent.id),receipt.compactionId)
     deadline?.assertAlive()
     signal.throwIfAborted()
     if (this.hasQueuedInput(agent)) {

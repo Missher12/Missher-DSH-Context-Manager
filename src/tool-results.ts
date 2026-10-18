@@ -101,7 +101,6 @@ function valueEvidence(name: string, value: unknown): { state: 'complete' } | { 
   if (value === null || typeof value !== 'object') return { state: 'refused', reason: 'the tool value has no inspectable shape' }
   const record = value as Record<string, unknown>
   if (record.kind !== 'foreground') return { state: 'refused', reason: `unrecognised shell result kind ${JSON.stringify(record.kind)}` }
-  if (typeof record.cwd !== 'string' || record.cwd.trim() === '') return { state: 'refused', reason: 'the shell result has no working directory' }
   if (typeof record.exitCode !== 'number') return { state: 'refused', reason: 'the shell result carries no exit code' }
   if (record.exitCode !== 0) return { state: 'refused', reason: `exit code ${record.exitCode} is not success` }
   if (record.timedOut !== false) return { state: 'refused', reason: 'timeout status is not a complete success' }
@@ -136,7 +135,7 @@ export function registerToolResultReduction(
   policy: () => Readonly<Policy>,
   archive: () => TextArchive | undefined,
   availableForAgent: (agent: ToolExecution['agent']) => boolean = () => true,
-): { stats: () => ReductionStats; reported: () => boolean; sessions: () => ReadonlyMap<string, { published: number; reverted: number }> } {
+): { stats: () => ReductionStats; reported: () => boolean; available: () => boolean; sessions: () => ReadonlyMap<string, { published: number; reverted: number }> } {
   const stats: ReductionStats = { considered: 0, unverified: 0, wouldReduce: 0, published: 0, reverted: 0, pending: 0, skipped: 0, failed: 0 }
   /** Short texts this listener produced for a dispatch, awaiting final confirmation. */
   const pending = new WeakSet<object>()
@@ -147,6 +146,7 @@ export function registerToolResultReduction(
   /** Per-session confirmed counts; a global counter is not a session total. */
   const sessions = new Map<string, { published: number; reverted: number }>()
   let reported = false
+  let registrations = 0
 
   /**
    * Read the registered definition only to refuse reducing a tool that owns a
@@ -178,7 +178,11 @@ export function registerToolResultReduction(
      * own cancellation stays the authoritative stop.
      */
     let registered = true
-    scope.effect(() => () => { registered = false })
+    registrations++
+    scope.effect(() => () => {
+      registered = false
+      registrations = Math.max(0, registrations - 1)
+    })
     // The check is handed to `reduceDecision` as a closure, never shared as a
     // module-level flag: each registration owns its own lifetime, so a
     // re-mounted listener can never re-authorise an old, disposed continuation.
@@ -343,5 +347,5 @@ export function registerToolResultReduction(
     return decided
   }
 
-  return { stats: () => ({ ...stats }), reported: () => reported, sessions: () => new Map(sessions) }
+  return { stats: () => ({ ...stats }), reported: () => reported, available: () => registrations > 0, sessions: () => new Map(sessions) }
 }

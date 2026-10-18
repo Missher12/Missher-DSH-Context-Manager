@@ -22,22 +22,22 @@ export function CacheDonut({ value, t }: { value: number | null; t: InspectorTex
 }
 
 /** One full-window bar includes available capacity and preserves category estimates. */
-export function ContextComposition({ data, policy, t, onGroup }: { data: Inspection; policy: Policy | undefined; t: InspectorText; onGroup: (group: ContextGroup) => void }) {
-  const chart = composition(data, policy)
+export function ContextComposition({ data, policy, stale = false, t, onGroup }: { data: Inspection; policy: Policy | undefined; stale?: boolean; t: InspectorText; onGroup: (group: ContextGroup) => void }) {
+  const chart = composition(data, stale ? undefined : policy)
   const pct = chart.window === null ? null : chart.used / chart.window * 100
   const isGroup = (id: typeof chart.slices[number]['id']): id is ContextGroup => id !== 'free' && id !== 'other' && id !== 'reserve'
   const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatPercent(chart.limit,chart.window)}` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
   const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id)} ≈ ${formatPercent(slice.value,chart.window)}${hint(slice) ? ` · ${hint(slice)}` : ''}`
   return <article className="cmv-card cmv-composition">
-    <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('current')}</h3><Tooltip label={`${t('effort')} ${data.model?.effort ?? '—'}`} portal><span tabIndex={0} className="cmv-muted cmv-model">{data.model ? `${data.model.provider} / ${data.model.model}` : t('noRequest')}</span></Tooltip></div><b>{pct === null ? '—' : `${pct.toFixed(1)}%`}</b></div>
-    <Tooltip label={`${t('used')} ≈ ${formatPercent(chart.used,chart.window)} · ${t('windowBasis')}`} portal><div tabIndex={0} className="cmv-number"><strong>≈ {formatPercent(chart.used,chart.window)}</strong><span>/ {chart.window === null ? t('unknownWindow') : '100%'}</span></div></Tooltip>
+    <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('current')}</h3><Tooltip label={`${t('effort')} ${data.model?.effort ?? '—'}`}><span tabIndex={0} className="cmv-muted cmv-model">{data.model ? `${data.model.provider} / ${data.model.model}` : t('noRequest')}</span></Tooltip></div><b>{pct === null ? '—' : `${pct.toFixed(1)}%`}</b></div>
+    <Tooltip label={`${t('used')} ≈ ${formatPercent(chart.used,chart.window)} · ${t('windowBasis')}`}><div tabIndex={0} className="cmv-number"><strong>≈ {formatPercent(chart.used,chart.window)}</strong><span>/ {chart.window === null ? t('unknownWindow') : '100%'}</span></div></Tooltip>
     <div className="cmv-stack cmv-capacity-stack" role="group" aria-label={t('windowBasis')} data-total={chart.total} data-capacity={chart.window}>
-      {chart.window !== null && chart.slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? t('reserveTooltip') : sliceLabel(slice)} side="bottom" portal>
+      {chart.window !== null && chart.slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? t('reserveTooltip') : sliceLabel(slice)} side="bottom">
         {isGroup(slice.id) ? <button type="button" data-color={slice.id} style={{ width: `${slice.value / chart.total * 100}%` }} aria-label={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}/> : <span data-color={slice.id} role="img" aria-label={sliceLabel(slice)} style={{ width: `${slice.value / chart.total * 100}%` }} tabIndex={0}>{slice.share >= 12 && slice.id !== 'other' ? t(slice.id) : null}</span>}
       </Tooltip>)}
     </div>
     <div className="cmv-legend">{chart.slices.map(slice => <button key={slice.id} type="button" className="cmv-key" disabled={!isGroup(slice.id)} data-slice={slice.id} data-value={slice.value} data-share={slice.share} title={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span><i data-color={slice.id}/>{t(slice.id)}</span><strong>{formatPercent(slice.value,chart.window)}</strong></button>)}</div>
-    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${formatPercent(chart.measured,chart.window)}`}`} portal><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatPercent(data.model?.maxTokens,chart.window)}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatPercent(chart.used - chart.window,chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')} portal><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
+    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${formatPercent(chart.measured,chart.window)}`}`}><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatPercent(data.model?.maxTokens,chart.window)}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatPercent(chart.used - chart.window,chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')}><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
 
   </article>
 }
@@ -49,8 +49,8 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
   const point = points.find(item => item.seq === selected) ?? points.at(-1)
   const maximum = Math.max(100, ...points.map(item => capacityPercent(item.tokens,item.window) ?? 0))
   const kind = (value: typeof points[number]) => t(value.kind === 'reply' ? 'reply' : value.kind === 'replace' ? 'replacement' : 'cut')
-  return <article className="cmv-card cmv-trend"><div className="cmv-heading"><h3>{t('trend')}</h3><Tooltip label={t('trendHint')} portal><span tabIndex={0} className="cmv-muted">%</span></Tooltip></div>
-    {!points.some(item => capacityPercent(item.tokens,item.window) !== null) ? <div className="cmv-empty">{t('noTrend')}</div> : <><div className="cmv-bars" role="group" aria-label={t('trend')}><span className="cmv-scale">{maximum.toFixed(1)}%</span>{points.map(item => <Tooltip key={item.seq} portal label={`${t('record')} ${item.seq} · ${kind(item)} · ${formatPercent(item.tokens,item.window)}`}><button type="button" data-kind={item.kind} data-unknown={capacityPercent(item.tokens,item.window) === null} aria-pressed={point?.seq === item.seq} aria-label={`${t('record')} ${item.seq} ${kind(item)} ${formatPercent(item.tokens,item.window)}`} onFocus={() => setSelected(item.seq)} onMouseEnter={() => setSelected(item.seq)} onClick={() => { setSelected(item.seq); onCut(item.seq) }}><span style={{ height: capacityPercent(item.tokens,item.window) === null ? 0 : `${capacityPercent(item.tokens,item.window)! / maximum * 100}%` }}/>{capacityPercent(item.tokens,item.window) === null && <small>?</small>}</button></Tooltip>)}</div>
+  return <article className="cmv-card cmv-trend"><div className="cmv-heading"><h3>{t('trend')}</h3><Tooltip label={t('trendHint')}><span tabIndex={0} className="cmv-muted">%</span></Tooltip></div>
+    {!points.some(item => capacityPercent(item.tokens,item.window) !== null) ? <div className="cmv-empty">{t('noTrend')}</div> : <><div className="cmv-bars" role="group" aria-label={t('trend')}><span className="cmv-scale">{maximum.toFixed(1)}%</span>{points.map(item => <Tooltip key={item.seq} label={`${t('record')} ${item.seq} · ${kind(item)} · ${formatPercent(item.tokens,item.window)}`}><button type="button" data-kind={item.kind} data-unknown={capacityPercent(item.tokens,item.window) === null} aria-pressed={point?.seq === item.seq} aria-label={`${t('record')} ${item.seq} ${kind(item)} ${formatPercent(item.tokens,item.window)}`} onFocus={() => setSelected(item.seq)} onMouseEnter={() => setSelected(item.seq)} onClick={() => { setSelected(item.seq); onCut(item.seq) }}><span style={{ height: capacityPercent(item.tokens,item.window) === null ? 0 : `${capacityPercent(item.tokens,item.window)! / maximum * 100}%` }}/>{capacityPercent(item.tokens,item.window) === null && <small>?</small>}</button></Tooltip>)}</div>
       <div className="cmv-between cmv-muted"><span>{formatTime(points[0]!.time)}</span><span>{formatTime(points.at(-1)!.time)}</span></div>
       {point && <div className="cmv-caption" aria-live="polite"><span>{kind(point)}</span><strong>{formatPercent(point.tokens,point.window)}</strong><span>{formatTime(point.time)}</span></div>}
     </>}
@@ -131,7 +131,7 @@ function EfficiencyLine({ efficiency, t }: { efficiency: EfficiencyReadout; t: I
     : '≈ ' + formatTokens(maintenanceTotal) + ' Token'
   const maintenanceValue = (value: number) => maintenanceUnknown ? value > 0 ? '≥ ' + exactTokens(value) : '—' : exactTokens(value)
   return <>
-    <p className="cmv-muted cmv-summary-usage" data-efficiency={efficiency.accounting} data-bounded={String(bounded)}><Tooltip portal label={`${source} · ${difference} · ${t('usageHint')}`}>
+    <p className="cmv-muted cmv-summary-usage" data-efficiency={efficiency.accounting} data-bounded={String(bounded)}><Tooltip label={`${source} · ${difference} · ${t('usageHint')}`}>
       <span tabIndex={0}>{t('effBusiness')} {known ? `${bounded ? '≥ ' : '≈ '}${formatTokens(business)} Token` : `— ${t('effUnknownValue')}`}</span></Tooltip>
       <span> · {t('effMaintenance')} {maintenanceDisplay}</span>
       <span> · {t('effUnknownRuns')} {exactTokens(mirrored.withoutUsage)}{mirrored.retries > 0 ? ` · ${t('effRetryCount')} ${exactTokens(mirrored.retries)}` : ''}{host === null ? ` · ${t('effEventSource')}` : ''}{efficiency.cacheHitRatio === null ? ` · ${t('effCacheUnknown')}` : ''}</span>
@@ -159,7 +159,7 @@ function ReductionLine({ reduction, t }: { reduction: ReductionReadout; t: Inspe
   const mode = reduction.mode === 'off' ? t('reductionOff') : reduction.mode === 'observe' ? t('reductionObserve') : t('reductionReduce')
   const skip = reduction.run.lastSkip === null ? null : reduction.run.lastSkip + (reduction.run.lastReason === null ? '' : ` · ${reduction.run.lastReason}`)
   return <>
-    <p className="cmv-muted cmv-summary-usage" data-reduction-mode={reduction.mode}><Tooltip portal label={`${mode} · ${reduction.pipelineReported ? t('reductionPipelineOk') : t('reductionPipelineUnknown')} · ${t('reductionCharsHint')}`}>
+    <p className="cmv-muted cmv-summary-usage" data-reduction-mode={reduction.mode}><Tooltip label={`${mode} · ${reduction.pipelineReported ? t('reductionPipelineOk') : t('reductionPipelineUnknown')} · ${t('reductionCharsHint')}`}>
       <span tabIndex={0}>{t('reductionTitle')} · {mode}</span></Tooltip>
       <span> · {t('reductionConfirmed')} {exactTokens(published.references)} · {t('reductionRemoved')} {exactTokens(published.visibleCharsRemoved)} {t('characters')}</span>
       <span> · {t('reductionPending')} {exactTokens(reduction.pending)} · {t('reductionReverted')} {exactTokens(reduction.reverted)}</span>
@@ -199,7 +199,7 @@ export function UsageComposition({ data, t }: { data: Inspection; t: InspectorTe
   const missing = completeness === null || data.efficiency === undefined ? [0, 0, 0, 0]
     : [data.efficiency.mirrored.uncachedInput, data.efficiency.mirrored.cacheRead,
       data.efficiency.mirrored.cacheWrite, data.efficiency.mirrored.output].map(field => field.missing)
-  return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('usage')}</h3><Tooltip label={t('usageHint')} portal><span tabIndex={0} className="cmv-muted">Token</span></Tooltip></div>
+  return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('usage')}</h3><Tooltip label={t('usageHint')}><span tabIndex={0} className="cmv-muted">Token</span></Tooltip></div>
     {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <><div className="cmv-usage-total" data-usage-completeness={completeness ?? 'unqualified'}><div className="cmv-number">
       {unknownTotal ? <><strong>—</strong><span>{t('effUnknownValue')}</span></> : <><strong>{boundedTotal ? '≥ ' : ''}{formatTokens(chart.total)}</strong><span>Token</span></>}</div><span className="cmv-muted">{t('cache')} {chart.hit === null ? '—' : `${Math.round(chart.hit * 100) / 100}%`}</span></div>
       {unknownTotal && <p className="cmv-muted" data-usage-bound="unknown">{t('effUnknownValue')}</p>}
@@ -208,7 +208,7 @@ export function UsageComposition({ data, t }: { data: Inspection; t: InspectorTe
       <dl className="cmv-usage-legend">{chart.values.map((value, index) => <div key={labels[index]} data-legend-missing={unknownTotal ? 'unknown' : String(missing[index]!)}><dt><i data-usage={labels[index]}/>{t(labels[index]!)}</dt><dd>{unknownTotal ? '—' : formatTokens(value)}<small>{unknownTotal ? t('effUnknownValue') : <>{chart.total ? `${chart.shares[index]!.toFixed(1)}%` : '—'}{missing[index]! > 0 ? ` · ${missing[index]} ${t('effUnknownValue')}` : ''}</>}</small></dd></div>)}</dl>
     </>}
     {!data.historical && <p className="cmv-muted cmv-summary-usage">{summary
-      ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${summaryAmount(summary.input)} / ${t('output')} ${summaryAmount(summary.output)} Token`} portal><span tabIndex={0}>{t('summaryRecorded')} {summaryDisplay} · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
+      ? <Tooltip label={`${t('summaryUsageHint')} ${t('summarySince')} ${new Date(summary.since).toLocaleString()} · ${t('input')} ${summaryAmount(summary.input)} / ${t('output')} ${summaryAmount(summary.output)} Token`}><span tabIndex={0}>{t('summaryRecorded')} {summaryDisplay} · {summary.attempts} {t('summaryCalls')}{summary.unknownAttempts > 0 ? ` · ${summary.unknownAttempts} ${t('summaryUnknown')}` : ''}</span></Tooltip>
       : t('noSummaryUsage')}</p>}
 
   </article>
@@ -225,7 +225,7 @@ export function UsageDetails({ data, t, onCut, capacity }: { data: Inspection; t
       const hint = `${t('growthHint')}${delta ? ` ${t('record')} ${delta.fromSeq} → ${delta.toSeq} · ${formatPercent(delta.beforeTokens,contextWindow(data))} → ${formatPercent(delta.afterTokens,contextWindow(data))}` : ` ${t('growthUnknownHint')}`}`
       const amount = delta && window !== null ? formatPercent(Math.abs(delta.deltaTokens), window) : t('growthUnknown')
       const sign = delta && window !== null && delta.deltaTokens !== 0 ? delta.deltaTokens > 0 ? '+' : '-' : ''
-      return <Tooltip key={key} label={hint} portal><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta && window !== null ? `≈ ${sign}${amount}` : amount}</strong></span></Tooltip>
+      return <Tooltip key={key} label={hint}><span tabIndex={0} data-growth={key}>{t(key)} <strong>{delta && window !== null ? `≈ ${sign}${amount}` : amount}</strong></span></Tooltip>
     })}</div>}
     {capacity && <div className="cmv-growth cmv-muted" data-compact-capacity data-window={capacity.windowTokens}>
       <span>{t('window')} <strong>{formatPercent(capacity.windowTokens, capacity.windowTokens)}</strong></span>

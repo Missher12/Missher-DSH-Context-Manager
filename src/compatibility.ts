@@ -1,10 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 
 export const COMPACTION_HOST_VERSION = 1
 export const CONTEXT_MANAGER_ORIGIN = '@missher/dsh-context-manager'
 export const CONTEXT_ENGINE_MODULE = '@missher/dsh-context-manager/engine'
 export const BASIC_COMPACTION_MODULE = '@deepseek-ai/dsh-compaction-basic'
 export const CONTEXT_MANAGER_PRESETS = Object.freeze(['standard', 'ptc', 'cordis'] as const)
+/** Internal marker for an isolated Context engine used only as a Basic idle sidecar. */
+export const CONTEXT_BASIC_IDLE_SIDECAR = Symbol.for('@missher/dsh-context-manager/basic-idle-sidecar/v1')
 
 export interface CompactionProviderRegistration {
   origin: string
@@ -43,6 +46,14 @@ export interface CompactionHostV1 {
 export type HostCapabilityState = 'supported' | 'unsupported' | 'unknown'
 export type AgentCompactionMode = 'enhanced' | 'native' | 'other' | 'unconfigured' | 'unknown' | 'unavailable'
 export type ContextProviderRegistrationState = 'inactive' | 'pending' | 'registered' | 'failed' | 'unknown'
+
+export interface ContextCooperationReadout {
+  toolResults: { state: 'off' | 'observe' | 'active' | 'waiting' | 'unsupported'; finalResultSeen: boolean }
+  originals: { state: 'ready' | 'empty' | 'unavailable'; count: number }
+  idleMaintenance: 'active' | 'off' | 'waiting' | 'unsupported'
+  /** Context pressure is an optional sidecar; Basic keeps its own native admission and overflow policy. */
+  requestPressure: 'context' | 'native' | 'off' | 'waiting' | 'unsupported' | 'unknown'
+}
 
 export interface ContextProviderRegistrationReadout {
   state: ContextProviderRegistrationState
@@ -93,26 +104,61 @@ export function resolveCompactionHost(ctx: Context): HostCapabilityProbe {
     return { state: 'unsupported', reason: 'Host compaction capability could not be read' }
   }
   if (value === undefined || value === null || typeof value !== 'object') {
-    return { state: 'unsupported', reason: 'Host does not expose the compaction provider capability; saved Context policies are not active' }
+    return { state: 'unsupported', reason: 'Host cannot register or select an enhanced Context compaction provider; per-session Basic and sidecar status is reported separately' }
   }
   const candidate = value as Partial<CompactionHostV1>
   if (candidate.version !== COMPACTION_HOST_VERSION) {
     return { state: 'unsupported', version: candidate.version, reason: `Host compaction API v${String(candidate.version ?? 'unknown')} is unsupported; expected v${COMPACTION_HOST_VERSION}` }
   }
   if (typeof candidate.register !== 'function' || typeof candidate.bindingFor !== 'function' || typeof candidate.retained !== 'function') {
-    return { state: 'unsupported', version: candidate.version, reason: 'Host compaction API v1 is incomplete; saved Context policies are not active' }
+    return { state: 'unsupported', version: candidate.version, reason: 'Host compaction API v1 is incomplete; per-session Basic and sidecar status is reported separately' }
   }
   return { state: 'supported', capability: candidate as CompactionHostV1 }
 }
 
-/** Classify an Agent from its installed binding, never from the future selection. */
-export function readAgentCompaction(ctx: Context, agentContext?: Context): CompactionReadout {
-  const probe = resolveCompactionHost(ctx)
-  if (probe.state !== 'supported') {
-    return { mode: 'unknown', hostCapability: probe.state, reason: probe.reason }
+function activeCompactionService(ctx: Context, agentContext?: Context, agent?: unknown): unknown {
+  if (agent !== undefined) {
+    let registry: unknown
+    try { registry = ctx.get('agentPresets') } catch { registry = undefined }
+    try {
+      const service = (registry as { serviceFor?: (agent: unknown, service: string) => unknown } | undefined)
+        ?.serviceFor?.(agent, 'compaction')
+      if (service !== undefined) return service
+    } catch { /* fall through to the Agent's public Context service */ }
   }
+  try { return agentContext?.get('compaction') } catch { return undefined }
+}
+
+/** Cordis returns a context-bound proxy whose `constructor` can differ from its prototype. */
+function isExactBasicService(service: unknown): service is BasicCompactionEngine {
+  if (!(service instanceof BasicCompactionEngine)) return false
+  try { return Object.getPrototypeOf(service) === BasicCompactionEngine.prototype }
+  catch { return false }
+}
+
+/** Match the exact official Basic implementation; a custom subclass is not treated as Basic. */
+export function isNativeBasicCompaction(ctx: Context, agentContext?: Context, agent?: unknown): boolean {
+  const service = activeCompactionService(ctx, agentContext, agent)
+  return isExactBasicService(service)
+}
+
+/** Classify an Agent from its installed binding, never from the future selection. */
+export function readAgentCompaction(ctx: Context, agentContext?: Context, agent?: unknown): CompactionReadout {
+  const probe = resolveCompactionHost(ctx)
   if (!agentContext) {
-    return { mode: 'unknown', hostCapability: 'supported', reason: 'No active Agent binding is available for this session' }
+    return { mode: 'unknown', hostCapability: probe.state, reason: 'No active Agent binding is available for this session' }
+  }
+  if (probe.state !== 'supported') {
+    const service = activeCompactionService(ctx, agentContext, agent)
+    if (isExactBasicService(service)) {
+      return { mode: 'native', hostCapability: probe.state, provider: BASIC_COMPACTION_MODULE,
+        reason: 'Official Basic is active; Context sidecar capabilities are reported separately' }
+    }
+    if (service !== undefined) {
+      return { mode: 'other', hostCapability: probe.state,
+        reason: 'A compaction provider is active, but its Host binding is not exposed' }
+    }
+    return { mode: 'unknown', hostCapability: probe.state, reason: probe.reason }
   }
   let binding: AgentPresetBinding | undefined
   try { binding = probe.capability.bindingFor(agentContext) } catch {

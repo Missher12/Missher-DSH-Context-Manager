@@ -101,9 +101,9 @@ export class ContextInspector extends TypertRemoteService {
     const manager = this.getManager()
     if (manager) return manager.idleStatus(query.sessionId)
     const agent = this.ctx.get('agents')?.get(SessionId(query.sessionId))
-    const compression = readAgentCompaction(this.ctx, agent?.ctx)
+    const compression = readAgentCompaction(this.ctx, agent?.ctx, agent)
     return { status: compression.mode === 'unavailable' ? 'failed' : 'off', dueAt: null,
-      message: compression.mode === 'native' ? '原生压缩 · Context 仅查看' : `Context 仅查看。${compression.reason}`,
+      message: compression.mode === 'native' ? '官方 Basic 仍是压缩 provider；Context Manager 尚未就绪' : `Context 仅查看。${compression.reason}`,
       owner: compression.mode === 'native' || compression.mode === 'other' ? 'other' : 'unknown', compression }
   }
   private admission(sessionId: string, cut: number): AdmissionReadout | undefined {
@@ -210,7 +210,8 @@ export class ContextInspector extends TypertRemoteService {
       matched.sort(query.sort === 'size' ? (a, b) => b.tokens - a.tokens || b.seq - a.seq || a.id.localeCompare(b.id) : (a, b) => a.seq - b.seq || a.id.localeCompare(b.id))
       const config = index.header?.config
       const agent = query.atSeq === null ? this.ctx.get('agents')?.get(SessionId(query.sessionId)) : undefined
-      const compression = query.atSeq === null ? readAgentCompaction(this.ctx, agent?.ctx) : undefined
+      const compression = query.atSeq === null ? readAgentCompaction(this.ctx, agent?.ctx, agent) : undefined
+      const cooperation = query.atSeq === null ? manager?.cooperationReadout?.(agent) : undefined
       return { sessionId: query.sessionId, cursor: observation.cursor, cutSeq: cut, sampledAt: Date.now(), historical: query.atSeq !== null,
         pressure: query.atSeq === null && typeof pressure?.projectedTokens === 'number' && typeof pressure.pressureTokens === 'number' ? { projected: pressure.projectedTokens, input: pressure.pressureTokens, window: pressure.contextWindow ?? null } : null,
         ...(admission ? { admission } : {}),
@@ -219,6 +220,7 @@ export class ContextInspector extends TypertRemoteService {
         ...(summary ? { summaryUsage: { input: summary.input, output: summary.output, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts, since: summary.since } } : {}),
         efficiency,
         ...(reductions === undefined ? {} : { reduction: reductions }),
+        ...(cooperation === undefined ? {} : { cooperation }),
         ...(query.atSeq === null ? { contextGrowth: contextGrowth(this.ctx.sessionProjections, observation, cut, signal) } : {}),
         model: config ? { provider: config.provider, model: config.model, effort: config.reasoningEffort === undefined ? null : String(config.reasoningEffort), maxTokens: typeof config.maxTokens === 'number' && Number.isFinite(config.maxTokens) && config.maxTokens >= 0 ? config.maxTokens : null } : null,
         ...(query.atSeq === null && goalState ? { goal: { phase: goalState.goal.phase,

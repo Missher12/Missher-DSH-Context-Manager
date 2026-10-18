@@ -10,7 +10,7 @@ import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as ImageOffload from '@deepseek-ai/dsh-compaction-image-offload'
-import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { mountAgentLoopTestDependencies } from './fixtures/agent-loop-dependencies.mjs'
 import { IMAGE_OFFLOAD_REQUIRED_CODE, LlmAdapter, LlmError, createMessage,
   createUserMessage, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'

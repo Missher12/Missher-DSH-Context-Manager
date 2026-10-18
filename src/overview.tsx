@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import { useEffect, useState, useSyncExternalStore, type ChangeEvent } from 'react'
+import type { ISessions, SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
-import type {} from '@deepseek-ai/dsh-token-meter/client'
+import type { ContextBreakdownProjection, ContextPressureProjection, TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ContextDiagnostics } from './diagnostics-types.ts'
 import { formatPercent, capacityTokens, type Policy } from './policy.ts'
@@ -10,8 +10,16 @@ const number = (value: number | undefined) => value === undefined ? '—' : Math
 const time = (value: number) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 const statuses = { running: '正在压缩', completed: '已完成', failed: '失败', interrupted: '已中断', unapplied: '未确认替换' }
 
+declare module '@deepseek-ai/dsh-session-projection/types' {
+  interface SessionProjectionMap {
+    contextPressure: ContextPressureProjection
+    contextBreakdown: ContextBreakdownProjection
+    tokenUsage: TokenUsageProjection
+  }
+}
+
 export function ContextOverview({ sessions, policy }: { sessions: ISessions; policy: Policy }) {
-  const list = useSyncExternalStore(callback => sessions.list.subscribe(callback), () => sessions.list.getSnapshot())
+  const list = useSyncExternalStore<SessionListState>(callback => sessions.list.subscribe(callback), () => sessions.list.getSnapshot())
   const [chosen, setChosen] = useState('')
   const rows = list.ids.map(id => list.byId[id])
   const selected = rows.find(row => row.id === chosen) ?? rows.find(row => Object.entries(row.retainedBy).some(([source, count]) => source === 'mainView' && (count ?? 0) > 0)) ?? rows.find(row => !row.blank) ?? rows[0]
@@ -30,7 +38,7 @@ export function ContextOverview({ sessions, policy }: { sessions: ISessions; pol
   return <div>
     <div className="cm-field">
       <label htmlFor="cm-session" className="cm-label">查看会话</label>
-      <select id="cm-session" className="cm-select" value={selected.id} onChange={event => setChosen(event.target.value)}>
+      <select id="cm-session" className="cm-select" value={selected.id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setChosen(event.target.value)}>
         {rows.map(row => <option key={row.id} value={row.id}>{row.displayTitle}{row.running ? ' · 执行中' : ''}</option>)}
       </select>
       <p className="cm-hint">{selected.running ? '任务正在执行，数据随已记录的事件更新。' : '显示这段会话最近记录的数据。'} 查看信息不会发起模型请求。</p>

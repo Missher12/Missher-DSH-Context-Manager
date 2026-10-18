@@ -6,20 +6,35 @@ import { createRequire } from 'node:module'
 import { buildSync } from 'esbuild'
 import { JSDOM } from 'jsdom'
 import React, { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { Simulate } from 'react-dom/test-utils'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { defaults } from '../lib/policy.js'
 import { TYPERT } from '../lib/typert.js'
 
+// ReactDOM detects DOM event support once, at module evaluation. Give it a real
+// jsdom window before loading the client entry; individual tests then own their
+// isolated windows as usual.
+const bootstrapDom = new JSDOM('<!doctype html><html><body></body></html>')
+globalThis.window = bootstrapDom.window
+globalThis.document = bootstrapDom.window.document
+const { createRoot } = await import('react-dom/client')
+const { renderToStaticMarkup } = await import('react-dom/server')
+bootstrapDom.window.close()
+delete globalThis.window
+delete globalThis.document
+
 const require = createRequire(import.meta.url)
-// Render the host's actual control implementations. Their CSS modules are
-// compiled here; visual/theme acceptance runs separately in the real Web host.
+function setDomInput(input, value) {
+  const window = input.ownerDocument.defaultView
+  const prototype = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, value)
+  input.dispatchEvent(new window.Event('input', { bubbles: true }))
+}
+// Render the host's actual published RC.1 control implementations. Theme
+// acceptance runs separately in the isolated browser preview.
 const primitivesBuild = buildSync({
-  stdin: { contents: ['Button', 'Input', 'Switch', 'Checkbox', 'StateDot', 'SegmentedTabs', 'Tag', 'Tooltip', 'MenuSurface', 'useAnchoredPosition', 'useDismissOnOutsidePointer', 'icons/index', 'settings-form/SettingsForm', 'settings-form/fields'].map(name =>
-    `export { ${name === 'settings-form/fields' ? 'SettingsValueField' : name === 'icons/index' ? 'IconClockOutlineRegular' : name.split('/').at(-1)} } from ${JSON.stringify(require.resolve(`@deepseek-ai/dsh-client-ui-primitives/src/${name}.${name.startsWith('use') ? 'ts' : 'tsx'}`))}`).join('\n'), resolveDir: process.cwd() },
+  stdin: { contents: "export { Button, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'", resolveDir: process.cwd() },
   outfile: '/virtual/context-manager-primitives.cjs', bundle: true, platform: 'node', format: 'cjs',
-  external: ['react', 'react/*', 'react-dom', 'react-dom/*'], loader: { '.css': 'local-css' }, jsx: 'automatic',
+  external: ['react', 'react/*', 'react-dom', 'react-dom/*', 'katex/dist/katex.min.css'],
+  loader: { '.css': 'local-css' }, jsx: 'automatic',
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } }, write: false,
 })
 
@@ -43,11 +58,19 @@ test('settings section contains only policy controls and does not read any sessi
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
   const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
-  const compatibility = async () => ({ state: 'supported', reason: 'synthetic test', integration: { state: 'inactive', reason: 'synthetic test' } })
+  const compatibility = async () => ({ state: 'unsupported', reason: 'RC.2 does not expose compactionHost v1',
+    integration: { state: 'inactive', reason: 'no enhanced provider registration API' } })
   const root = createRoot(document.getElementById('root'))
   const click = async text => act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === text).click())
   try {
     await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
+    const capabilityStatus = document.querySelector('[role="status"]')?.textContent ?? ''
+    assert.match(capabilityStatus, /宿主未提供 Context 增强 provider 切换接口/)
+    assert.match(capabilityStatus, /会话页“上下文”会分别显示本会话的请求压力、闲置整理和工具结果能力/)
+    assert.match(capabilityStatus, /保存策略不代表所有会话均已启用/)
+    assert.doesNotMatch(capabilityStatus, /官方 Basic|宿主压缩 API 不可用/,
+      'an unavailable enhanced switch must not be presented as a globally inactive plugin or Basic-only host')
     assert.equal(document.querySelectorAll('style').length, 2)
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0,
       'page and nested settings styles must not be claimed by another plugin')
@@ -57,16 +80,18 @@ test('settings section contains only policy controls and does not read any sessi
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
-const primitivesScope = { module: { exports: {} }, require, setTimeout, clearTimeout }
+const primitivesScope = { module: { exports: {} }, require: name => name === 'katex/dist/katex.min.css' ? {} : require(name), setTimeout, clearTimeout }
 for (const name of ['window', 'document', 'Node']) Object.defineProperty(primitivesScope, name, { get: () => name === 'Node' ? globalThis.window?.Node : globalThis[name] })
 primitivesScope.getComputedStyle = element => globalThis.window.getComputedStyle(element)
 vm.runInNewContext(primitivesBuild.outputFiles.find(file => file.path.endsWith('.cjs')).text, primitivesScope)
 let client
-vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), {
+const clientScope = {
   AbortController, setTimeout: (callback, delay) => setTimeout(callback, delay), clearTimeout: timer => clearTimeout(timer),
   window: { __ModuleLoader__: { load: module => { client = module.factory(name =>
     name === '@deepseek-ai/dsh-client-ui-primitives' ? primitivesScope.module.exports : require(name)) } } },
-})
+}
+Object.defineProperty(clientScope, 'Node', { get: () => globalThis.window?.Node })
+vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), clientScope)
 
 test('client registers the native conversation tab after trajectory and binds its actual Session', async () => {
   const slots = []
@@ -369,12 +394,16 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     await act(async () => buttons().find(b => b.textContent === '提前整理 · 70%').click())
     assert.equal(writes.length, 0)
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
+    await act(async () => setDomInput(document.querySelector('#context-manager-idleMinPercent'), '70'))
     await act(async () => buttons().find(b => b.textContent === '保存设置').click())
     assert.equal(writes.length, 1); assert.equal(writes[0].revision, 4)
     assert.equal(writes[0].ops[0].value.triggerPercent, 70)
     assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'trigger presets preserve the saved custom cap')
     assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
     assert.equal(writes[0].ops[0].value.recentTokens, 20000)
+    assert.equal(writes[0].ops[0].value.idleMinPercent, 70, 'a real input event is included in the save')
+    assert.equal(form.getSnapshot().value.policy.idleMinPercent, 70, 'the form store returns the saved policy')
+    assert.equal(document.querySelector('#context-manager-idleMinPercent').value, '70', 'the rendered control reads back the saved value')
     const feedback = document.querySelector('.cm-feedback[role="status"]')?.textContent ?? ''
     assert.equal(feedback, '设置已保存。', 'a successful save confirms persistence without claiming unsupported features are active')
     assert.doesNotMatch(feedback, /请求前检查|闲置整理.*生效/)
@@ -393,7 +422,7 @@ test('settings: idle fields preserve invalid drafts, save focus, and handle stal
     async mutate(ops, revision) { writes.push({ ops, revision }); return accept } }
   const root = createRoot(document.getElementById('root'))
   const save = () => [...document.querySelectorAll('button')].find(b => b.textContent === '保存设置')
-  const edit = async (key, value) => act(async () => Simulate.change(document.getElementById(`context-manager-${key}`), { target: { value } }))
+  const edit = async (key, value) => act(async () => setDomInput(document.getElementById(`context-manager-${key}`), value))
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     await edit('idleMinutes', '1x')
@@ -457,14 +486,14 @@ test('native price popover stays local, calculates entered usage, dismisses, and
     await act(async () => trigger().click())
     const dialog = document.querySelector('[role="dialog"]')
     assert.ok(dialog); assert.equal(dialog.parentNode, document.body, 'escapes clipping ancestors')
-    assert.ok(dialog.querySelector('[data-menu-material]') || dialog.matches('[data-menu-material]'))
+    assert.ok(dialog.classList.contains('cmi-price-panel'), 'the actual price panel class identifies the rendered local dialog')
     assert.equal(window.location.href, 'http://localhost/')
     assert.deepEqual([...dialog.querySelectorAll('input')].map(input => input.value), ['', '', ''])
     assert.equal(dialog.querySelector('.cmi-price-totals').textContent, '高峰预估—低谷预估—')
-    for (const input of dialog.querySelectorAll('input')) await act(async () => Simulate.change(input, { target: { value: '1000000' } }))
+    for (const input of dialog.querySelectorAll('input')) await act(async () => setDomInput(input, '1000000'))
     assert.match(dialog.querySelector('.cmi-price-totals').textContent, /¥10.04.*¥5.02/)
     assert.match(dialog.textContent, /不是实际账单/)
-    await act(async () => Simulate.change(dialog.querySelector('input'), { target: { value: '-2' } }))
+    await act(async () => setDomInput(dialog.querySelector('input'), '-2'))
     assert.equal(dialog.querySelector('input').getAttribute('aria-invalid'), 'true')
     assert.match(dialog.querySelector('[role="alert"]').textContent, /非负整数/)
     await act(async () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
@@ -702,6 +731,86 @@ test('binding badge does not present retained enhancement as current while refre
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
+test('native Basic shows only a current Context sidecar gate with its saved request policy', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const formState = { revision: 1, value: { policy: { ...defaults } } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => formState }
+  const pulseListeners = new Set(); let pulseRevision = 1
+  const pulse = { subscribe: callback => { pulseListeners.add(callback); return () => pulseListeners.delete(callback) }, getSnapshot: () => pulseRevision }
+  const baseCooperation = { toolResults: { state: 'off', finalResultSeen: false }, originals: { state: 'empty', count: 0 }, idleMaintenance: 'off', requestPressure: 'context' }
+  let snapshot = { sessionId: 'basic-context-sidecar', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
+    compression: { mode: 'native', hostCapability: 'unsupported', reason: 'Official Basic remains active' },
+    cooperation: baseCooperation,
+    admission: { tokens: 170000, logRevision: 3, baseline: 'usage', window: 200000, outputReserve: 8192 },
+    pressure: { projected: 100000, input: 99000, window: 200000 }, official: null, usage: null,
+    model: { provider: 'offline', model: '200k', maxTokens: 8192, effort: null }, parts: [], rows: [], total: 0, offset: 0,
+    pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
+  let pending = false, releasePending
+  const api = {
+    idleStatus: async () => ({ status: 'off', dueAt: null, message: '', compression: { mode: 'native', hostCapability: 'unsupported', reason: 'Official Basic remains active' } }),
+    inspect: async () => pending ? new Promise(resolve => { releasePending = resolve }) : snapshot,
+  }
+  const root = createRoot(document.getElementById('root'))
+  const read = () => document.querySelector('.cmv-quick')
+  const refresh = async () => {
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '刷新数据')?.click())
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+  }
+  const pulseRead = async () => act(async () => { pulseRevision++; pulseListeners.forEach(callback => callback()) })
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'basic-context-sidecar', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.equal(document.querySelector('.cmv-binding-status').dataset.mode, 'native')
+    assert.match(document.querySelector('.cmv-binding-status').textContent, /Basic provider · Context 插件侧路已接入/)
+    assert.match(read().textContent, /预计先压缩，再执行/)
+    assert.match(read().textContent, /检查线 79\.00%/)
+    assert.equal(read().querySelector('[data-context-request-gate]').dataset.contextRequestGate, 'active')
+    await act(async () => read().querySelector('[data-context-request-gate]').focus())
+    assert.match(document.querySelector('[role="tooltip"]')?.textContent ?? '', /这是 Context 完整请求准入检查线。官方 Basic 仍按自身策略提前自动整理；Context 设置不会更改 Basic 原生策略。/)
+    assert.ok(document.querySelector('[data-color="reserve"]'), 'the current sidecar gate separates output reserve from free capacity')
+    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'enabled')
+
+    pending = true
+    await refresh()
+    assert.match(read().textContent, /数据待刷新/)
+    assert.equal(read().querySelector('[data-context-request-gate]'), null, 'stale reads do not present a live sidecar gate')
+    assert.equal(document.querySelector('[data-color="reserve"]'), null, 'stale reads do not reuse the saved-policy reserve')
+    pending = false; releasePending?.(snapshot); await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
+
+    snapshot = { ...snapshot, historical: true, cooperation: undefined, pressure: null,
+      pressureHistory: [{ seq: 2, time: 1000, kind: 'current', tokens: 100000, window: 200000 }] }
+    await refresh()
+    assert.match(read().textContent, /历史截面/)
+    assert.equal(read().querySelector('[data-context-request-gate]'), null)
+    assert.equal(document.querySelector('[data-color="reserve"]'), null)
+
+    snapshot = { ...snapshot, historical: false, cooperation: { ...baseCooperation, requestPressure: 'native' } }
+    await refresh()
+    assert.equal(read().querySelector('[data-context-request-gate]'), null, 'Basic-only routing has no Context gate')
+    assert.equal(document.querySelector('[data-color="reserve"]'), null)
+
+    formState.value = {}
+    snapshot = { ...snapshot, pressure: { projected: 100000, input: 99000, window: 200000 },
+      cooperation: { ...baseCooperation, requestPressure: 'unknown' } }
+    await refresh()
+    assert.match(document.querySelector('[data-context-cooperation]').textContent, /完整请求压力整理 · 状态未知/)
+    assert.match(document.querySelector('[data-saved-context-policy]').textContent, /保存的请求策略 · 未知/)
+    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'unknown')
+    assert.equal(read().querySelector('[data-context-request-gate]'), null, 'unknown cooperation cannot claim a live Context gate')
+    assert.equal(document.querySelector('[data-color="reserve"]'), null, 'unknown cooperation cannot present a Context reserve')
+
+    formState.value = { policy: { ...defaults, enabled: false } }
+    snapshot = { ...snapshot, cooperation: { ...baseCooperation, requestPressure: 'off' } }
+    await refresh()
+    assert.match(read().textContent, /官方 Basic 压缩 provider/)
+    assert.match(document.querySelector('[data-context-cooperation]').textContent, /完整请求压力整理 · 未启用/)
+    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'disabled')
+    assert.equal(read().querySelector('[data-context-request-gate]'), null)
+    assert.equal(document.querySelector('[data-color="reserve"]'), null)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
 test('percentage settings require explicit legacy migration, preserve old fields and validate percent input',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'})
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true
@@ -712,7 +821,7 @@ test('percentage settings require explicit legacy migration, preserve old fields
  const root=createRoot(document.getElementById('root'))
  const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
  const click=async label=>act(async()=>button(label).click())
- const edit=async(key,value)=>act(async()=>Simulate.change(document.getElementById(`context-manager-${key}`),{target:{value}}))
+ const edit=async(key,value)=>act(async()=>setDomInput(document.getElementById(`context-manager-${key}`),value))
  try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
   assert.match(document.body.textContent,/旧配置兼容/)
@@ -770,7 +879,7 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
   const root = createRoot(document.getElementById('root'))
   const button = text => [...document.querySelectorAll('button')].find(b => b.textContent === text)
   const save = () => button('保存设置')
-  const edit = (key, value) => act(async () => Simulate.change(document.getElementById(`context-manager-${key}`), { target: { value } }))
+  const edit = (key, value) => act(async () => setDomInput(document.getElementById(`context-manager-${key}`), value))
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     // Legacy fill-in: defaults appear without overwriting anything else, and the

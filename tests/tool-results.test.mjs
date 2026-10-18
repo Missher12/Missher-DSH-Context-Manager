@@ -50,7 +50,7 @@ assert.equal(typeof realBash.output?.render, 'function', 'the real definition ow
 /** A long, purely repetitive success output: the only shape this rule reduces. */
 const repetitive = () => Array.from({ length: 40 }, () => 'progress line without any protected word').join('\n')
 function shellResult(text, overrides = {}) {
-  return { kind: 'foreground', cwd: process.cwd(), exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
+  return { kind: 'foreground', cwd: '/fixture/project', exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 120000,
     stdout: { text, truncated: false }, stderr: { text: '', truncated: false }, ...overrides }
 }
 
@@ -154,12 +154,12 @@ const readBack = async (f, args) => {
 test('reduction: the real bash definition is actually reduced, the canonical value is unchanged and the original reads back', async t => {
   const text = repetitive()
   const f = await fixture(t)
+  assert.equal(f.reduction.available(), true, 'the public tools service should activate the independent reduction seam')
   const result = await f.execute('bash', { command: 'echo hi', description: 'run echo' })
   assert.equal(result.isError, false)
   // Real SDK definition: the value keeps its canonical shape and stays complete.
   assert.equal(result.value.kind, 'foreground')
-  assert.equal(typeof result.value.cwd, 'string')
-  assert.ok(result.value.cwd.length > 0)
+  assert.equal(result.value.cwd, '/fixture/project', 'RC.2 includes the working directory in the canonical bash result')
   assert.equal(result.value.exitCode, 0)
   assert.equal(result.value.timedOut, false)
   assert.equal(result.value.aborted, false)
@@ -549,6 +549,7 @@ test('reduction: a registration disposed while the waterfall is suspended never 
   // The same registration must still reduce normally: a fence that refuses
   // everything would be worse than the race it guards against.
   const positive = await execute()
+  assert.equal(reduction.available(), true)
   assert.equal(positive.isError, false)
   assert.equal(JSON.stringify(positive.content).includes('dsh-context-archive'), true, 'a live registration still reduces')
   assert.equal(reduction.stats().published, 1)
@@ -562,6 +563,7 @@ test('reduction: a registration disposed while the waterfall is suspended never 
   const pending = execute()
   await entered
   await registration.fiber.dispose()
+  assert.equal(reduction.available(), false, 'the capability readout must follow the listener lifecycle')
   releaseResolve()
   const after = await pending
   assert.equal(after.isError, false)

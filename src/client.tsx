@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { Button, Input, SettingsForm, SettingsValueField, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { ContextInspectorView, type ContextViewInjected } from './inspector-view.tsx'
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
@@ -52,8 +52,8 @@ export async function apply(ctx: Context) {
   const form = ctx.configForms.get<Values>('context-manager')
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right', id: 'context-manager-period', order: 100,
-    inject: (sessionId: SessionId): PeakIndicatorProps => ({
-      directory: ctx.modelDirectories.directoryFor(sessionId).store,
+    inject: (sessionId: string): PeakIndicatorProps => ({
+      directory: ctx.modelDirectories.directoryFor(sessionId as SessionId).store,
     }),
   }, PeakIndicator))
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE)
@@ -80,10 +80,11 @@ export async function apply(ctx: Context) {
     }, ContextPage))))
     scope.slots.inject('conversation.view', () => scope.slots.register({
       name: 'conversation.view', id: 'context-manager', order: 20, label: () => t('title'), locale: 'context.manager',
-      inject: (sessionId: SessionId): ContextViewInjected => {
-        const session = scope.sessions.binding(sessionId)?.session
+      inject: (sessionId: string): ContextViewInjected => {
+        const id = sessionId as SessionId
+        const session = scope.sessions.binding(id)?.session
         if (!session) throw new Error('上下文管理：当前会话尚未就绪。')
-        return { target: sessionId, form, api, locale: scope.locale.getLocale().active, pulse: session.projections.faceOf('contextPressure') }
+        return { target: id, form, api, locale: scope.locale.getLocale().active, pulse: session.projections.faceOf('contextPressure') }
       },
     }, ContextInspectorView))
   })
@@ -101,14 +102,16 @@ export function ContextPage({ form, compatibility }: { form: ConfigForm<Values>;
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">上下文管理</h2>
     <p className="cm-intro">设置何时先压缩、再继续执行。会话数据位于“对话 / 轨迹”后的“上下文”页签。</p>
     <p className="cm-intro" role="status">
-      {host?.state === 'unsupported' ? `宿主压缩 API 不可用：${host.reason}`
-        : host?.state === 'supported' ? '宿主压缩 API v1 可用。'
-          : '宿主压缩 API 状态未知。'}{' '}
-      {host?.integration.state === 'pending' ? 'Context provider 正在注册；各会话是否增强以实际绑定为准。'
-        : host?.integration.state === 'registered' ? 'Context provider selection 已注册供后续绑定使用；各会话是否增强以实际绑定为准。'
-          : host?.integration.state === 'failed' ? `Context provider 注册失败：${host.integration.reason ?? '原因未知'}。请在会话页核对实际压缩绑定。`
-            : host?.integration.state === 'unknown' ? `Context provider 注册状态未知${host.integration.reason ? `：${host.integration.reason}` : '。'} 请在会话页核对实际压缩绑定。`
-              : `Context provider 当前未注册${host?.integration.reason ? `：${host.integration.reason}` : '。'} 各会话是否增强以实际绑定为准。`}
+      {host?.state === 'unsupported' ? `宿主未提供 Context 增强 provider 切换接口：${host.reason}`
+        : host?.state === 'supported' ? '宿主提供 Context 增强 provider 切换接口。'
+          : 'Context 增强 provider 切换接口状态未知。'}{' '}
+      {!host ? '正在读取 provider 注册状态。'
+        : host.integration.state === 'pending' ? '增强 provider 注册正在准备中。'
+          : host.integration.state === 'registered' ? '增强 provider 已注册，供符合条件的会话选用。'
+            : host.integration.state === 'failed' ? `增强 provider 注册失败：${host.integration.reason ?? '原因未知'}。`
+              : host.integration.state === 'unknown' ? `增强 provider 注册状态未知${host.integration.reason ? `：${host.integration.reason}` : '。'}`
+                : `增强 provider 当前未注册${host.integration.reason ? `：${host.integration.reason}` : '。'}`}{' '}
+      会话页“上下文”会分别显示本会话的请求压力、闲置整理和工具结果能力；保存策略不代表所有会话均已启用。
     </p>
     <ContextSettings form={form} />
   </section>
@@ -127,7 +130,30 @@ function toPolicy(draft: Draft): Policy {
   return { ...draft, ...fields }
 }
 
-/** Native DSH value fields share the host's typography, borders and save footer. */
+type ContextValueFieldProps = {
+  id: string; label: string; hint: string; text: string; disabled: boolean; invalid: boolean
+  overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean
+  onEdit: (text: string) => void; onReset: () => void
+}
+function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, onEdit, onReset }: ContextValueFieldProps) {
+  return <div className="cm-native-value">
+    <label htmlFor={id} className="cm-label">{label}</label>
+    <p className="cm-hint">{hint}</p>
+    <div className="cm-row cm-native-value-control">
+      <input id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined}
+        onChange={event => onEdit(event.currentTarget.value)}/>
+      {overridden && <><span className="cm-native-overridden">{overriddenLabel}</span><Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onReset}>{resetLabel}</Button></>}
+    </div>
+    {invalid && <p className="cm-error" role="alert">{invalidLabel}</p>}
+  </div>
+}
+function ContextSwitch({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (value: boolean) => void }) {
+  return <button type="button" className="cm-native-switch" role="switch" aria-label={label} aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}>
+    <span aria-hidden="true"/>
+  </button>
+}
+
+/** Context settings controls use the actual RC.2 UI primitives where available and scoped native controls for removed form atoms. */
 export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
   const accepted = useSyncExternalStore(callback => form.subscribe(callback), () => form.getSnapshot())
   const [draft, setDraft] = useState(() => toDraft(accepted.value?.policy ?? defaults))
@@ -158,21 +184,21 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     setDirty(false); setFeedback(''); setFailed(false)
     setDraft(toDraft(accepted.value?.policy ?? defaults)); setRevision(accepted.revision)
   }
-  const numeric = (key: NumericKey, label: string, hint: string, blocked = false) => <SettingsValueField
+  const numeric = (key: NumericKey, label: string, hint: string, blocked = false) => <ContextValueField
     key={key} id={`context-manager-${key}`} label={label} hint={hint} numeric
     text={draft[key]} disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])}
     overridden={draft[key] !== String(defaults[key])} overriddenLabel="自定义" resetLabel="恢复推荐值" invalidLabel="请输入有效数字"
     onEdit={text => edit({ [key]: text })} onReset={() => edit({ [key]: String(defaults[key]) })}/>
   const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false) => <div className="cm-native-toggle">
-    <div className="cm-row"><span>{label}</span><Switch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
+    <div className="cm-row"><span>{label}</span><ContextSwitch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
     <p className="cm-hint">{hint}</p>
   </div>
   const automatic = policy.historyMode === 'automatic'
   return <section aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
-    <SettingsForm labels={{ unavailable: '正在读取上下文设置…', readOnly: '当前连接不支持保存设置。', saveFailed: feedback, save: '保存设置', saving: '保存中…' }}
-      state={{ available: accepted.status === 'ready', writable: accepted.writable, dirty: dirty && !disabled, invalid: !!invalid, saving, failed }}
-      onSave={() => { void save() }} onDiscard={() => { /* Unmount releases this form's draft. */ }}>
+    <div className="cm-settings-form" aria-busy={saving}>
+      {accepted.status !== 'ready' && <p className="cm-hint" role="status">正在读取上下文设置…</p>}
+      {accepted.status === 'ready' && !accepted.writable && <p className="cm-hint" role="status">当前连接不支持保存设置。</p>}
       <fieldset disabled={disabled} className="cm-native-fields">
         {draft.summaryTimeoutMode === 'fixed' && <div role="status">
           <p className="cm-hint">当前保留固定总时限 {Number(draft.timeoutMs) / 1000} 秒；即使摘要持续输出也会到时停止。长任务建议按输出进展等待，成功后自动继续当前任务。</p>
@@ -213,7 +239,7 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
           {numeric('idleMinPercent', '闲置压缩最低占用（%）', automatic
             ? `当前按 ${policy.idleMinPercent || '—'}% 检查，不受保存的压后占用上限影响。实际门槛不会超过请求准入线。`
             : `实际至少高于自定义占用上限 10 个百分点；当前为 ${Math.max(policy.idleMinPercent, policy.targetPercent + 10) || '—'}%，并受请求准入线限制。`)}
-          <SettingsValueField id="context-manager-summaryInstructions" label="摘要保留重点" hint="可补充需要保留的内容，例如报错、修改文件、待办事项。最多 2000 字符，基础保护始终保留。"
+          <ContextValueField id="context-manager-summaryInstructions" label="摘要保留重点" hint="可补充需要保留的内容，例如报错、修改文件、待办事项。最多 2000 字符，基础保护始终保留。"
             text={draft.summaryInstructions} disabled={disabled} invalid={draft.summaryInstructions.length > 2000}
             overridden={!!draft.summaryInstructions} overriddenLabel="自定义" resetLabel="清空" invalidLabel="最多 2000 字符"
             onEdit={summaryInstructions => edit({ summaryInstructions })} onReset={() => edit({ summaryInstructions: '' })}/>
@@ -244,7 +270,8 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
         {invalid && <p role="alert" className="cm-error">{invalid}</p>}
         <div className="cm-actions"><Button size="sm" onClick={reload}>重新载入</Button><Button size="sm" onClick={() => edit(toDraft(defaults))}>恢复全部推荐值</Button></div>
       </fieldset>
-    </SettingsForm>
-    {feedback && !failed && <p role="status" className="cm-hint cm-feedback">{feedback}</p>}
+      {feedback && <p role={failed ? 'alert' : 'status'} className={failed ? 'cm-error cm-feedback' : 'cm-hint cm-feedback'}>{feedback}</p>}
+      <div className="cm-native-save"><Button type="button" size="sm" variant="primary" disabled={disabled || !dirty || !!invalid} onClick={() => { void save() }}>{saving ? '保存中…' : '保存设置'}</Button></div>
+    </div>
   </section>
 }

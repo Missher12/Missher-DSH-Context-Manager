@@ -1,10 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { load } from 'js-yaml'
 import { Context } from '@deepseek-ai/cordis'
+import Storage from '@deepseek-ai/dsh-storage'
+import * as StorageJson from '@deepseek-ai/dsh-storage-json'
+import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
+import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 import ContextManager from '../lib/index.js'
 import EngineEntry from '../lib/engine.js'
 import { renderCompatibility, renderOverlay } from '../scripts/generate-overlay.mjs'
@@ -12,6 +19,7 @@ import {
   BASIC_COMPACTION_MODULE,
   CONTEXT_ENGINE_MODULE,
   CONTEXT_MANAGER_ORIGIN,
+  isNativeBasicCompaction,
   readAgentCompaction,
   resolveCompactionHost,
 } from '../lib/compatibility.js'
@@ -41,16 +49,48 @@ test('the shipped overlay is neutral and leaves preset declarations to the Host'
   assert.equal(compatibility.priorRollback.artifactSha256, '670e07978d98ceb0800bee021150487d1ce4c4776f3819de84e24a7d87d9c840')
 })
 
-test('compatibility metadata is deterministic and does not claim runtime proof', () => {
-  assert.deepEqual(compatibility, renderCompatibility(manifest))
-  assert.equal(compatibility.hostCapability.version, 1)
-  assert.deepEqual(compatibility.hostCapability.selectionSemantics, ['new-bindings-only', 'future-selection-only'])
-  assert.equal(compatibility.hostCapability.missingCapability.includes('Keep Host provider'), true)
-  assert.equal(compatibility.overlayContract.runtimeCompatibilityIsNotProvenByGeneration, true)
-  assert.match(compatibility.plannedIntegrationTarget.hostCommit, /^[0-9a-f]{40}$/u)
-  assert.match(compatibility.plannedIntegrationTarget.sourceManifestSha256, /^[0-9a-f]{64}$/u)
-  for (const [name, version] of Object.entries(manifest.peerDependencies)) {
-    if (name.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '>=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0', name)
+test('compatibility metadata updates package fields while preserving accepted and extension evidence', () => {
+  const nextManifest = {
+    ...manifest,
+    version: '0.10.0-local.14-fixture',
+    peerDependencies: {
+      ...manifest.peerDependencies,
+      '@deepseek-ai/dsh-agent': '^0.3.0-fixture',
+    },
+  }
+  const pendingFutureEvidence = { status: 'not-run', note: 'future extension evidence' }
+  const currentCompatibility = {
+    ...structuredClone(compatibility),
+    futureCompatibilityExtension: { schemaVersion: 7, retained: ['unknown-field', 'accepted-evidence'] },
+    verification: {
+      ...structuredClone(compatibility.verification),
+      local13Package: {
+        ...structuredClone(compatibility.verification.local13Package),
+        futureTest: pendingFutureEvidence,
+      },
+    },
+  }
+
+  const rendered = renderCompatibility(nextManifest, currentCompatibility)
+  const expected = {
+    ...currentCompatibility,
+    candidatePackageVersion: nextManifest.version,
+    runtimeDiagnosticVersion: nextManifest.version,
+    compatibilityRanges: nextManifest.peerDependencies,
+  }
+  assert.deepEqual(rendered, expected)
+  assert.deepEqual(rendered.verification.acceptedCandidate, currentCompatibility.verification.acceptedCandidate)
+  assert.deepEqual(rendered.futureCompatibilityExtension, currentCompatibility.futureCompatibilityExtension)
+  assert.deepEqual(rendered.verification.local13Package.futureTest, pendingFutureEvidence)
+  assert.equal(rendered.verification.local13Package.futureTest.status, 'not-run')
+  assert.equal(rendered.hostCapability.version, 1)
+  assert.deepEqual(rendered.hostCapability.selectionSemantics, ['new-bindings-only', 'future-selection-only'])
+  assert.equal(rendered.hostCapability.missingCapability.includes('Keep the Host provider and user presets unchanged'), true)
+  assert.equal(rendered.overlayContract.runtimeCompatibilityIsNotProvenByGeneration, true)
+  assert.match(rendered.plannedIntegrationTarget.hostCommit, /^[0-9a-f]{40}$/u)
+  assert.match(rendered.plannedIntegrationTarget.sourceManifestSha256, /^[0-9a-f]{64}$/u)
+  for (const [name, version] of Object.entries(nextManifest.peerDependencies)) {
+    assert.equal(rendered.compatibilityRanges[name], version, name)
   }
 })
 
@@ -71,28 +111,58 @@ test('capability probing fails closed without loading or registering provider be
   assert.deepEqual(calls, { register: 0, bindingFor: 0, retained: 0 })
 })
 
-test('a Host without API v1 keeps Context stores and provider registration unopened', async () => {
+test('a Host without API v1 opens plugin-owned stores but leaves Basic provider registration alone', async t => {
   const ctx = new Context()
-  const storageCalls = []
-  const registry = { compactionHost: { version: 2, register() { storageCalls.push('register') } } }
-  ctx.provide('storageDomain', new Proxy({}, { get(_target, name) {
-    return (...args) => { storageCalls.push([String(name), ...args]); throw new Error('not expected') }
-  } }))
+  const root = await mkdtemp(join(tmpdir(), 'ctx-compat-basic-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await ctx.plugin(Storage)
+  await ctx.plugin(StorageJson, { root: join(root, 'storage') })
+  await ctx.plugin(StorageDomain, { backend: 'json' })
+  const profile = join(root, 'profile')
+  await mkdir(profile, { recursive: true })
+  ctx.provide('profileContext', { dir: profile })
+  let registrations = 0
+  const registry = { compactionHost: { version: 2, register() { registrations++; throw new Error('not expected') } } }
   ctx.provide('agentPresets', registry)
   await ctx.plugin(ContextManager)
   try {
     assert.equal(ctx.contextManager.enhancementCapable, false)
-    assert.equal(ctx.contextManager.idleStore, undefined)
-    assert.equal(ctx.contextManager.summaryLedger, undefined)
+    assert.ok(ctx.contextManager.idleStore)
+    assert.ok(ctx.contextManager.summaryLedger)
     assert.deepEqual(ctx.contextManager.capabilityReadout().integration, {
       state: 'inactive', reason: ctx.contextManager.hostCapability.reason,
     })
-    assert.deepEqual(storageCalls, [])
+    assert.equal(registrations, 0)
     await assert.rejects(() => EngineEntry(ctx), /Host v1 binding capability/u)
     assert.equal(ctx.get('compaction'), undefined)
   } finally {
     await ctx.fiber.dispose()
   }
+})
+
+test('an unsupported Host still reports the exact official Basic service as native', () => {
+  const ctx = new Context()
+  const basic = Object.create(BasicCompactionEngine.prototype)
+  const CustomCompaction = class extends BasicCompactionEngine {}
+  const custom = Object.create(CustomCompaction.prototype)
+  const agent = service => ({ get: name => name === 'compaction' ? service : undefined })
+  assert.equal(isNativeBasicCompaction(ctx, agent(basic)), true)
+  assert.equal(readAgentCompaction(ctx, agent(basic)).mode, 'native')
+  assert.equal(isNativeBasicCompaction(ctx, agent(custom)), false)
+  assert.equal(readAgentCompaction(ctx, agent(custom)).mode, 'other')
+})
+
+test('a Cordis context-bound Basic proxy remains the exact native provider', async t => {
+  const ctx = new Context()
+  t.after(async () => { await ctx.fiber.dispose() })
+  const basic = Object.create(BasicCompactionEngine.prototype)
+  ctx.provide('compaction', basic)
+  let readout
+  await ctx.plugin(scope => {
+    const agentContext = scope.isolate('agent')
+    readout = { native: isNativeBasicCompaction(ctx, agentContext), mode: readAgentCompaction(ctx, agentContext).mode }
+  })
+  assert.deepEqual(readout, { native: true, mode: 'native' })
 })
 
 test('classification follows each Agent binding, not the future selected provider', () => {

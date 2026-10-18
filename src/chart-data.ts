@@ -42,7 +42,7 @@ export function contextWindow(data: Pick<Inspection, 'historical' | 'admission' 
  * reference projection when unknown) supplies the conservative chart occupancy.
  * Only the current admission readout can separate usable space from reserve.
  */
-export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'pressureHistory' | 'model' | 'historical' | 'admission' | 'compression'>, policy?: Policy) {
+export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'pressureHistory' | 'model' | 'historical' | 'admission' | 'compression' | 'cooperation'>, policy?: Policy) {
   const slices: ChartSlice[] = contextGroups.map(group => ({ id: group.id, value: data.parts.filter(part => group.categories.some(category => category === part.category)).reduce((sum, part) => sum + part.tokens, 0), share: 0 }))
   const content = slices.reduce((sum, item) => sum + item.value, 0)
   const cut = data.pressureHistory.at(-1)
@@ -52,7 +52,8 @@ export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'press
   const used = Math.max(content, measured ?? 0)
   const other = used - content
   if (other > 0) slices.push({ id: 'other', value: other, share: 0 })
-  const gate = data.compression?.mode === 'enhanced' && policy?.enabled ? admissionBudget(data, policy) : null
+  const sidecarGate = data.compression?.mode === 'native' && data.cooperation?.requestPressure === 'context'
+  const gate = (data.compression?.mode === 'enhanced' || sidecarGate) && policy?.enabled ? admissionBudget(data, policy) : null
   const limit = gate?.admission ?? null
   const free = window === null ? null : Math.max(0, (limit ?? window) - used)
   const reserve = gate === null ? null : Math.max(0, gate.window - Math.max(used, gate.admission))

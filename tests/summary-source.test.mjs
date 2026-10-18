@@ -16,19 +16,24 @@ import { createRoot } from 'react-dom/client'
 
 const require = createRequire(import.meta.url)
 const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url))
-// In-memory compilation keeps the daily-linked lib and build scripts untouched.
-const hostBuild = await build({
-  stdin: { contents: "export { default as Inspector, contextGrowth } from './inspector.ts'; export { indexContext } from './inspector-fold.ts'; export { contentQuerySchema, contentPageSchema, inspectionSchema } from './inspector-wire.ts'", resolveDir: sourceRoot },
-  write: false, bundle: true, platform: 'node', format: 'esm', target: 'es2022', tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
-  plugins: [{ name: 'public-api', setup(builder) {
+// Public service acceptance imports the rebuilt candidate package. Internal
+// wire/fold helpers stay in memory because they are not standalone package entries.
+const { default: Inspector, contextGrowth } = await import('../lib/inspector.js')
+const internalsBuild = await build({
+  stdin: { contents: "export { indexContext } from './inspector-fold.ts'; export { contentQuerySchema, contentPageSchema, inspectionSchema } from './inspector-wire.ts'", resolveDir: sourceRoot },
+  write: false, bundle: true, platform: 'node', format: 'esm', target: 'es2022',
+  plugins: [{ name: 'published-package-dependencies', setup(builder) {
     builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
   } }],
 })
-const { Inspector, contextGrowth, indexContext, contentQuerySchema, contentPageSchema, inspectionSchema } = await import(`data:text/javascript;base64,${Buffer.from(`${hostBuild.outputFiles[0].text}\n//# sourceURL=summary-source-service-test.js`).toString('base64')}`)
+const { indexContext, contentQuerySchema, contentPageSchema, inspectionSchema } = await import(`data:text/javascript;base64,${Buffer.from(internalsBuild.outputFiles[0].text).toString('base64')}`)
 const primitivesBuild = await build({
-  stdin: { contents: ['Button', 'Checkbox', 'Input', 'StateDot', 'Tooltip'].map(name => `export { ${name} } from ${JSON.stringify(require.resolve(`@deepseek-ai/dsh-client-ui-primitives/src/${name}.tsx`))}`).join('\n'), resolveDir: sourceRoot },
+  stdin: { contents: "export { Button, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'", resolveDir: sourceRoot },
   outfile: '/virtual/summary-source-primitives.cjs', write: false, bundle: true, platform: 'node', format: 'cjs',
   external: ['react', 'react/*', 'react-dom', 'react-dom/*'], loader: { '.css': 'local-css' }, jsx: 'automatic',
+  plugins: [{ name: 'published-primitives-css-stub', setup(builder) {
+    builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }))
+  } }],
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
 })
 const scope = { module: { exports: {} }, require, setTimeout, clearTimeout }

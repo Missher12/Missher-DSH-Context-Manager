@@ -1,154 +1,204 @@
 {
-  "schemaVersion": 4,
-  "package": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.12",
-  "sourceTag": "v0.10.0-local.12",
-  "basePublicCommit": "b35f1509084f72564996e7e50a3d7fbe60103d35",
+  "schemaVersion": 1,
+  "product": "@missher/dsh-context-manager",
+  "version": "0.10.0-local.13",
+  "status": "local-staging-only",
   "artifact": {
-    "filename": "missher-dsh-context-manager-0.10.0-local.12.tgz",
-    "sha256": "cf0741d238b9864ad1b74e36a49d45a089fa96a740c89c8a70260c4fe9b083d0",
-    "bytes": 279519,
-    "fileCount": 24
+    "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
+    "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
+    "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+    "sizeBytes": 347254,
+    "memberCount": 24
   },
-  "clientSha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad",
-  "candidateSourceFreezeSha256": "482a20f15187002ba477ee52dd355e18b050bfebef9b92f3f4dd6086f53a5f50",
-  "reviewedProductDeliveryDiffSha256": "f46ad039fdf45ed34f3e076ae3937d6a3dbe71fbaa19c8d1945e140c33f1a2b8",
-  "publicSourcePackageFilesMatch": true,
-  "repositoryOnlyDeliveryMetadata": [
-    "PUBLICATION.md",
-    "COMPATIBILITY-REPORT.json",
-    "RELEASE-MANIFEST.json"
-  ],
-  "validationSummary": {
-    "uniqueUiCasesPassed": 8,
-    "syntheticBrowserChecks": 14,
-    "officialRc2LoaderAssertionsPassed": 70,
-    "actualProviderCalls": 0,
-    "compactionHostV1Available": false,
-    "installed": false
-  },
-  "currentCompatibilityReport": "COMPATIBILITY-REPORT.json",
-  "publicationNotes": "PUBLICATION.md",
-  "members": [
+  "archiveMembers": [
     {
-      "path": "COMPATIBILITY.json",
-      "bytes": 6777,
-      "sha256": "64d5731639db47ea7e5e7da333d58e78f77b245ed91cd5ec11696e99a952ffba"
+      "path": "package/COMPATIBILITY.json",
+      "sizeBytes": 7757,
+      "sha256": "7e436d62fcb0ad5dc9f51d224cd70a2a2ec7e4fe82a094ca6f767b0a9c303564"
     },
     {
-      "path": "LICENSE",
-      "bytes": 1092,
+      "path": "package/LICENSE",
+      "sizeBytes": 1092,
       "sha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0"
     },
     {
-      "path": "README.en.md",
-      "bytes": 7136,
-      "sha256": "a0cb669b9e18f421c3955d7e75ef29207ae14b11ef470ff4ace4b7b41fdd7a25"
+      "path": "package/README.en.md",
+      "sizeBytes": 35499,
+      "sha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af"
     },
     {
-      "path": "README.md",
-      "bytes": 6819,
-      "sha256": "cc0396f61c0b389efa0c7146ca34aa525f97d96bcf34cf72a50a80873c5cb6ae"
+      "path": "package/README.md",
+      "sizeBytes": 30322,
+      "sha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749"
     },
     {
-      "path": "THIRD_PARTY_NOTICES.md",
-      "bytes": 2231,
+      "path": "package/THIRD_PARTY_NOTICES.md",
+      "sizeBytes": 2231,
       "sha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810"
     },
     {
-      "path": "cordis.patch.yml",
-      "bytes": 278,
+      "path": "package/cordis.patch.yml",
+      "sizeBytes": 278,
       "sha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f"
     },
     {
-      "path": "lib/archive.js",
-      "bytes": 34621,
+      "path": "package/lib/archive.js",
+      "sizeBytes": 34621,
       "sha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0"
     },
     {
-      "path": "lib/chart-data.js",
-      "bytes": 11907,
-      "sha256": "a68754a3a71af58838dc90d1c8120e757fda271dffb447de57acff4ec5cec298"
+      "path": "package/lib/chart-data.js",
+      "sizeBytes": 12034,
+      "sha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a"
     },
     {
-      "path": "lib/client.js",
-      "bytes": 781765,
-      "sha256": "994512d9b3b14f589e07503e0a9d3f1a0d6e98460f210177b724b499e526e5ad"
+      "path": "package/lib/client.js",
+      "sizeBytes": 788587,
+      "sha256": "29bfe3d969bc9d68753598acae715c51f96e8fd656ee5ac7585e21d21016c266"
     },
     {
-      "path": "lib/compaction-cycles.js",
-      "bytes": 6425,
+      "path": "package/lib/compaction-cycles.js",
+      "sizeBytes": 6425,
       "sha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2"
     },
     {
-      "path": "lib/compatibility.js",
-      "bytes": 4232,
-      "sha256": "14f5f5bb05cc43ffc86dd1e8cbdc2617e076b2e1153c0aeb7c68a2f17459a7d9"
+      "path": "package/lib/compatibility.js",
+      "sizeBytes": 5915,
+      "sha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48"
     },
     {
-      "path": "lib/diagnostics.js",
-      "bytes": 6598,
+      "path": "package/lib/diagnostics.js",
+      "sizeBytes": 6598,
       "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
     },
     {
-      "path": "lib/efficiency.js",
-      "bytes": 10195,
+      "path": "package/lib/efficiency.js",
+      "sizeBytes": 10195,
       "sha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210"
     },
     {
-      "path": "lib/engine.js",
-      "bytes": 148430,
-      "sha256": "cd6f24a6707ce0ef97b4ab9f89825b238077d000ad2e6d40518af3bd93ef101d"
+      "path": "package/lib/engine.js",
+      "sizeBytes": 168077,
+      "sha256": "d5cbd541f79db120acc8ffa3cb5a174d3d6fe61ee40d4f575d4d581254eb7686"
     },
     {
-      "path": "lib/history-tools.js",
-      "bytes": 29674,
+      "path": "package/lib/history-tools.js",
+      "sizeBytes": 29674,
       "sha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b"
     },
     {
-      "path": "lib/index.js",
-      "bytes": 201990,
-      "sha256": "33b47d2845be1e1bbeb144e2e130641f2b89ba913b638a597b0f490344aff2a3"
+      "path": "package/lib/index.js",
+      "sizeBytes": 366956,
+      "sha256": "9ab1d1bd6f98694a315661a16524dbd2e302808d9db774dcf44e6c9328059919"
     },
     {
-      "path": "lib/inspector-fold.js",
-      "bytes": 14513,
+      "path": "package/lib/inspector-fold.js",
+      "sizeBytes": 14513,
       "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
     },
     {
-      "path": "lib/inspector.js",
-      "bytes": 56680,
-      "sha256": "4dae30323a540f447f67aef05fca3b47a50932bdf2d76a0310bedc987581c2db"
+      "path": "package/lib/inspector.js",
+      "sizeBytes": 58345,
+      "sha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb"
     },
     {
-      "path": "lib/policy.js",
-      "bytes": 10416,
+      "path": "package/lib/policy.js",
+      "sizeBytes": 10416,
       "sha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4"
     },
     {
-      "path": "lib/reducer.js",
-      "bytes": 2874,
+      "path": "package/lib/reducer.js",
+      "sizeBytes": 2874,
       "sha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f"
     },
     {
-      "path": "lib/tool-results.js",
-      "bytes": 13389,
-      "sha256": "7c91d3f7df0524bfc5e82f70a2f67bfa19136a13de6e0946e2c242899818f83c"
+      "path": "package/lib/tool-results.js",
+      "sizeBytes": 13377,
+      "sha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd"
     },
     {
-      "path": "lib/typert.js",
-      "bytes": 15947,
-      "sha256": "c1aae79f05399a811a3fb7107d9b8d56182414f55076286baca5f72a9473055e"
+      "path": "package/lib/typert.js",
+      "sizeBytes": 16456,
+      "sha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120"
     },
     {
-      "path": "lib/working-set.js",
-      "bytes": 5228,
-      "sha256": "27789a95941702426148c600d4fc66c98ea6eb4c4d5a2f2922501c0bfe9de26c"
+      "path": "package/lib/working-set.js",
+      "sizeBytes": 10259,
+      "sha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581"
     },
     {
-      "path": "package.json",
-      "bytes": 5413,
-      "sha256": "0322b7b755187ce5b65d616e5263c9becf013d84f282e3a481eb42ca3ffbe42d"
+      "path": "package/package.json",
+      "sizeBytes": 5302,
+      "sha256": "74404cd92038fe6598480cfa2f6b42cd4670389d834fadbf4e5b13d6b44c5780"
     }
-  ]
+  ],
+  "sourceExport": {
+    "boundFileCount": 118,
+    "sourceManifest": "SOURCE-MANIFEST.json",
+    "sourceManifestSha256": "37dd71dcd4bb9c4dee426742942c3365038b6d243c4e03fdef919ebc791b95e7",
+    "acceptanceReceiptSha256": "9c4ee7266d435b8ffa259408dd80749866cd6b88d9704eb8ec538172fe97302f"
+  },
+  "verification": {
+    "build": "passed",
+    "typecheck": "passed",
+    "packageBoundary": "passed on final doc-refresh archive 2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+    "archiveExtractedSettingsSmoke": "2/2 synthetic settings cases passed on original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359 only; not rerun on final documentation-only archive",
+    "archiveExtractedRc2LoaderSmoke": "1/1 synthetic RC.2 Loader case passed on original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359 only; not rerun on final documentation-only archive",
+    "publicExportMatchesArchiveMembers": true,
+    "localWorkspacePathLeakScan": "passed",
+    "generatorFixtureFollowup": "2/2 passed; source fixture only",
+    "packageArtifactUnchangedAfterFixtureFollowup": true,
+    "sourceFixtureFollowupArchiveSha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+    "documentationRefreshArchiveExtractedSmoke": "not-run; documentation-only candidate"
+  },
+  "publication": {
+    "released": false,
+    "publicDownloadUrl": null,
+    "installed": false,
+    "nativeHostAcceptance": false,
+    "realProviderAcceptance": false
+  },
+  "documentationRefresh": {
+    "checkedAtUtc": "2026-10-18T19:41:57Z",
+    "purpose": "Documentation-only final local.13 candidate; English README historical appendix is explicitly superseded by the current policy.",
+    "artifact": {
+      "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
+      "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
+      "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "sizeBytes": 347254,
+      "memberCount": 24
+    },
+    "supersedesStagedDocumentationCandidates": [
+      {
+        "sha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+        "status": "original accepted archive; preserved unchanged"
+      },
+      {
+        "sha256": "05ecf8b8f2cfa2d4750ba828d6c1f17926c6be5d7454794c30a67fd5b1c733fd",
+        "status": "intermediate bilingual documentation candidate; preserved unchanged"
+      }
+    ],
+    "changedMembersComparedWithPreviousDocumentationCandidate": [
+      "package/README.en.md"
+    ],
+    "changedMembersComparedWithOriginalAcceptedArchive": [
+      "package/README.en.md",
+      "package/README.md"
+    ],
+    "runtimeLibMemberCount": 17,
+    "runtimeLibMembersByteIdenticalToOriginalArchive": true,
+    "packageBoundary": {
+      "status": "passed",
+      "logSha256": "5d0e6fdd6cb5891581a4fec3403f27e3940c47e69f6bbf728786e3e6f722893f",
+      "archiveSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "memberCount": 24,
+      "containsBridgeCode": false,
+      "dependsOnBridge": false,
+      "lifecyclePatchHooks": false,
+      "hostConfigTargets": [],
+      "verificationFilesBundled": false
+    },
+    "extractedSettingsAndLoaderSmoke": "not rerun on this documentation-only candidate; synthetic 2/2 settings and 1/1 RC.2 Loader smoke applies only to original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
+    "releaseInstallHostOrRealProviderAcceptance": false
+  }
 }

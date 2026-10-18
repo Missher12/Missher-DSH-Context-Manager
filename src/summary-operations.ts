@@ -460,6 +460,23 @@ export class SummaryOperations {
         && JSON.stringify([...(row.riskAcceptedOriginIds ?? [])].sort()) === JSON.stringify(riskAccepted))
       && row.expiresAt > Date.now() && !consumed.has(row.authorizationId))
   }
+  /** Read-only feasibility check; `claim` immediately re-evaluates under the durable write chain. */
+  preview(input: PermitInput): { available: boolean; reason?: string } {
+    try {
+      const decision = this.decision(input)
+      const grant = decision.unknown ? this.matchingGrant(input) : undefined
+      if (decision.unknown && (!grant || input.unboundManual)) {
+        return { available: false, reason: input.unboundManual
+          ? '旧手动调用无法精确绑定预算，需要先核验，未授权新收费'
+          : '上次调用结果未知，不自动再次收费；可在上下文面板明确授权一次恢复' }
+      }
+      return { available: true }
+    } catch (error) {
+      return { available: false, reason: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  /** Refresh status for an engine gate that declines before reaching durable claim(). */
+  recordBlockedRequest(input: PermitInput): void { this.rememberBlocked(input) }
   /** One serialized durable put is the only permission to dispatch. A crash consumes it. */
   async claim(input: PermitInput): Promise<OperationRow> {
     return this.enqueue(async () => {

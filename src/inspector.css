@@ -183,3 +183,7 @@
 
 .cmv-view .cmv-request-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 4px; }
 .cmv-view .cmv-request-title .cmv-status { margin: 0; }
+
+.cmv-view .cmv-checkbox { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.cmv-view .cmv-checkbox input { accent-color: var(--cmv-blue); }
+.cmv-view .cmv-checkbox input:focus-visible { outline: 2px solid var(--cmv-blue); outline-offset: 2px; }

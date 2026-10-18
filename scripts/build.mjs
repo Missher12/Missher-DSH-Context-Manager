@@ -1,5 +1,5 @@
 import { build } from 'esbuild'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 // The isolated stage sets DSH_CONTEXT_BUILD_OUT so a regression build can never
 // overwrite the canonical root lib. Default stays `lib` for normal packaging.
@@ -20,4 +20,18 @@ await mkdir('verification', { recursive: true })
 // DSH_CONTEXT_BUILD_OUT cannot be used as a literal key. Match the client output.
 const clientOutput = Object.keys(result.metafile.outputs).find(key => key === join(outdir, 'client.js') || key.endsWith('/client.js') || key === 'client.js')
 if (!clientOutput) throw new Error('client bundle output missing from esbuild metafile')
-await writeFile('verification/client-build.json', JSON.stringify({ outdir, imports: result.metafile.outputs[clientOutput].imports }, null, 2) + '\n')
+const clientPath = join(outdir, 'client.js')
+const clientSource = await readFile(clientPath, 'utf8')
+let normalizedPathComments = 0
+const normalizedClient = clientSource.replace(
+  /^\/\/ .*?\/node_modules\/\.pnpm\/[^/]+\/node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\/([^\r\n]+)$/gm,
+  (_line, packagePath, relativePath) => {
+    normalizedPathComments += 1
+    return `// ${packagePath}/${relativePath}`
+  },
+)
+if (/node_modules\/\.pnpm\/|(?:\.\.\/)+coordinator\/plugin-cooperation-|candidate-plugin-complete/u.test(normalizedClient)) {
+  throw new Error('client bundle contains a local dependency-cache path after normalization')
+}
+await writeFile(clientPath, normalizedClient)
+await writeFile('verification/client-build.json', JSON.stringify({ outdir, normalizedPathComments, imports: result.metafile.outputs[clientOutput].imports }, null, 2) + '\n')

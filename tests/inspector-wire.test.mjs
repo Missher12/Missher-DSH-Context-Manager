@@ -37,6 +37,24 @@ test('actual inspect codec keeps Goal optional for old or historical responses',
   }
 })
 
+test('actual inspect codec reports each Context sidecar separately from the Basic provider', () => {
+  const cooperation = {
+    toolResults: { state: 'active', finalResultSeen: true },
+    originals: { state: 'ready', count: 2 },
+    idleMaintenance: 'active', requestPressure: 'native',
+  }
+  const value = { ...inspection(), cooperation }
+  assert.deepEqual(roundTrip('inspect', value), value)
+  assert.deepEqual(roundTrip('inspect', { ...inspection(), cooperation: { ...cooperation, requestPressure: 'waiting' } }).cooperation.requestPressure, 'waiting')
+  const result = codec('inspect')
+  for (const invalid of [
+    { ...cooperation, extra: true },
+    { ...cooperation, requestPressure: 'handoff' },
+    { ...cooperation, originals: { ...cooperation.originals, count: -1 } },
+    { ...cooperation, toolResults: { ...cooperation.toolResults, finalResultSeen: 'yes' } },
+  ]) assert.equal(result.safeParse({ ...inspection(), cooperation: invalid }).success, false)
+})
+
 test('Goal codec rejects missing fields, unknown nested fields and unbounded or invalid values', () => {
   const result = codec('inspect')
   const { maxGoalRounds, ...missing } = goal()

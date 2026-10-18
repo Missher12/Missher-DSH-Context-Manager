@@ -1,7 +1,7 @@
 import { formatPercent, capacityTokens } from './policy.ts'
 /** A read-only, single-page context view registered after the native trajectory. */
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Button, Checkbox, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react'
+import { Button, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { Policy } from './policy.ts'
 import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery, type RequestRow } from './inspector-types.ts'
@@ -9,7 +9,7 @@ import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, P
 import { inspectorText, type InspectorLocaleKey, type InspectorText } from './inspector-locales.ts'
 import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
-import type { CompactionReadout } from './compatibility.ts'
+import type { CompactionReadout, ContextCooperationReadout } from './compatibility.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
 import css from './inspector.css'
 
@@ -49,6 +49,12 @@ function inactivityReason(binding: CompactionReadout): InspectorLocaleKey | null
     default: return binding.hostCapability === 'unsupported' ? 'reasonHostUnsupported' : 'reasonUnknown'
   }
 }
+function hasNativeSidecar(value: ContextCooperationReadout | undefined): boolean {
+  return value !== undefined && (value.toolResults.state === 'active' || value.toolResults.state === 'observe'
+    || value.toolResults.state === 'waiting' || value.originals.state === 'ready'
+    || value.idleMaintenance === 'active' || value.idleMaintenance === 'waiting'
+    || value.requestPressure === 'context' || value.requestPressure === 'waiting')
+}
 function bindingBadge(data: Inspection | null, idle: BindingSnapshot | null, target: string, historical: boolean, stale: boolean, failed: boolean, t: InspectorText): BindingBadge {
   if (historical) {
     const binding = data?.compression
@@ -75,8 +81,29 @@ function bindingBadge(data: Inspection | null, idle: BindingSnapshot | null, tar
   }
   const binding = inspected ?? idleValue
   if (!binding) return { mode: 'unknown', text: `${t('currentAgent')} · ${t('bindingMissing')}`, title: '' }
-  const reason = inactivityReason(binding)
-  return { mode: binding.mode, text: `${t('currentAgent')} · ${t(compressionLabel(binding.mode))}${reason ? ` · ${t(reason)}` : ''}`, title: binding.reason }
+  const cooperating = binding.mode === 'native' && hasNativeSidecar(data?.cooperation)
+  const reason = cooperating ? null : inactivityReason(binding)
+  const label = cooperating ? t('nativeCooperating') : t(compressionLabel(binding.mode))
+  return { mode: binding.mode, text: `${t('currentAgent')} · ${label}${reason ? ` · ${t(reason)}` : ''}`, title: binding.reason }
+}
+
+function CooperationDetails({ value, policy, t }: { value: ContextCooperationReadout; policy: Policy | undefined; t: InspectorText }) {
+  const tool = ({ off: 'coopOff', observe: 'coopObserve', active: 'coopActive', waiting: 'coopWaiting', unsupported: 'coopUnsupported' } as const)[value.toolResults.state]
+  const originals = ({ ready: 'coopOriginalsReady', empty: 'coopOriginalsEmpty', unavailable: 'coopOriginalsUnavailable' } as const)[value.originals.state]
+  const idle = ({ active: 'coopActive', off: 'coopOff', waiting: 'coopWaiting', unsupported: 'coopUnsupported' } as const)[value.idleMaintenance]
+  const pressure = ({ context: 'coopPressureContext', native: 'coopPressureNative', off: 'coopPressureOff', waiting: 'coopPressureWaiting', unsupported: 'coopPressureUnsupported', unknown: 'coopPressureUnknown' } as const)[value.requestPressure]
+  return <details className="cmv-request-details" data-context-cooperation="true">
+    <summary>{t('cooperationTitle')}</summary>
+    <div>
+      <p className="cmv-muted">{t('coopToolResults')} · {t(tool)}{value.toolResults.finalResultSeen ? ` · ${t('reductionPipelineOk')}` : ` · ${t('reductionPipelineUnknown')}`}</p>
+      <p className="cmv-muted">{t('coopOriginals')} · {t(originals)}{value.originals.count > 0 ? ` · ${exactTokens(value.originals.count)}` : ''}</p>
+      <p className="cmv-muted">{t('coopIdle')} · {t(idle)}</p>
+      <p className="cmv-muted">{t('coopRequestPressure')} · {t(pressure)}</p>
+      <p className="cmv-muted" data-saved-context-policy={policy?.enabled === undefined ? 'unknown' : policy.enabled ? 'enabled' : 'disabled'}>
+        {t('coopSavedPolicy')} · {policy ? t(policy.enabled ? 'coopPolicyEnabled' : 'coopPolicyDisabled') : t('coopPolicyUnknown')}
+      </p>
+    </div>
+  </details>
 }
 function requestWindow(data: Inspection, request: RequestRow | undefined): number | null {
   if (!request) return null
@@ -181,8 +208,10 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
 function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspection; policy: Policy | undefined; stale: boolean; bindingMode: CompactionReadout['mode']; t: InspectorText }) {
   const reading = stale || data.historical ? undefined : data.admission
   const mode = stale ? 'unknown' : bindingMode
-  const gate = !stale && mode === 'enhanced' ? admissionBudget(data, policy) : undefined
-  const status = stale ? 'stale' : data.historical ? 'historical' : mode !== 'enhanced' ? compressionLabel(mode)
+  const contextSidecar = mode === 'native' && data.cooperation?.requestPressure === 'context'
+  const contextGate = mode === 'enhanced' || contextSidecar
+  const gate = !stale && contextGate ? admissionBudget(data, policy) : undefined
+  const status = stale ? 'stale' : data.historical ? 'historical' : !contextGate ? compressionLabel(mode)
     : policy && !policy.enabled ? 'off' : !gate || !reading ? 'unknown' : reading.tokens >= gate.admission ? 'compactFirst' : 'continue'
   const source = gate ? gate.admissionSource === 'absolute' ? t('gateAbsolute') : gate.admissionSource === 'hard' ? t('gateHard') : t('gatePercent') : ''
   const effectiveCapacity = policy && gate ? capacityTokens(policy,gate.window) : null
@@ -190,7 +219,7 @@ function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspecti
   const recentWindow = requestWindow(data, recent)
   const recentCapacity = !recent ? '—' : recent.input == null ? t('unknownUsage') : recentWindow === null ? t('requestWindowUnknown') : formatPercent(recent.input, recentWindow)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status"><StateDot state={status === 'compactFirst' ? 'warning' : status === 'continue' ? 'done' : 'idle'}/>{t(status)}</div></div><Tooltip label={mode === 'enhanced' ? t('admissionHint') : t('bindingHint')} portal><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · ${t('recentBudget')} ${formatPercent(effectiveCapacity.recent,gate.window)} · ${t('summary')} ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
+  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status">{status === 'compactFirst' ? <StateDot state="warning"/> : status === 'continue' ? <StateDot state="done"/> : null}{t(status)}</div></div><Tooltip label={contextGate ? t('admissionHint') : t('bindingHint')}><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens} data-context-request-gate={contextSidecar && gate ? 'active' : undefined}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · ${t('recentBudget')} ${formatPercent(effectiveCapacity.recent,gate.window)} · ${t('summary')} ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
     <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{recentCapacity}</strong><span className="cmv-muted cmv-request-detail">{recent ? `${t('requestInputDetail')} · ${recent.input == null ? t('unknownUsage') : `${exactTokens(recent.input)} Token`}` : t('noRequest')}</span></div></div>
     <div><h3>{t('cache')}</h3><div className="cmv-request-values"><strong>{hit === null ? '—' : `${Math.round(hit)}%`}</strong></div></div>
   </div>
@@ -237,9 +266,9 @@ function ContentBrowser({ data, query, change, api, target, loading, t, initialS
   const row = data.rows.slice(0, shown).find(item => item.id === selected) ?? data.rows[0]
   const grouped = query.group === 'message' || query.group === 'instruction'
   const filter = grouped ? `group:${query.group}` : query.group ?? query.category
-  return <div><div className="cmv-content-tools"><Input aria-label={t('search')} placeholder={t('search')} value={query.search} onChange={event => change({ search: event.target.value.slice(0, 200) })}/><select aria-label={t('types')} value={filter} onChange={event => { const value = event.target.value; change(value.startsWith('group:') ? { group: value.slice(6) as ContextGroup, category: 'all' } : { group: undefined, category: value as Category | 'all' }) }}><option value="all">{t('all')}</option>{grouped && query.group && <option value={`group:${query.group}`}>{t(query.group)}</option>}{categories.map(item => <option key={item.id} value={item.id}>{t(item.id)}</option>)}</select><select aria-label={t('sort')} value={query.sort} onChange={event => change({ sort: event.target.value as InspectQuery['sort'] })}><option value="size">{t('size')}</option><option value="position">{t('position')}</option></select></div>
+  return <div><div className="cmv-content-tools"><Input aria-label={t('search')} placeholder={t('search')} value={query.search} onChange={(event: ChangeEvent<HTMLInputElement>) => change({ search: event.target.value.slice(0, 200) })}/><select aria-label={t('types')} value={filter} onChange={event => { const value = event.target.value; change(value.startsWith('group:') ? { group: value.slice(6) as ContextGroup, category: 'all' } : { group: undefined, category: value as Category | 'all' }) }}><option value="all">{t('all')}</option>{grouped && query.group && <option value={`group:${query.group}`}>{t(query.group)}</option>}{categories.map(item => <option key={item.id} value={item.id}>{t(item.id)}</option>)}</select><select aria-label={t('sort')} value={query.sort} onChange={event => change({ sort: event.target.value as InspectQuery['sort'] })}><option value="size">{t('size')}</option><option value="position">{t('position')}</option></select></div>
     <div className="cmv-content-layout"><div className="cmi-content-list" aria-label={t('content')}>{data.rows.slice(0, shown).map(item => <button type="button" key={item.id} aria-pressed={row?.id === item.id} onClick={() => setSelected(item.id)}><span className="cmv-row-title"><i data-category={item.category}/><strong>{item.title}</strong><b>{formatPercent(item.tokens,contextWindow(data))}</b></span><span className="cmv-muted">{t(item.category)}{item.current ? '' : ` · ${t('replaced')}`}</span></button>)}{!data.rows.length && <div className="cmv-empty">{t('emptyContents')}</div>}{shown < data.rows.length && <Button size="sm" variant="ghost" onClick={() => setShown(value => value + 4)}>{t('more')}</Button>}</div>{row ? <ContentDetail key={`${target}:${data.cutSeq}:${row.id}`} target={target} cutSeq={data.cutSeq} row={row} api={api} t={t} window={contextWindow(data)}/> : <div className="cmv-empty">{t('selectContent')}</div>}</div>
-    <div className="cmv-content-footer"><Checkbox label={t('archived')} checked={query.archived} onChange={archived => change({ archived })}/><div className="cmv-pagination"><Button size="sm" disabled={loading || data.offset === 0} onClick={() => change({ offset: Math.max(0, data.offset - data.pageSize) })}>{t('previous')}</Button><span>{data.total ? data.offset + 1 : 0}–{Math.min(data.offset + Math.min(shown, data.rows.length), data.total)} / {exactTokens(data.total)}</span><Button size="sm" disabled={loading || data.offset + data.pageSize >= data.total} onClick={() => change({ offset: data.offset + data.pageSize })}>{t('nextPage')}</Button></div></div>
+    <div className="cmv-content-footer"><label className="cmv-checkbox"><input type="checkbox" checked={query.archived} onChange={event => change({ archived: event.currentTarget.checked })}/><span>{t('archived')}</span></label><div className="cmv-pagination"><Button size="sm" disabled={loading || data.offset === 0} onClick={() => change({ offset: Math.max(0, data.offset - data.pageSize) })}>{t('previous')}</Button><span>{data.total ? data.offset + 1 : 0}–{Math.min(data.offset + Math.min(shown, data.rows.length), data.total)} / {exactTokens(data.total)}</span><Button size="sm" disabled={loading || data.offset + data.pageSize >= data.total} onClick={() => change({ offset: data.offset + data.pageSize })}>{t('nextPage')}</Button></div></div>
   </div>
 }
 
@@ -287,13 +316,14 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   function showCut(seq: number) { change({ ...defaultQuery, group: undefined, atSeq: seq }) }
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
-    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span></div><Tooltip label={t('settingsHint')} portal><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => { setLoading(true); setError(''); setRetry(retry + 1) }}>{t('refresh')}</Button></header>
-      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding}/>}<span>{accepted.value ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
+    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span></div><Tooltip label={t('settingsHint')}><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => { setLoading(true); setError(''); setRetry(retry + 1) }}>{t('refresh')}</Button></header>
+      <div className="cmv-meta">{effective.atSeq === null && <IdleStatusLine target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding}/>}<span>{accepted.value?.policy ? `${t('trigger')} ${accepted.value.policy.triggerPercent}% · ${accepted.value.policy.capacityMode === 'percent' ? `${t(accepted.value.policy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · ${t('recentBudget')} ${accepted.value.policy.recentPercent}%` : '旧配置兼容 · 实际阈值按本会话窗口折算'}` : ''}</span></div>
+      {!historical && !loading && !error && safeData?.cooperation && <CooperationDetails value={safeData.cooperation} policy={accepted.value?.policy} t={t}/>}
       {safeData?.goal?.blockedReason && !safeData.historical && <div className="cmv-notice"><span role="status">{t('goalStop')}：{safeData.goal.blockedReason.code} · {safeData.goal.blockedReason.message} · {safeData.goal.roundsStarted}/{safeData.goal.maxGoalRounds} {t('goalRounds')}。{t('goalIndependent')}</span></div>}
-      {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')} portal><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
+      {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')}><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => { setLoading(true); setError(''); setRetry(retry + 1) }}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
-        <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={loading || !!error} bindingMode={binding.mode} t={t}/></div>
+        <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={loading || !!error} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={loading || !!error} bindingMode={binding.mode} t={t}/></div>
         <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
         <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest}/></div>
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
