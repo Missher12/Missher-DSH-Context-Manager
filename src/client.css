@@ -162,12 +162,11 @@
 .dsh-context-settings .cm-native-value-control { grid-column: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
 .dsh-context-settings .cm-native-value-control > button { flex: none; white-space: nowrap; }
 .dsh-context-settings .cm-native-input { flex: 0 1 112px; min-width: 0; }
-.dsh-context-settings .cm-native-input input,
 .dsh-context-settings .cm-native-value-control textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
 .dsh-context-settings .cm-native-value-control textarea { min-height: 64px; resize: vertical; }
-.dsh-context-settings .cm-native-input input:focus-visible,
 .dsh-context-settings .cm-native-value-control textarea:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
-.dsh-context-settings .cm-native-input input[aria-invalid='true'],
+.dsh-context-settings .cm-native-input:has(> input[aria-invalid='true']) { border-color: var(--dsw-alias-label-error); }
+.dsh-context-settings .cm-native-input:has(> input[aria-invalid='true']):focus-within { border-color: var(--dsw-alias-state-business-primary); }
 .dsh-context-settings .cm-native-value-control textarea[aria-invalid='true'] { border-color: var(--dsw-alias-label-error); }
 .dsh-context-settings .cm-native-unit { flex: none; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-context-settings .cm-native-overridden { color: var(--dsw-alias-label-secondary); font-size: 12px; }

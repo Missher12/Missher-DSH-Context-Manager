@@ -1,159 +1,151 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.15",
-  "status": "frozen-candidate-awaiting-native-delivery",
+  "version": "0.10.0-local.16",
+  "status": "reviewed-native-input-fix-awaiting-native-delivery",
   "artifact": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.15.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.15.tgz",
-    "sha256": "7ca44b8059a7b79451ae164f66fc8020478421680178a98c73113fbadd2bbfb4",
-    "sizeBytes": 352979,
+    "fileName": "missher-dsh-context-manager-0.10.0-local.16.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.16.tgz",
+    "sha256": "0c97e1ec067afd785f28a9bc8c075dfe7d1883759cb8152fe0db59526c083e2c",
+    "sizeBytes": 352823,
     "memberCount": 24
   },
-  "sourceManifestSha256": "82e864d0bb4a12b60923649236e17281a385ad7387ce83f84fb831c6d4020402",
-  "frozenInputManifestSha256": "425ede486257b6e1e5b8e444c2735a60063f0b103f3584258c0ff83afbc8d453",
+  "sourceManifestSha256": "bd153c9408921278691c869e3887fd8bfa4c57643e521b199e74337992ea82ed",
+  "frozenInputManifestSha256": "ca4278d8fb003e50a3db9eb4223d58a730e8c6b0144e95a7ab339b50a88fda17",
   "archiveMembers": [
     {
-      "path": "package/COMPATIBILITY.json",
-      "sizeBytes": 8298,
-      "sha256": "02665199aac9e4695912c6fbe889a4a481dfa8067d1ca6a11f308842af418697"
-    },
-    {
       "path": "package/LICENSE",
-      "sizeBytes": 1092,
-      "sha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0"
-    },
-    {
-      "path": "package/README.en.md",
-      "sizeBytes": 35202,
-      "sha256": "143ab97ca81f1b63731028b560a8990394c0719e3dcc541fa2d0e88529e8c1f6"
-    },
-    {
-      "path": "package/README.md",
-      "sizeBytes": 30039,
-      "sha256": "f49b274b7a5a723feed4779d7c95164f0fd922d8d458bf77dd7edd9cafc1b710"
-    },
-    {
-      "path": "package/THIRD_PARTY_NOTICES.md",
-      "sizeBytes": 2231,
-      "sha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810"
-    },
-    {
-      "path": "package/cordis.patch.yml",
-      "sizeBytes": 278,
-      "sha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f"
+      "sha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0",
+      "sizeBytes": 1092
     },
     {
       "path": "package/lib/archive.js",
-      "sizeBytes": 34621,
-      "sha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0"
+      "sha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
+      "sizeBytes": 34621
     },
     {
       "path": "package/lib/chart-data.js",
-      "sizeBytes": 12034,
-      "sha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a"
+      "sha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
+      "sizeBytes": 12034
     },
     {
       "path": "package/lib/client.js",
-      "sizeBytes": 821109,
-      "sha256": "4abd66d9eeed8e9e1c6a18dd54027192d7847d69ba096716988f902c91fd1cb4"
+      "sha256": "42dc842a83f8aa30be44cf410af46f346d1c88d2ae674394b49d205dc40e9f4c",
+      "sizeBytes": 821198
     },
     {
       "path": "package/lib/compaction-cycles.js",
-      "sizeBytes": 6425,
-      "sha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2"
+      "sha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
+      "sizeBytes": 6425
     },
     {
       "path": "package/lib/compatibility.js",
-      "sizeBytes": 5915,
-      "sha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48"
+      "sha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
+      "sizeBytes": 5915
     },
     {
       "path": "package/lib/diagnostics.js",
-      "sizeBytes": 6598,
-      "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f"
+      "sha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+      "sizeBytes": 6598
     },
     {
       "path": "package/lib/efficiency.js",
-      "sizeBytes": 10195,
-      "sha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210"
+      "sha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
+      "sizeBytes": 10195
     },
     {
       "path": "package/lib/engine.js",
-      "sizeBytes": 168077,
-      "sha256": "4cb91805400f5669ceab0edcaa8284a39fad27fc5807fce83a3a3d6a7e744327"
+      "sha256": "07c3be5671ba9b64982aef51a27fc57320b749adc4659c88e7ab8443c29f25d1",
+      "sizeBytes": 168077
     },
     {
       "path": "package/lib/history-tools.js",
-      "sizeBytes": 29674,
-      "sha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b"
+      "sha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
+      "sizeBytes": 29674
     },
     {
       "path": "package/lib/index.js",
-      "sizeBytes": 366956,
-      "sha256": "55ba7660273bb1939b91a1f2e020df1ac1b72b2940366365eedd12b5bcefaefc"
+      "sha256": "4bfc004454c15f40bd9b7988bdce74daed3085430d84e5bdb42ffadcc2388e94",
+      "sizeBytes": 366956
     },
     {
       "path": "package/lib/inspector-fold.js",
-      "sizeBytes": 14513,
-      "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466"
+      "sha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+      "sizeBytes": 14513
     },
     {
       "path": "package/lib/inspector.js",
-      "sizeBytes": 58345,
-      "sha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb"
+      "sha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
+      "sizeBytes": 58345
     },
     {
       "path": "package/lib/policy.js",
-      "sizeBytes": 10416,
-      "sha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4"
+      "sha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
+      "sizeBytes": 10416
     },
     {
       "path": "package/lib/reducer.js",
-      "sizeBytes": 2874,
-      "sha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f"
+      "sha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
+      "sizeBytes": 2874
     },
     {
       "path": "package/lib/tool-results.js",
-      "sizeBytes": 13377,
-      "sha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd"
+      "sha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
+      "sizeBytes": 13377
     },
     {
       "path": "package/lib/typert.js",
-      "sizeBytes": 16456,
-      "sha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120"
+      "sha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
+      "sizeBytes": 16456
     },
     {
       "path": "package/lib/working-set.js",
-      "sizeBytes": 10259,
-      "sha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581"
+      "sha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
+      "sizeBytes": 10259
+    },
+    {
+      "path": "package/COMPATIBILITY.json",
+      "sha256": "b0fe4cff1d511c7d9882e133756113fa8b34b58da9c2b7db72f691bc0e4d5352",
+      "sizeBytes": 8138
     },
     {
       "path": "package/package.json",
-      "sizeBytes": 5302,
-      "sha256": "3c6cca90776e3ed4c7d89ec2bf927c91d4c1cfb4d1e36cc422a9edeabcda724f"
+      "sha256": "1f06c4900d2fff0f6f2137ee0b9301ac9588a1ce32a38c2f9c1b1de0da5fed6e",
+      "sizeBytes": 5302
+    },
+    {
+      "path": "package/README.en.md",
+      "sha256": "5a8c3df93313233a90fa6502a6df6d51a3940c96b7b59586ec0715a68b4e7fc4",
+      "sizeBytes": 35070
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "de3d4c6798fc65e94ef4fd785003f888bf8188d76e46db2d4d66824b59a96d17",
+      "sizeBytes": 29908
+    },
+    {
+      "path": "package/THIRD_PARTY_NOTICES.md",
+      "sha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810",
+      "sizeBytes": 2231
+    },
+    {
+      "path": "package/cordis.patch.yml",
+      "sha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f",
+      "sizeBytes": 278
     }
   ],
   "validation": {
-    "isolatedBuild": "passed",
-    "serverAndClientTypecheck": "passed",
-    "targetedTests": {
-      "passed": 12,
-      "scope": "run-diagnostics and chart-data",
-      "timing": "Before final Reset label-only adjustment; build/typechecks and desktop/narrow UI repeated after that adjustment."
-    },
-    "archiveJavaScriptSyntax": {
-      "passed": 17
-    },
-    "policySmoke": "passed",
-    "syntheticUi": "Settings transactions, copy diagnostics and data states checked with RC.1 development primitives; English desktop/narrow input width 112px. Not native RC.2 acceptance."
+    "local16Build": "passed under the existing resource cap",
+    "packageBoundary": "passed, 24 members",
+    "staticReview": "Input wrapper/inner/focus separation, textarea and invalid-state boundaries checked",
+    "backendComparison": "14 lib files unchanged; engine/index version strings only; client CSS/copy changed",
+    "inheritedLocal15Evidence": "12/12 targeted behavior tests and typechecks; not rerun because no TS/API/behavior change. Previously passing native non-Input observations retained.",
+    "nativeInput": "pending actual RC.2 focus/error/disabled and wide/narrow acceptance"
   },
   "pending": [
-    "Actual RC.2 Input/Switch and layout",
-    "Native Tooltip hover/focus positioning and absence of oversized dark block",
-    "Preservation of daily settings and sessions",
-    "Formal Release and anonymous asset integrity",
-    "Daily installation and installed bytes"
+    "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
+    "Safe daily installation and preservation readback",
+    "Formal Release and anonymous asset verification"
   ],
   "previousAcceptedVersion": "0.10.0-local.14"
 }

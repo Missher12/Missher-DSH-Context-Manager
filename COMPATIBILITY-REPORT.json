@@ -1,22 +1,16 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.15",
-  "status": "frozen-ui-candidate-native-acceptance-pending",
-  "scope": "Settings capacity percentages, Context K/M Token quantities, compact run details and explicit sanitized diagnostic copy. Backend runtime: 14 lib files unchanged; engine/index version strings only; client changed.",
+  "version": "0.10.0-local.16",
+  "status": "reviewed-native-input-fix-awaiting-native-delivery",
+  "scope": "Fix RC.2 native Input double border from local.15; retain the approved compact settings and Context UI.",
   "validation": {
-    "isolatedBuild": "passed",
-    "serverAndClientTypecheck": "passed",
-    "targetedTests": {
-      "passed": 12,
-      "scope": "run-diagnostics and chart-data",
-      "timing": "Before final Reset label-only adjustment; build/typechecks and desktop/narrow UI repeated after that adjustment."
-    },
-    "archiveJavaScriptSyntax": {
-      "passed": 17
-    },
-    "policySmoke": "passed",
-    "syntheticUi": "Settings transactions, copy diagnostics and data states checked with RC.1 development primitives; English desktop/narrow input width 112px. Not native RC.2 acceptance."
+    "local16Build": "passed under the existing resource cap",
+    "packageBoundary": "passed, 24 members",
+    "staticReview": "Input wrapper/inner/focus separation, textarea and invalid-state boundaries checked",
+    "backendComparison": "14 lib files unchanged; engine/index version strings only; client CSS/copy changed",
+    "inheritedLocal15Evidence": "12/12 targeted behavior tests and typechecks; not rerun because no TS/API/behavior change. Previously passing native non-Input observations retained.",
+    "nativeInput": "pending actual RC.2 focus/error/disabled and wide/narrow acceptance"
   },
   "compatibility": "Existing capability detection and declared host ranges retained. Tested versions are evidence baselines, not an exact-version requirement; no new blanket compatibility claim.",
   "previousVersionEvidence": {
@@ -26,10 +20,8 @@
     "note": "Historical accepted scope; not a rerun for local.15."
   },
   "pending": [
-    "Actual RC.2 Input/Switch and layout",
-    "Native Tooltip hover/focus positioning and absence of oversized dark block",
-    "Preservation of daily settings and sessions",
-    "Formal Release and anonymous asset integrity",
-    "Daily installation and installed bytes"
+    "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
+    "Safe daily installation and preservation readback",
+    "Formal Release and anonymous asset verification"
   ]
 }

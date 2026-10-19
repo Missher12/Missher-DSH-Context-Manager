@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "version": "0.10.0-local.15",
-  "status": "frozen-candidate-reviewed-native-delivery-pending",
-  "verifiedAt": "2026-10-19T13:32:43.626394+00:00",
+  "version": "0.10.0-local.16",
+  "status": "reviewed-native-input-fix-awaiting-native-delivery",
+  "verifiedAt": "2026-10-19T14:02:15.851857+00:00",
   "archive": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.15.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.15.tgz",
-    "sha256": "7ca44b8059a7b79451ae164f66fc8020478421680178a98c73113fbadd2bbfb4",
-    "sizeBytes": 352979,
+    "fileName": "missher-dsh-context-manager-0.10.0-local.16.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.16.tgz",
+    "sha256": "0c97e1ec067afd785f28a9bc8c075dfe7d1883759cb8152fe0db59526c083e2c",
+    "sizeBytes": 352823,
     "memberCount": 24
   },
-  "sourceInputsVerified": 57,
+  "sourceInputsVerified": 104,
   "archiveMembersVerified": 24,
   "boundaries": {
     "installed": false,
@@ -24,10 +24,12 @@
     "status": "formal-release-and-ubuntu-native-installation-verified"
   },
   "pending": [
-    "Actual RC.2 Input/Switch and layout",
-    "Native Tooltip hover/focus positioning and absence of oversized dark block",
-    "Preservation of daily settings and sessions",
-    "Formal Release and anonymous asset integrity",
-    "Daily installation and installed bytes"
-  ]
+    "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
+    "Safe daily installation and preservation readback",
+    "Formal Release and anonymous asset verification"
+  ],
+  "previousCandidate": {
+    "version": "0.10.0-local.15",
+    "status": "source tag retained; native double-border defect rejected; never formally released; daily rolled back to local.14"
+  }
 }

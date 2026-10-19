@@ -1,12 +1,12 @@
-# 2026-10-19 Context 0.10.0-local.15 plugin candidate: Settings and Inspector UI
+# 2026-10-19 Context 0.10.0-local.16 plugin candidate: RC.2 native Input styling fix
 
-Local candidate: `@missher/dsh-context-manager` **0.10.0-local.15**. Accepted and installed local.14 is the baseline; local.15 updates the Settings, session Context and Run details presentation. It remains a local candidate, not a formal Release or installation.
+Local candidate: `@missher/dsh-context-manager` **0.10.0-local.16**. This version inherits local.15's approved Settings, session Context and Run details UI and only fixes duplicate styling on the RC.2 native Input. It remains a local candidate, not a formal Release or installation.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Local.15 evidence includes the isolated build, Settings/Client typechecks, 12/12 targeted diagnostics and chart-usage tests, and synthetic desktop plus 390px narrow UI interactions. The preview uses RC.1 development primitives; Tooltip focus visuals and the native Switch remain for Desktop RC.2 Host acceptance. Screenshots are inline CUA tool outputs from this run; no public PNG files were generated. Local.14 remains the installation baseline. See `PUBLICATION.md` and `COMPATIBILITY.json` for the candidate boundary.
+Local.15 targeted tests and synthetic preview evidence are inherited by local.16; that preview uses RC.1 development primitives and does not prove the RC.2 native Input appearance. Desktop still needs to verify local.16 focus, error and disabled states in the actual Host. Local.14 remains the installation baseline. See `PUBLICATION.md` and `COMPATIBILITY.json` for the candidate boundary.
 
 Real-provider summary quality, actual billing, Host-native settings persistence, native Electron UI, natural Host/upgrade behavior, formal Release and installation remain separate pending checks. A synthetic adapter or package artifact cannot stand in for them.
 
@@ -59,7 +59,7 @@ Historical local.5 recovery note: this candidate was recovered from published co
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Candidate version: **0.10.0-local.15**. This is a Cordis Bundle, not a Codex or Claude Code implementation. This candidate is not published and cannot be installed from a Release asset.
+Package: `@missher/dsh-context-manager`. Candidate version: **0.10.0-local.16**. This is a Cordis Bundle, not a Codex or Claude Code implementation. This candidate is not published and cannot be installed from a Release asset.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 
@@ -134,7 +134,7 @@ A version label alone is not a compatibility guarantee. The neutral overlay does
 
 ## Install and update
 
-Local.15 is a local package candidate, not a formal Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback must be recorded by their respective owners before the status changes. Do not replace this candidate with local.14 or an older package.
+Local.16 is a local package candidate, not a formal Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback must be recorded by their respective owners before the status changes. Do not replace this candidate with local.14 or an older package.
 
 ## Inspector and settings
 
@@ -190,11 +190,11 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 
 ## Validation and limitations
 
-Local.15 carries the Settings, Context and Run details UI updates; targeted diagnostics/chart tests passed 12/12, and the isolated build/typechecks plus desktop/narrow synthetic interactions completed. The summary at the top records the remaining Host-native limits.
+Local.16 inherits the Settings, Context and Run details UI updates and applies the native Input styling fix. The 12/12 targeted behavior tests are inherited local.15 evidence and were not rerun; Desktop still owns real RC.2 Input acceptance.
 
 Historical evidence from 2026-10-03 (not local.13) includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A later Intel macOS daily installation confirmed the entries and read-only RPC for that older version; this does not establish current local.13 acceptance or installation.
 
-Historical r3/older-package validation (not local.15): affected-source checks passed 88 cases with one environment skip. That older environment's Electron Node24 passed 115 of 116 key cases; the skipped ASAR-path case had a separate 3/3 Electron check. Host settings saves, restart, cold and loaded preflight, original events and old accounting were verified without real model requests for that earlier package. These are historical results, not new local.15 source, Host or installation acceptance. Native visuals, real-provider quality and remote machines remain unverified; overlapping groups are not additive. See [PUBLICATION.md](./PUBLICATION.md).
+Historical r3/older-package validation (not local.16): affected-source checks passed 88 cases with one environment skip. That older environment's Electron Node24 passed 115 of 116 key cases; the skipped ASAR-path case had a separate 3/3 Electron check. Host settings saves, restart, cold and loaded preflight, original events and old accounting were verified without real model requests for that earlier package. These are historical results, not new local.16 source, Host or installation acceptance. Native visuals, real-provider quality and remote machines remain unverified; overlapping groups are not additive. See [PUBLICATION.md](./PUBLICATION.md).
 
 These are separate, dated validation layers, not fresh acceptance on every platform. Real-provider summary quality, long-task semantic retention, and native Windows/Linux execution remain unverified. Compaction retries do not completely rerun the host's dynamic `preStep` rule/plan assembly; files and task state must be checked through existing tools as needed. See the repository's [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification).
 
@@ -219,7 +219,7 @@ The linker creates this copy's explicit `harness-sdk` and development dependency
 
 ## Historical pre-local.13 timeout and retry note (superseded; not current local.13 policy)
 
-**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current local.15 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the local.15 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
+**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current local.16 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the local.16 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
 
 Existing configurations keep fixed mode and their exact transaction-wide `timeoutMs`. Adaptive mode is opt-in: 600 seconds total, 120 seconds to first nonempty text/reasoning, and 180 seconds stalled by default. Repairs share the remaining total. Usage/heartbeat/empty chunks never renew progress.
 

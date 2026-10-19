@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.0-local.15",
-  "runtimeDiagnosticVersion": "0.10.0-local.15",
+  "candidatePackageVersion": "0.10.0-local.16",
+  "runtimeDiagnosticVersion": "0.10.0-local.16",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "Local.15 is a plugin-only packaging candidate with the approved Settings, Context and Run details UI updates. Isolated build/typechecks and targeted diagnostics/chart tests passed; synthetic desktop and 390px narrow interactions cover settings transactions, context freshness, historical states and diagnostics copy. The preview uses RC.1 development primitives; Tooltip focus visuals, native Switch, formal Release, daily installation, real-provider quality and natural Host acceptance remain separate pending checks.",
+  "candidateStatus": "Local.16 is a plugin-only candidate that inherits the approved local.15 Settings, Context and Run details UI and removes duplicate styling from the RC.2 native Input inner element. No backend behavior changes; RC.2 native focus/error/disabled appearance remains pending Desktop acceptance. It is a local candidate, not a formal Release or daily installation.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
