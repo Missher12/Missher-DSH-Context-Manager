@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
   "version": "0.10.1",
-  "status": "source-reviewed-native-delivery-pending",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
   "artifact": {
     "fileName": "missher-dsh-context-manager-0.10.1.tgz",
     "relativePath": "dist/missher-dsh-context-manager-0.10.1.tgz",
@@ -10,7 +10,7 @@
     "sizeBytes": 353675,
     "memberCount": 24
   },
-  "sourceManifestSha256": "15d4dc6e54dee81524ff655c3ea0c01a4a664f12d620908f9fb164aac6c8c17b",
+  "sourceManifestSha256": "5c4ec1fc85b608ea07eb71efa7ce06f0ac09233227e55733ae9a08039aa4174b",
   "frozenInputManifestSha256": "1e66ad6f3759e54dc70902ac2d74db2f38cf3f11e8d8ecdb7478ed96563e6a11",
   "archiveMembers": [
     {
@@ -137,10 +137,45 @@
   "validation": {
     "build": "Bounded final build and24-member package boundary check passed.",
     "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
-    "syntheticUI": "Actual RC.2 Input/Button in an isolated ContextSettings form: numeric editing, empty validation, reset and unchanged persisted draft baseline; Chinese/English layout checks.",
-    "nativeUI": "pending actual RC.2 desktop acceptance",
+    "syntheticUI": "Final112px geometry verified with312px form at600px viewport and564px form in Chinese/English. Earlier edit/empty/reset sequence used identical JS. Content-width layout prevents vertical labels.",
+    "nativeUI": "Final installed package accepted through actual desktop narrow-layout and numeric-editing/discard checks; earlier empty/reset sequence uses identical JS. Settings and other plugins preserved; no native DOM coordinate claim.",
     "modelRequests": 0,
-    "notRerun": "Unchanged backend suites were not rerun."
+    "notRerun": "Unchanged backend suites were not rerun.",
+    "storageCI": {
+      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39304043931",
+      "commit": "f6236dde4dfd70fc3a267e6ba4732e140a71228e",
+      "jobsPassed": 12,
+      "totalJobs": 12
+    }
   },
-  "previousAcceptedVersion": "0.10.0"
+  "previousAcceptedVersion": "0.10.0",
+  "verifiedAt": "2026-10-19T18:48:43.775074+00:00",
+  "frozenPublicationSourceManifestSha256": "15d4dc6e54dee81524ff655c3ea0c01a4a664f12d620908f9fb164aac6c8c17b",
+  "publication": {
+    "at": "2026-10-19T18:48:06.655729+00:00",
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.1",
+    "id": 417627290,
+    "tag": "v0.10.1",
+    "commit": "f6236dde4dfd70fc3a267e6ba4732e140a71228e",
+    "draft": false,
+    "prerelease": false,
+    "latest": true,
+    "anonymousDownloadsMatched": true,
+    "assets": [
+      {
+        "name": "missher-dsh-context-manager-0.10.1.tgz",
+        "bytes": 353675,
+        "sha256": "2e7acc9321e8e5064e4e66876c68bce977bbc278a95866f70d4002d9470e4910",
+        "id": 657123962,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.1/missher-dsh-context-manager-0.10.1.tgz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 105,
+        "sha256": "9178802eaa94ce31e370b8719e07fa7b44272f04c8c2e17ace2e9cff09b9541f",
+        "id": 657124000,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.1/SHA256SUMS"
+      }
+    ]
+  }
 }

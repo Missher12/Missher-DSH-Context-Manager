@@ -21,17 +21,21 @@
     },
     {
       "path": "README.en.md",
-      "exportedSha256": "6ea53edc30892ca7847e413b049203c28be15965375c62094818bbc426730c08",
-      "sizeBytes": 35661,
+      "exportedSha256": "c018ad55061e0fd233fe1cedba46c82d9826d19a5859c1d55ac731d16a75b36a",
+      "sizeBytes": 35857,
       "previousSourceExportSha256": "7a634fffe0870f8f21a68267b93769d460f78173bb33dbce1e26cb4063bf0a9d",
-      "classification": "frozen-0.10.1"
+      "classification": "post-delivery-documentation-only",
+      "frozenExportedSha256": "6ea53edc30892ca7847e413b049203c28be15965375c62094818bbc426730c08",
+      "frozenSizeBytes": 35661
     },
     {
       "path": "README.md",
-      "exportedSha256": "760186b9b94808c390dd6f767ac0c70d00e3477960c747c79860f9ba671bf375",
-      "sizeBytes": 30198,
+      "exportedSha256": "4401d57aec07e456b2713cbed87f792a0a5cfdf272371fe582282a22f503f808",
+      "sizeBytes": 30358,
       "previousSourceExportSha256": "426ff4c37483df7d7993761960674a73e38dd05cb9aec7c9d8b1f7495349e28d",
-      "classification": "frozen-0.10.1"
+      "classification": "post-delivery-documentation-only",
+      "frozenExportedSha256": "760186b9b94808c390dd6f767ac0c70d00e3477960c747c79860f9ba671bf375",
+      "frozenSizeBytes": 30198
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -860,5 +864,7 @@
       "classification": "unchanged-from-prior-0.10.1-source",
       "frozenSourcePath": "verification/header-row-preview/index.html"
     }
-  ]
+  ],
+  "documentationUpdatedAt": "2026-10-19T18:48:43.775074+00:00",
+  "frozenSourceTag": "v0.10.1"
 }

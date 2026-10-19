@@ -1,14 +1,14 @@
-# 2026-10-20 Context 0.10.1 candidate: stable numeric field layout
+# Context Manager 0.10.1
 
-Local candidate: `@missher/dsh-context-manager` **0.10.1**. This r2 candidate starts from the released 0.10.0 source and preserves the 112px numeric-input border box and stable Custom/Reset layout. A named inline-size container switches the existing settings form to one column at 420px content width; the 580px viewport media query remains as a fallback. It addresses the r1 Host review, where a 600px modal left about 312px for the form and Chinese labels wrapped one character per line. Only presentation changed; backend behavior and saved values remain unchanged. Version 0.10.1 has not been published or installed.
+`@missher/dsh-context-manager` **0.10.1** is [formally released](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.1) and installed on the maintainer's Ubuntu RC.2 desktop. Editing a numeric setting now keeps the input in place at a fixed width. The unit, Custom label and Reset button fit on one row for ordinary percentage fields; longer items wrap without splitting words. Native input styling, validation, drafts and reset behavior are preserved.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Released version 0.10.0 is the source baseline for this UI correction. Version 0.10.1 adjusts Context settings field layout with a 420px form-content container breakpoint, while preserving the 112px numeric-input border box. The synthetic browser preview uses RC.2 Input/Button source; it does not establish Host-native acceptance. Existing 0.10.0 delivery is unchanged. See `PUBLICATION.md` and `COMPATIBILITY.json` for package boundaries.
+Validation: the final package was checked with actual RC.2 Input/Button components at a 600px viewport with a 312px form, and a 564px form in Chinese and English. A content-width container query prevents narrow labels from becoming vertical. Earlier edit/empty/reset checks share unchanged JS; final native desktop checks confirm the narrow layout, numeric editing and saved-setting preservation. The [storage CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39304043931) passed all 12 Windows/Ubuntu/macOS jobs with Node 22/24.
 
-For 0.10.1, Host-native layout, formal Release and installation remain pending. Existing native acceptance for 0.10.0 does not validate this candidate, and a synthetic preview does not show it active in the Host.
+The exact 353,675-byte package has 24 members. Local, GitHub and one anonymous full-download SHA256 checks agree. See [PUBLICATION.md](PUBLICATION.md) and [DELIVERY-VERIFIED.json](DELIVERY-VERIFIED.json). Capability checks and Host ranges are unchanged; RC.2 is an evidence baseline. Native screenshot/interaction checks do not imply native DOM coordinate measurements or remote-device UI acceptance. The archive retains its freeze-time documentation; current delivery status is recorded here.
 
 ## Inherited local.9 scope
 
@@ -17,11 +17,11 @@ For 0.10.1, Host-native layout, formal Release and installation remain pending. 
 - **C Status and usage accounting:** dispatched and undispatched attempts are separate; `not_dispatched` does not count as unknown usage, while dispatched attempts without complete usage remain unknown.
 - **D Versioned checkpoint:** sections use `context-manager/3` and require explicit opt-in; JSON remains the default. Structural validity does not establish semantic fidelity.
 - **E Tool-result de-load:** a constrained path is implemented for successful foreground Bash output only: nonempty cwd, exit code 0, not cancelled or timed out, no signal, complete stdout/stderr, and empty stderr. A deterministic repeated-line rule makes no model call; the original is stored in the read-only archive first, and publication is counted only if the final Host result still carries the reference. `toolResultsMode` defaults to `observe`; the UI must be explicitly set to **Safe reduce** (`reduce`) before content changes. Other tools and failed or incomplete results pass through unchanged. There is no vector database or promise of actual Token or cost savings.
-- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural Host runtime, real-model quality and native UI remain pending.
+- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural compaction behavior and real-model quality remain separate acceptance scopes. Current UI acceptance is recorded above.
 
 ## Public interface gallery
 
-This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
+The [synthetic header example](examples/header-row-preview/index.html) remains available. Private desktop screenshots are excluded; current numeric-setting validation is recorded above.
 
 ## Historical note: local.8 (2026-10-13)
 

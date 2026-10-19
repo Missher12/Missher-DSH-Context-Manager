@@ -1,16 +1,16 @@
-# 2026-10-20 Context 0.10.1 候选：数字输入布局稳定
+# Context Manager 0.10.1
 
-本地候选：`@missher/dsh-context-manager` **0.10.1**。本 r2 候选基于已发布的 0.10.0 源码，保留数字输入 112px 外框及“自定义 / 恢复”控件的稳定布局，并按设置表单实际内容宽度响应：宽度不超过 420px 时使用现有单列表单规则；原 580px 视口断点保留为回退。它针对 r1 原生审查中 600px Host 模态仅约312px表单时中文标签逐字换行的问题。仅调整界面布局，后端和已保存值不变。0.10.1 尚未发布或安装。
+`@missher/dsh-context-manager` **0.10.1** 已[正式发布](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.1)，并安装到维护者的 Ubuntu RC.2 桌面。修改数字时输入框现在保持固定位置和宽度；普通百分比字段的单位、“自定义”和“恢复”能完整同排，长单位在空间不足时有序换行。原生输入外观、校验、草稿与恢复功能继续保留。
 
 本项目交付的是 Cordis Bundle 插件，不改 DeepSeek Harness 桌面 Host 源码、不另装兼容插件。Bundle 只插入 Context Manager 和只读 Inspector，不快照或重写宿主 preset。Host 的 provider 注册能力 v1 只影响 enhanced provider 注册；能力缺失不会自动替换或关闭 Host 的 Basic。冻结 RC.2 Loader 的离线集成使用合成适配器，验证默认 Basic 保留、Context 请求/闲置侧路协作以及 Basic 自己的 overflow 恢复。Basic 按自己的阈值、费用和账本工作；Context 的 2 个主摘要/4 次调用限制不覆盖 Basic，也不承诺所有窗口都只压一次。
 
 预算算术覆盖 32K、64K、100K、200K 和 1M Token 窗口。100K 多轮语义用固定事实 oracle 与合成摘要核对纠正、约束、待办、失败证据、来源配对、重载与单次副作用；它不是任意真实模型的摘要质量证明。该回放最终 checkpoint 总量不超过 4K Token，不代表每个中间快照或每种分词器均已实测。
 
-已发布的 0.10.0 是本轮界面修正的源码基线。0.10.1 只调整 Context 设置字段布局：固定数字输入几何，并通过 420px 表单容器断点切换现有单列规则；合成浏览器预览使用 RC.2 Input / Button 源码验证，不代表 Host 原生验收。0.10.0 的既有交付不因本候选改变；本地包边界见 `PUBLICATION.md` 与 `COMPATIBILITY.json`。
+验证结果：最终包使用真实 RC.2 Input / Button，覆盖 600px 视口内 312px 表单，以及 564px 表单的中英文布局。按内容宽度切换单列，避免窄面板标签竖排。此前输入、清空、恢复序列的 JS 未变；最终包另完成实际桌面窄布局、数字编辑与原设置保全验收。[跨平台存储 CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39304043931) 的 Windows / Ubuntu / macOS、Node 22 / 24 共 12 项全部通过。
 
-0.10.1 的 Host 原生布局、正式 Release 与安装仍待验。0.10.0 的既有原生验收不替代本候选的界面检查；合成预览也不代表本候选已在 Host 中生效。
+精确包为 353,675 字节、24 个成员，本地、GitHub 摘要与一次匿名完整下载的 SHA256 一致。详见 [PUBLICATION.md](PUBLICATION.md) 与 [DELIVERY-VERIFIED.json](DELIVERY-VERIFIED.json)。宿主能力检测和兼容范围未变，RC.2 是验收基线。原生验收采用实际操作和截图，未测原生 DOM 坐标或远端设备界面。包内文档保留冻结时状态，当前交付状态以本页为准。
 
-## local.9 功能范围（当前候选继承）
+## local.9 功能范围（当前版本继承）
 
 - **A 格式归一化与结构修复**：严格检查 checkpoint 结构；只有能确定为“数组字段误写成单个字符串”时才按原值本地包装，不增加模型调用。其他结构错误继续拒绝并保留原文。
 - **B 工作集增长与续跑余量**：动态保留工作集和 continuation headroom，并在发起与提交前检查完整占用和可行性。
@@ -20,7 +20,7 @@
 
 ## 公开界面配图
 
-当前候选不包含公开 PNG 配图。local.15 已完成本地合成 UI 预览；该预览用于布局检查，不代表 RC.2 Host 原生界面验收。公开图库仍需后续独立视觉阶段，并附生成方式与 SHA。
+仓库保留[合成标题行示例](examples/header-row-preview/index.html)。私人桌面截图不公开；本次数字设置的验证范围见上方。
 
 ## 历史说明：local.8（2026-10-13）
 
