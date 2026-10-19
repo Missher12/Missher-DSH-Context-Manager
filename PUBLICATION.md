@@ -8,6 +8,12 @@
 
 本机安装与正式 Release 由独立交付流程记录，当前状态见 [DELIVERY-VERIFIED.json](./DELIVERY-VERIFIED.json)；可下载资产以 [Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 为准。兼容继续按能力和版本范围判断，不限定某个精确宿主版本。
 
+## 当前正式交付
+
+[local.14 正式 Latest Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.14) 已公开，非草稿、非预发布。原安装包与 SHA256SUMS 均已匿名下载校验，摘要与本机安装内容一致。产品标签固定在 `bdbdb78d21721cede1762c9bec54501b6fa844c3`，后续交付说明不修改原包或标签。
+
+Ubuntu 当前设备已安装并通过原生界面检查：包括“未占用”长文案的小提示气泡、原生设置页，以及手动刷新前后详情继续展开。会话、队列、保存的设置、其他八个插件和标题栏修复均保持。私有原生截图与个人会话不公开。刷新检查是若干截图采样，不代表逐帧零闪烁；其他平台、全部业务和真实模型未在本轮补验。
+
 ## local.13 历史交付记录
 
 # Context 0.10.0-local.13：正式发布与原生交付

@@ -1,4 +1,12 @@
-# 2026-10-19 Context 0.10.0-local.14 插件候选：跨窗口预算与 Basic 协作
+# Context Manager 0.10.0-local.14
+
+已[正式发布](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.14)，并完成 Ubuntu 本机安装与原生界面验收。本版修复设置文案、刷新后的详情展开状态、遮挡图表的提示气泡及累计用量条展示。
+
+[下载与校验](PUBLICATION.md) · [当前交付记录](DELIVERY-VERIFIED.json) · [桌面与全部插件](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)
+
+## 封包时技术记录
+
+以下保留冻结时的候选说明；其中待发布、待安装和待原生验收的文字描述封包阶段，当前结果以以上交付记录为准。
 
 本地候选：`@missher/dsh-context-manager` **0.10.0-local.14**。local.13 的独立源码接受以 118 个文件为边界；local.14 增加 Settings 文案与刷新行为修正、Inspector Tooltip 定位/层叠修正，以及累计 Usage 条的展示更新。它仍是本地候选，尚未正式发布或安装。
 

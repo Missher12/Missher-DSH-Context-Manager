@@ -1,4 +1,12 @@
-# 2026-10-19 Context 0.10.0-local.14 plugin candidate: window budgets and Basic cooperation
+# Context Manager 0.10.0-local.14
+
+A [formal release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.14) is available and has been installed and checked in the native Ubuntu application. This update improves settings wording, retains expanded details during refresh, contains Inspector tooltips, and updates cumulative usage presentation.
+
+[Download and checksums](PUBLICATION.md) · [Current delivery record](DELIVERY-VERIFIED.json) · [Desktop and plugins](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)
+
+## Frozen technical notes
+
+The notes below preserve the package-freeze stage. Their pending release, installation, and native-acceptance statements are historical; consult the current delivery record above.
 
 Local candidate: `@missher/dsh-context-manager` **0.10.0-local.14**. The independently accepted local.13 source was bound to 118 files. Local.14 updates Settings copy and refresh behavior, Inspector Tooltip placement/stacking, and cumulative Usage display. It remains a local candidate, not a formal Release or installation.
 

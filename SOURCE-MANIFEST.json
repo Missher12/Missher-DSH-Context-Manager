@@ -45,18 +45,20 @@
     {
       "path": "README.en.md",
       "acceptedSha256": "8aefe1537a12f3fab8fa0ce7c2aa9bf7f50032aa4057f7854613462a63f8e4a6",
-      "exportedSha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73",
+      "exportedSha256": "fa78f81640979d02b5acf3121db3bbaa182d82654d7c561502c934eba5fe956f",
       "classification": "intentional-local14-source-or-metadata-override",
-      "reason": "Local.14 current summary replaces stale local.13 package claims.",
-      "previousLocal13Sha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af"
+      "reason": "Publication-only status introduction after immutable local.14 source tag; runtime and frozen package remain unchanged.",
+      "previousLocal13Sha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af",
+      "frozenExportedSha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73"
     },
     {
       "path": "README.md",
       "acceptedSha256": "eb6d41e459d53396b3f6290e65ea587bfd96dac95785a785f601477f6a42a0a3",
-      "exportedSha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8",
+      "exportedSha256": "347712db8b5d2b7494a8f2ee3290973f46eb5255b87e336aaa0826c85f9930ac",
       "classification": "intentional-local14-source-or-metadata-override",
-      "reason": "Local.14 current summary replaces stale local.13 package claims.",
-      "previousLocal13Sha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749"
+      "reason": "Publication-only status introduction after immutable local.14 source tag; runtime and frozen package remain unchanged.",
+      "previousLocal13Sha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749",
+      "frozenExportedSha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -817,6 +819,21 @@
       "memberCount": 17,
       "backendMembers": "16 backend files; 14 byte-identical and engine.js/index.js differ only in local.14 diagnostic version string",
       "client.js": "substantive UI bundle update"
+    }
+  },
+  "publicDocumentationUpdate": {
+    "frozenSourceCommit": "bdbdb78d21721cede1762c9bec54501b6fa844c3",
+    "frozenSourceManifestSha256": "2d84e36cbe0459516cb88513df80f7f468e63c2a25c99b1ab1e3d993edc88a66",
+    "runtimeUnchanged": true,
+    "files": {
+      "README.md": {
+        "frozenSha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8",
+        "publicSha256": "347712db8b5d2b7494a8f2ee3290973f46eb5255b87e336aaa0826c85f9930ac"
+      },
+      "README.en.md": {
+        "frozenSha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73",
+        "publicSha256": "fa78f81640979d02b5acf3121db3bbaa182d82654d7c561502c934eba5fe956f"
+      }
     }
   }
 }

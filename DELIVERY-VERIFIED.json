@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "version": "0.10.0-local.14",
-  "status": "source-delivery-prepared-install-and-release-pending",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
   "archive": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.14.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "name": "missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "bytes": 352324,
     "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
-    "sizeBytes": 352324,
-    "memberCount": 24
+    "id": 656081691,
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.14/missher-dsh-context-manager-0.10.0-local.14.tgz"
   },
   "boundaries": [
     "No new native Host acceptance yet",
@@ -54,5 +54,31 @@
       "Installation backups and native screenshots remain private"
     ],
     "frozenEvidenceNote": "SOURCE-MANIFEST, RELEASE-MANIFEST and COMPATIBILITY-REPORT describe the package freeze. Their staging flags are historical; this record describes the subsequent publication and native delivery."
-  }
+  },
+  "verifiedAt": "2026-10-19T11:27:05.224223+00:00",
+  "productSourceCommit": "bdbdb78d21721cede1762c9bec54501b6fa844c3",
+  "tag": "v0.10.0-local.14",
+  "releaseUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.14",
+  "formalLatest": true,
+  "integrity": {
+    "githubDigestAndBytesMatched": true,
+    "anonymousDownloadsMatched": true,
+    "installedMembersMatched": 24,
+    "immutableSourceTagMatchesFrozenPackage": true
+  },
+  "nativeAcceptance": {
+    "platform": "Ubuntu X11 Electron on official RC.2",
+    "tooltip": "compact bubble below capacity bar, including the longer unused-capacity message; no oversized black block observed",
+    "settings": "native styling, shorter labels, technical details collapsed",
+    "refresh": "expanded details retained in before/during/after samples",
+    "sessionsQueuesAndStoredSettingsPreserved": true,
+    "otherPluginsAndHeaderClientsUnchanged": true,
+    "modelRequests": 0,
+    "limitations": [
+      "Sampled frames do not prove zero transient flicker",
+      "Daily native narrow view not rerun; synthetic narrow evidence retained",
+      "No real-provider or other-platform acceptance claimed"
+    ]
+  },
+  "frozenEvidenceNote": "Tag and package preserve freeze-time text. Current delivery documentation may change without rebuilding or replacing the package."
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
   "version": "0.10.0-local.14",
-  "status": "independently-accepted-for-delivery",
+  "status": "formal-release-installed-and-native-ui-accepted",
   "scope": "Settings copy/refresh state, Inspector tooltip layout and cumulative usage display. Backend differs from local.13 only in two version strings.",
   "validation": {
     "sourceLedgerFiles": 119,
@@ -14,8 +14,12 @@
       "non-empty cumulative usage ratios",
       "Tooltip hover/focus and scroll positioning"
     ],
-    "nativeHost": "pending Desktop installation and acceptance",
-    "realModelCalls": 0
+    "nativeHost": "Ubuntu official RC.2: installed package members matched; compact long-tooltip, native settings and expanded details across manual refresh observed. Policies and other plugins preserved.",
+    "realModelCalls": 0,
+    "limitations": [
+      "No frame-by-frame zero-flicker claim",
+      "No new real-provider or cross-platform claim"
+    ]
   },
   "compatibility": "Existing capability detection and declared host ranges retained; no new exact-version lock. Historical coverage is not a fresh test of every version.",
   "previousVersionEvidence": {

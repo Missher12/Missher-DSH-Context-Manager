@@ -14,7 +14,7 @@
     "sha256": "ad1e9c1cb2c34e840b804c90de2933b81b1d55c2f541bbf75cf02e2fc23d08f7",
     "status": "preserved; superseded because package README incorrectly described local.14 as documentation-only"
   },
-  "sourceManifestSha256": "2d84e36cbe0459516cb88513df80f7f468e63c2a25c99b1ab1e3d993edc88a66",
+  "sourceManifestSha256": "d340dbff81634c30ffa5f6086934cb357d5d9e49aacfb1be8110348f845bb2d6",
   "packageBoundaryAudit": {
     "package": "private-audit:missher-dsh-context-manager-0.10.0-local.14.tgz",
     "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
@@ -214,5 +214,6 @@
     "natural Host UI acceptance",
     "real-provider behavior"
   ],
-  "publicExportNote": "Private local audit paths replaced by log names; audit logs and daily data are not included. Package hash and every archive member hash are unchanged."
+  "publicExportNote": "Private local audit paths replaced by log names; audit logs and daily data are not included. Package hash and every archive member hash are unchanged. Public README introductions and their ledger hashes record completed delivery after the immutable source tag; package members and runtime bytes are unchanged.",
+  "frozenSourceManifestSha256": "2d84e36cbe0459516cb88513df80f7f468e63c2a25c99b1ab1e3d993edc88a66"
 }
