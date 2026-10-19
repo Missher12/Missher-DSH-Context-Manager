@@ -1,28 +1,22 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.16",
-  "status": "formal-release-and-ubuntu-native-installation-verified",
-  "scope": "Fix RC.2 native Input double border from local.15; retain the approved compact settings and Context UI.",
+  "version": "0.10.0",
+  "status": "source-reviewed-native-delivery-pending",
+  "scope": "Context inspector heading common24px minimum boxes with long-state wrapping; normal semantic version.",
   "validation": {
-    "local16Build": "passed under the existing resource cap",
-    "packageBoundary": "passed, 24 members",
-    "staticReview": "Input wrapper/inner/focus separation, textarea and invalid-state boundaries checked",
-    "backendComparison": "14 lib files unchanged; engine/index version strings only; client CSS/copy changed",
-    "inheritedLocal15Evidence": "12/12 targeted behavior tests and typechecks; not rerun because no TS/API/behavior change. Previously passing native non-Input observations retained.",
-    "nativeInput": "Passed actual RC.2 Electron: normal/focus/error/disabled, 1280/600, light/dark, English custom 49%, textarea retained; drafts discarded."
+    "build": "One bounded build and package boundary check passed.",
+    "sourceAndPackage": "104 source inputs and24 package members independently verified; one dedicated fixture exported.",
+    "scope": "Three scoped inspector header CSS declarations; version becomes0.10.0.14 libraries unchanged, engine/index version strings only.",
+    "syntheticUI": "1280 short Chinese labels:24px base boxes and equal center;390 long Chinese/English status wraps; no horizontal overflow; refresh reachable.",
+    "nativeUI": "pending actual RC.2 desktop acceptance",
+    "modelRequests": 0,
+    "notRerun": "Unchanged backend behavior tests and earlier native Input acceptance are historical evidence, not rerun."
   },
-  "compatibility": "Existing capability detection and declared host ranges retained. Tested versions are evidence baselines, not an exact-version requirement; no new blanket compatibility claim.",
+  "compatibility": "Existing capability detection and host ranges unchanged. Tested hosts are evidence baselines, not exact-version requirements.",
   "previousVersionEvidence": {
-    "version": "0.10.0-local.14",
-    "reportSha256": "5378f0d85801762e8b4e6749b8b26830067c756ce47e5caf5f1a8b473b267d62",
-    "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/4d720cb4cfff0a5a117e0dd5c34a18077af13260/COMPATIBILITY-REPORT.json",
-    "note": "Historical accepted scope; not a rerun for local.15."
-  },
-  "pending": [
-    "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
-    "Safe daily installation and preservation readback",
-    "Formal Release and anonymous asset verification"
-  ],
-  "verifiedAt": "2026-10-19T14:24:42.493843+00:00"
+    "version": "0.10.0-local.16",
+    "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/ea67a35d6bc155a55caa183e21e198e65cd060b3/COMPATIBILITY-REPORT.json",
+    "reportSha256": "687f1d899c627b55f44053d55b83c6170b2d3dcb8cddbdef6b0dbe65290a01cd"
+  }
 }

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.0-local.16",
-  "runtimeDiagnosticVersion": "0.10.0-local.16",
+  "candidatePackageVersion": "0.10.0",
+  "runtimeDiagnosticVersion": "0.10.0",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "Local.16 is a plugin-only candidate that inherits the approved local.15 Settings, Context and Run details UI and removes duplicate styling from the RC.2 native Input inner element. No backend behavior changes; RC.2 native focus/error/disabled appearance remains pending Desktop acceptance. It is a local candidate, not a formal Release or daily installation.",
+  "candidateStatus": "0.10.0 is a plugin-only candidate based on the accepted local.16 source. It gives the Context Inspector heading children a shared 24px base box with explicit line height and box sizing while preserving title hierarchy and wrapping. No backend or Host source changes. Synthetic browser checks cover layout only; Host-native acceptance remains pending. This package is a local candidate; Release and daily installation are not performed by this task.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
