@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0",
-  "status": "formal-release-and-ubuntu-native-installation-verified",
+  "version": "0.10.1",
+  "status": "source-reviewed-native-delivery-pending",
   "artifact": {
-    "fileName": "missher-dsh-context-manager-0.10.0.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.0.tgz",
-    "sha256": "a9afb1141c9b0bbc5b56d08aadad518ccfa797ff30015ef9522b4c254a82267f",
-    "sizeBytes": 353085,
+    "fileName": "missher-dsh-context-manager-0.10.1.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.1.tgz",
+    "sha256": "89fe968734b87da5a0448d2880794585c1f74fb787a33c174079788b49f145aa",
+    "sizeBytes": 353153,
     "memberCount": 24
   },
-  "sourceManifestSha256": "cd68b7e786ea9bff5b8a63a296b34ad25445ebc39e8b1da3fb97b2f2b203d379",
-  "frozenInputManifestSha256": "69df292bec4edd27563bc6c53420542b5ca857f12776d587a3e6dd6faae8f889",
+  "sourceManifestSha256": "e0c436a613f3a3eab2eb6192178e7ff397a74f0836b464fcd5e0a5faba0a176d",
+  "frozenInputManifestSha256": "517973969790d8c4b062322fd5f32451f5025a48cd91a69fbfec4709890add41",
   "archiveMembers": [
     {
       "path": "package/LICENSE",
@@ -30,8 +30,8 @@
     },
     {
       "path": "package/lib/client.js",
-      "sha256": "f497ac291cbefb6d08338fa440fc7a644dac351c342593a6de49b0d45e920a20",
-      "sizeBytes": 821564
+      "sha256": "8031da850f70cbfef414974237aa7c3bf3140366b87fd1ad99c0aa266262a1b5",
+      "sizeBytes": 821914
     },
     {
       "path": "package/lib/compaction-cycles.js",
@@ -55,7 +55,7 @@
     },
     {
       "path": "package/lib/engine.js",
-      "sha256": "df1e0585cea94a2ec14cb3153ea40c89eff64bba738bbebab49172a61606e4f3",
+      "sha256": "b2b38e95fa8963a38e1681f00e4bd14839b95c07e9e1bac135036aa2326c6d05",
       "sizeBytes": 168068
     },
     {
@@ -65,7 +65,7 @@
     },
     {
       "path": "package/lib/index.js",
-      "sha256": "3b6ebf96b6577d9a6f633ff190af446d98a30859e844f84ef95a40a89c4035cc",
+      "sha256": "b6c31622b61fd102af66c5aaaf178c16e68cae4e3069ca8176aadc484ba397ec",
       "sizeBytes": 366947
     },
     {
@@ -105,23 +105,23 @@
     },
     {
       "path": "package/COMPATIBILITY.json",
-      "sha256": "49da62262e35336a8d55ebe2c59883282bf0ac784fd985e469bdb1745279a375",
-      "sizeBytes": 8210
+      "sha256": "ca3a67992540b44e40b5db8a5f53f395b3a34cad5e6ca3c8480ff4e332a9dae9",
+      "sizeBytes": 8299
     },
     {
       "path": "package/package.json",
-      "sha256": "d99da7d414bb883488893e97e3f79ab108bc9a736745660c85746f47f6ae9126",
+      "sha256": "8e31ce47aa2072dbee2354aa05b2ae4264f34c051e61996da7121bca60bb507c",
       "sizeBytes": 5293
     },
     {
       "path": "package/README.en.md",
-      "sha256": "6c4faca4a312fa73898a7bfdb85ef050ceac4eecccf314d377bb460d5eb9aa94",
-      "sizeBytes": 35233
+      "sha256": "7a634fffe0870f8f21a68267b93769d460f78173bb33dbce1e26cb4063bf0a9d",
+      "sizeBytes": 35261
     },
     {
       "path": "package/README.md",
-      "sha256": "f00b6b7f736dcbed7daa849a8c49899edc583d4f5f5a0ce9cbc2544dd3dc012a",
-      "sizeBytes": 29964
+      "sha256": "426ff4c37483df7d7993761960674a73e38dd05cb9aec7c9d8b1f7495349e28d",
+      "sizeBytes": 29845
     },
     {
       "path": "package/THIRD_PARTY_NOTICES.md",
@@ -135,48 +135,12 @@
     }
   ],
   "validation": {
-    "build": "One bounded build and package boundary check passed.",
-    "sourceAndPackage": "104 source inputs and24 package members independently verified; one dedicated fixture exported.",
-    "scope": "Three scoped inspector header CSS declarations; version becomes0.10.0.14 libraries unchanged, engine/index version strings only.",
-    "syntheticUI": "1280 short Chinese labels:24px base boxes and equal center;390 long Chinese/English status wraps; no horizontal overflow; refresh reachable.",
-    "nativeUI": "Actual Ubuntu RC.2 Electron heading and refresh accepted at1280/600; preservation verified. Native DOM coordinates were not available.",
+    "build": "Bounded final build and24-member package boundary check passed.",
+    "scope": "Numeric field layout CSS only, plus version and documentation; no backend behavior or Host changes.",
+    "syntheticUI": "Actual RC.2 Input/Button in an isolated ContextSettings form: numeric editing, empty validation, reset and unchanged persisted draft baseline; Chinese/English layout checks.",
+    "nativeUI": "pending actual RC.2 desktop acceptance",
     "modelRequests": 0,
-    "notRerun": "Unchanged backend behavior tests and earlier native Input acceptance are historical evidence, not rerun.",
-    "storageCI": {
-      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39296313168",
-      "commit": "1243ab95cabdf632317cdaaae41a625520ffc0b4",
-      "jobsPassed": 12,
-      "totalJobs": 12
-    }
+    "notRerun": "Unchanged backend suites were not rerun."
   },
-  "previousAcceptedVersion": "0.10.0-local.16",
-  "verifiedAt": "2026-10-19T17:48:59.071868+00:00",
-  "frozenPublicationSourceManifestSha256": "dc78c2bb560e591620302d1051ee1e1ff341f91a3fe3cfe7b618ca7c31af65da",
-  "publication": {
-    "at": "2026-10-19T17:48:34.405755+00:00",
-    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0",
-    "id": 417575579,
-    "tag": "v0.10.0",
-    "commit": "1243ab95cabdf632317cdaaae41a625520ffc0b4",
-    "draft": false,
-    "prerelease": false,
-    "latest": true,
-    "anonymousDownloadsMatched": true,
-    "assets": [
-      {
-        "name": "missher-dsh-context-manager-0.10.0.tgz",
-        "bytes": 353085,
-        "sha256": "a9afb1141c9b0bbc5b56d08aadad518ccfa797ff30015ef9522b4c254a82267f",
-        "id": 656984251,
-        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0/missher-dsh-context-manager-0.10.0.tgz"
-      },
-      {
-        "name": "SHA256SUMS",
-        "bytes": 105,
-        "sha256": "2b3495a95e8a7d4c4e640fb74c7fab859880bf60e98ab3ebca04e67e4a7465a4",
-        "id": 656984320,
-        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0/SHA256SUMS"
-      }
-    ]
-  }
+  "previousAcceptedVersion": "0.10.0"
 }

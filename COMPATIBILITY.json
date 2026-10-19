@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.0",
-  "runtimeDiagnosticVersion": "0.10.0",
+  "candidatePackageVersion": "0.10.1",
+  "runtimeDiagnosticVersion": "0.10.1",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.0 is a plugin-only candidate based on the accepted local.16 source. It gives the Context Inspector heading children a shared 24px base box with explicit line height and box sizing while preserving title hierarchy and wrapping. No backend or Host source changes. Synthetic browser checks cover layout only; Host-native acceptance remains pending. This package is a local candidate; Release and daily installation are not performed by this task.",
+  "candidateStatus": "0.10.1 is a local candidate based on the released 0.10.0 source. It fixes numeric Context settings field geometry: the RC.2 Input wrapper keeps a stable 112px border-box, position stays fixed as Custom/Reset controls appear, and longer units can wrap without splitting. Only the settings field presentation changed; backend behavior, saved values, persistence and host source are unchanged. RC.2 Input/Button synthetic UI checks cover desktop and narrow layouts; Host-native acceptance, Release and installation of 0.10.1 remain pending.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,

@@ -1,14 +1,14 @@
-# Context Manager 0.10.0
+# 2026-10-20 Context 0.10.1 candidate: stable numeric field layout
 
-`@missher/dsh-context-manager` **0.10.0** is [formally released](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0) and installed on the maintainer's Ubuntu RC.2 desktop. This version aligns the Context Inspector title, read-only label and status using shared base boxes while preserving title hierarchy, long-status wrapping and refresh behavior. The accepted local.16 input-border fix is retained. This release uses a normal semantic version without a `local` suffix.
+Local candidate: `@missher/dsh-context-manager` **0.10.1**. It starts from the released 0.10.0 source and fixes Context settings numeric-field geometry when Custom/Reset controls appear. The desktop and narrow previews use the RC.2 Input/Button implementation and check longer units without split words. Only presentation changed; backend behavior and saved values remain unchanged. Version 0.10.1 has not been published or installed.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Validation: the exact package has 24 members and is 353,085 bytes; local, GitHub and one anonymous full-download SHA256 checks agree. The [storage CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39296313168) passed all 12 Windows/Ubuntu/macOS jobs with Node 22/24. Native RC.2 checks covered the actual heading and refresh action at widths 1280 and 600; sessions, saved settings, other plugins and Host header clients were preserved. Long Chinese/English wrapping and equal base-box coordinates were checked in the 1280/390 synthetic fixture, not measured in the native DOM.
+Released version 0.10.0 is the source baseline for this UI correction. Version 0.10.1 only adjusts Context settings numeric-field sizing, alignment and wrapping. The synthetic browser preview uses RC.2 Input/Button source; it does not establish Host-native acceptance. Existing 0.10.0 delivery is unchanged. See `PUBLICATION.md` and `COMPATIBILITY.json` for package boundaries.
 
-The native check covers the affected heading and refresh action. Real-provider summary quality, billing, other devices and untested Host versions are separate acceptance scopes. Existing capability checks and supported ranges are unchanged; RC.2 is an evidence baseline, not an exact-version requirement. See [PUBLICATION.md](PUBLICATION.md) and [DELIVERY-VERIFIED.json](DELIVERY-VERIFIED.json). The archive documentation retains its freeze-time status; current delivery status is recorded here.
+For 0.10.1, Host-native layout, formal Release and installation remain pending. Existing native acceptance for 0.10.0 does not validate this candidate, and a synthetic preview does not show it active in the Host.
 
 ## Inherited local.9 scope
 
@@ -17,11 +17,11 @@ The native check covers the affected heading and refresh action. Real-provider s
 - **C Status and usage accounting:** dispatched and undispatched attempts are separate; `not_dispatched` does not count as unknown usage, while dispatched attempts without complete usage remain unknown.
 - **D Versioned checkpoint:** sections use `context-manager/3` and require explicit opt-in; JSON remains the default. Structural validity does not establish semantic fidelity.
 - **E Tool-result de-load:** a constrained path is implemented for successful foreground Bash output only: nonempty cwd, exit code 0, not cancelled or timed out, no signal, complete stdout/stderr, and empty stderr. A deterministic repeated-line rule makes no model call; the original is stored in the read-only archive first, and publication is counted only if the final Host result still carries the reference. `toolResultsMode` defaults to `observe`; the UI must be explicitly set to **Safe reduce** (`reduce`) before content changes. Other tools and failed or incomplete results pass through unchanged. There is no vector database or promise of actual Token or cost savings.
-- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; real-model quality and natural compaction behavior remain separate acceptance scopes. The current heading UI acceptance is recorded above.
+- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural Host runtime, real-model quality and native UI remain pending.
 
 ## Public interface gallery
 
-The [synthetic header example](examples/header-row-preview/index.html) uses public markup and source CSS for layout review. Private desktop screenshots are excluded. Actual native UI acceptance is recorded above; the example alone is not native evidence.
+This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
 
 ## Historical note: local.8 (2026-10-13)
 
@@ -59,7 +59,7 @@ Historical local.5 recovery note: this candidate was recovered from published co
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Candidate version: **0.10.0**. This is a Cordis Bundle, not a Codex or Claude Code implementation. This candidate is not published and cannot be installed from a Release asset.
+Package: `@missher/dsh-context-manager`. Candidate version: **0.10.1**. This is a Cordis Bundle, not a Codex or Claude Code implementation. Version 0.10.1 is not published and cannot be installed from a Release asset.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 
@@ -134,7 +134,7 @@ A version label alone is not a compatibility guarantee. The neutral overlay does
 
 ## Install and update
 
-Version 0.10.0 is a local package candidate, not a Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback remain with their respective owners. The accepted local.16 package and tag remain unchanged.
+Version 0.10.1 is a local package candidate, not a Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback remain with their respective owners. The released 0.10.0 package and tag remain unchanged.
 
 ## Inspector and settings
 
@@ -190,7 +190,7 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 
 ## Validation and limitations
 
-Version 0.10.0 inherits the accepted local.16 Settings, Context and Run details UI. The 12/12 targeted behavior tests are inherited from local.15 and were not rerun. This change aligns only the Context Inspector heading row; the synthetic browser preview covers desktop/narrow layouts, long zh/en states and refresh interaction. Host-native acceptance remains with Desktop.
+Version 0.10.1 inherits the 0.10.0 Settings, Context and Run details UI. Earlier targeted behavior-test evidence is inherited and was not rerun. This change only stabilizes numeric-field geometry and control wrapping; the synthetic browser preview uses RC.2 Input/Button source to cover desktop/narrow layouts, the 70→empty→70→reset sequence and a longer English unit. Host-native acceptance remains with Desktop.
 
 Historical evidence from 2026-10-03 (not local.13) includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A later Intel macOS daily installation confirmed the entries and read-only RPC for that older version; this does not establish current local.13 acceptance or installation.
 
@@ -219,7 +219,7 @@ The linker creates this copy's explicit `harness-sdk` and development dependency
 
 ## Historical pre-local.13 timeout and retry note (superseded; not current local.13 policy)
 
-**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current 0.10.0 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the 0.10.0 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
+**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current 0.10.1 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the 0.10.1 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
 
 Existing configurations keep fixed mode and their exact transaction-wide `timeoutMs`. Adaptive mode is opt-in: 600 seconds total, 120 seconds to first nonempty text/reasoning, and 180 seconds stalled by default. Repairs share the remaining total. Usage/heartbeat/empty chunks never renew progress.
 

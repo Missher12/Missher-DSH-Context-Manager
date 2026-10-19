@@ -161,7 +161,9 @@
 .dsh-context-settings .cm-native-toggle .cm-hint { margin-top: 3px; font-size: 12px; line-height: 17px; }
 .dsh-context-settings .cm-native-value-control { grid-column: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
 .dsh-context-settings .cm-native-value-control > button { flex: none; white-space: nowrap; }
-.dsh-context-settings .cm-native-input { flex: 0 1 112px; min-width: 0; }
+.dsh-context-settings .cm-native-value-control:has(> .cm-native-input) { justify-content: flex-start; flex-wrap: wrap; column-gap: 6px; row-gap: 8px; }
+.dsh-context-settings .cm-native-input { box-sizing: border-box; flex: 0 0 112px; width: 112px; min-width: 112px; }
+.dsh-context-settings .cm-native-value-control:has(> .cm-native-input) > :is(.cm-native-unit, .cm-native-overridden) { flex: none; white-space: nowrap; }
 .dsh-context-settings .cm-native-value-control textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
 .dsh-context-settings .cm-native-value-control textarea { min-height: 64px; resize: vertical; }
 .dsh-context-settings .cm-native-value-control textarea:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
