@@ -1,48 +1,22 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.14",
-  "status": "local-staging-only",
+  "version": "0.10.0-local.15",
+  "status": "frozen-candidate-awaiting-native-delivery",
   "artifact": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.14.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.14.tgz",
-    "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
-    "sizeBytes": 352324,
+    "fileName": "missher-dsh-context-manager-0.10.0-local.15.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.15.tgz",
+    "sha256": "7ca44b8059a7b79451ae164f66fc8020478421680178a98c73113fbadd2bbfb4",
+    "sizeBytes": 352979,
     "memberCount": 24
   },
-  "supersedesPreReadmeCorrectionCandidate": {
-    "sha256": "ad1e9c1cb2c34e840b804c90de2933b81b1d55c2f541bbf75cf02e2fc23d08f7",
-    "status": "preserved; superseded because package README incorrectly described local.14 as documentation-only"
-  },
-  "sourceManifestSha256": "d340dbff81634c30ffa5f6086934cb357d5d9e49aacfb1be8110348f845bb2d6",
-  "packageBoundaryAudit": {
-    "package": "private-audit:missher-dsh-context-manager-0.10.0-local.14.tgz",
-    "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
-    "fileCount": 24,
-    "containsBridgeCode": false,
-    "dependsOnBridge": false,
-    "lifecyclePatchHooks": false,
-    "clientProviders": [
-      "@deepseek-ai/dsh-client-ui-settings",
-      "@deepseek-ai/dsh-api-session-controller",
-      "@deepseek-ai/dsh-client-ui-conversation",
-      "@deepseek-ai/dsh-api-remotes",
-      "@deepseek-ai/dsh-client-ui-model-selection",
-      "@deepseek-ai/dsh-client-locale"
-    ],
-    "hostConfigTargets": [],
-    "insertedIds": [
-      "context-manager",
-      "context-manager-inspector"
-    ],
-    "verificationFilesBundled": false,
-    "note": "Read-only package audit; does not replace behavior or native UI acceptance."
-  },
+  "sourceManifestSha256": "82e864d0bb4a12b60923649236e17281a385ad7387ce83f84fb831c6d4020402",
+  "frozenInputManifestSha256": "425ede486257b6e1e5b8e444c2735a60063f0b103f3584258c0ff83afbc8d453",
   "archiveMembers": [
     {
       "path": "package/COMPATIBILITY.json",
-      "sizeBytes": 8122,
-      "sha256": "a34f1bc4d509c46d616e9413007d7007187a9fd3f0cf60727743c719cb8988db"
+      "sizeBytes": 8298,
+      "sha256": "02665199aac9e4695912c6fbe889a4a481dfa8067d1ca6a11f308842af418697"
     },
     {
       "path": "package/LICENSE",
@@ -51,13 +25,13 @@
     },
     {
       "path": "package/README.en.md",
-      "sizeBytes": 35017,
-      "sha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73"
+      "sizeBytes": 35202,
+      "sha256": "143ab97ca81f1b63731028b560a8990394c0719e3dcc541fa2d0e88529e8c1f6"
     },
     {
       "path": "package/README.md",
-      "sizeBytes": 30010,
-      "sha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8"
+      "sizeBytes": 30039,
+      "sha256": "f49b274b7a5a723feed4779d7c95164f0fd922d8d458bf77dd7edd9cafc1b710"
     },
     {
       "path": "package/THIRD_PARTY_NOTICES.md",
@@ -81,8 +55,8 @@
     },
     {
       "path": "package/lib/client.js",
-      "sizeBytes": 822479,
-      "sha256": "3cbb6ae2bb98166041df9d89c1d4697a39705818b17747343225f52a5592c87f"
+      "sizeBytes": 821109,
+      "sha256": "4abd66d9eeed8e9e1c6a18dd54027192d7847d69ba096716988f902c91fd1cb4"
     },
     {
       "path": "package/lib/compaction-cycles.js",
@@ -107,7 +81,7 @@
     {
       "path": "package/lib/engine.js",
       "sizeBytes": 168077,
-      "sha256": "21b9ae5afbe763710b4f0901b8b82ddb846c7b08a4fd6f0c60fea2cc5ea673bc"
+      "sha256": "4cb91805400f5669ceab0edcaa8284a39fad27fc5807fce83a3a3d6a7e744327"
     },
     {
       "path": "package/lib/history-tools.js",
@@ -117,7 +91,7 @@
     {
       "path": "package/lib/index.js",
       "sizeBytes": 366956,
-      "sha256": "e1d36f677f8d1a919c510fe250c048df49595a699a4c38ce7631bccb7f7b1a76"
+      "sha256": "55ba7660273bb1939b91a1f2e020df1ac1b72b2940366365eedd12b5bcefaefc"
     },
     {
       "path": "package/lib/inspector-fold.js",
@@ -157,63 +131,29 @@
     {
       "path": "package/package.json",
       "sizeBytes": 5302,
-      "sha256": "1fd55dab52a589a15b44e6bba134c5915544511ffa5b9622fa80c7bd28d74230"
+      "sha256": "3c6cca90776e3ed4c7d89ec2bf927c91d4c1cfb4d1e36cc422a9edeabcda724f"
     }
   ],
-  "runtimeBundles": {
-    "archive.js": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
-    "chart-data.js": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
-    "client.js": "3cbb6ae2bb98166041df9d89c1d4697a39705818b17747343225f52a5592c87f",
-    "compaction-cycles.js": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
-    "compatibility.js": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
-    "diagnostics.js": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
-    "efficiency.js": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
-    "engine.js": "21b9ae5afbe763710b4f0901b8b82ddb846c7b08a4fd6f0c60fea2cc5ea673bc",
-    "history-tools.js": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
-    "index.js": "e1d36f677f8d1a919c510fe250c048df49595a699a4c38ce7631bccb7f7b1a76",
-    "inspector-fold.js": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
-    "inspector.js": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
-    "policy.js": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
-    "reducer.js": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
-    "tool-results.js": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
-    "typert.js": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
-    "working-set.js": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581"
-  },
-  "evidence": {
-    "focusedTests": {
-      "path": "../TEST-R2-20261019.log",
-      "sha256": "64fbf317c558c3c99a30b8933fd92dd06b9a9eb320720faed2c3aa8bd38093ee",
-      "passed": 9,
-      "total": 9,
-      "note": "Run preceded final Tooltip CSS adjustment; not a full suite."
+  "validation": {
+    "isolatedBuild": "passed",
+    "serverAndClientTypecheck": "passed",
+    "targetedTests": {
+      "passed": 12,
+      "scope": "run-diagnostics and chart-data",
+      "timing": "Before final Reset label-only adjustment; build/typechecks and desktop/narrow UI repeated after that adjustment."
     },
-    "typecheck": {
-      "server": {
-        "path": "../TSC-SERVER-LOCAL14-R2-20261019.log",
-        "sha256": "07103d0206699769180121b7822e2cd1500cf1d709dbdab0e62a6d4ce74319e6",
-        "exitCode": 0
-      },
-      "client": {
-        "path": "../TSC-CLIENT-LOCAL14-R2-20261019.log",
-        "sha256": "d57fbd279766da2b084e2c9fcf887caf8d1742ebbbf801c1d211af54044f34ac",
-        "exitCode": 0
-      }
+    "archiveJavaScriptSyntax": {
+      "passed": 17
     },
-    "ui": "Synthetic desktop/narrow Settings, non-empty Usage, and scrolled Tooltip checks; not native Host acceptance."
+    "policySmoke": "passed",
+    "syntheticUi": "Settings transactions, copy diagnostics and data states checked with RC.1 development primitives; English desktop/narrow input width 112px. Not native RC.2 acceptance."
   },
-  "runtimeComparisonToLocal13": {
-    "packageSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-    "memberCount": 17,
-    "backendMembers": "14 byte-identical; engine.js/index.js differ only in local.14 diagnostic version string",
-    "client.js": "substantive UI bundle change"
-  },
-  "notClaimed": [
-    "formal Release",
-    "public download",
-    "installation",
-    "natural Host UI acceptance",
-    "real-provider behavior"
+  "pending": [
+    "Actual RC.2 Input/Switch and layout",
+    "Native Tooltip hover/focus positioning and absence of oversized dark block",
+    "Preservation of daily settings and sessions",
+    "Formal Release and anonymous asset integrity",
+    "Daily installation and installed bytes"
   ],
-  "publicExportNote": "Private local audit paths replaced by log names; audit logs and daily data are not included. Package hash and every archive member hash are unchanged. Public README introductions and their ledger hashes record completed delivery after the immutable source tag; package members and runtime bytes are unchanged.",
-  "frozenSourceManifestSha256": "2d84e36cbe0459516cb88513df80f7f468e63c2a25c99b1ab1e3d993edc88a66"
+  "previousAcceptedVersion": "0.10.0-local.14"
 }

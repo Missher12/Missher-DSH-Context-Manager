@@ -7,6 +7,7 @@ import type { Policy } from './policy.ts'
 import { categories, defaultQuery, type Category, type ContentPage, type ContentRow, type Inspection, type InspectorApi, type InspectQuery, type RequestRow } from './inspector-types.ts'
 import { CompactionRecords, UsageDetails, CompactionChart, ContextComposition, PressureTrend, UsageComposition, contextWindow, formatTokens, exactTokens, formatTime } from './inspector-charts.tsx'
 import { inspectorText, type InspectorLocaleKey, type InspectorText } from './inspector-locales.ts'
+import { createRunDiagnostics, type IdleFreshness } from './run-diagnostics.ts'
 import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import type { CompactionReadout, ContextCooperationReadout } from './compatibility.ts'
@@ -34,30 +35,12 @@ function compressionLabel(mode: NonNullable<Inspection['compression']>['mode']):
 }
 
 type BindingSnapshot = { target: string; state: 'loading' | 'ready' | 'missing' | 'failed'; value: CompactionReadout | null }
-type BindingBadge = { mode: CompactionReadout['mode']; text: string; detail: string; title: string }
+type BindingBadge = { mode: CompactionReadout['mode']; text: string; title: string }
 type IdleDiagnosticValue = Omit<IdleStatus, 'recovery'> & { recovery?: Pick<NonNullable<IdleStatus['recovery']>, 'available' | 'message' | 'riskAcceptanceRequired'> }
-type IdleDiagnostic = { target: string; value: IdleDiagnosticValue | null; error: string; signature: string }
+type IdleDiagnostic = { target: string; value: IdleDiagnosticValue | null; freshness: IdleFreshness; signature: string }
 function bindingsDisagree(left: CompactionReadout, right: CompactionReadout): boolean {
   if (left.mode !== right.mode || left.hostCapability !== right.hostCapability) return true
   return (['agentPreset', 'generation', 'provider', 'source'] as const).some(key => left[key] !== undefined && right[key] !== undefined && left[key] !== right[key])
-}
-function inactivityReason(binding: CompactionReadout): InspectorLocaleKey | null {
-  switch (binding.mode) {
-    case 'enhanced': return null
-    case 'native': return 'reasonNative'
-    case 'other': return 'reasonOther'
-    case 'unconfigured': return 'reasonUnconfigured'
-    case 'unavailable': return 'reasonUnavailable'
-    default: return binding.hostCapability === 'unsupported' ? 'reasonHostUnsupported' : 'reasonUnknown'
-  }
-}
-function bindingMetadata(binding: CompactionReadout, t: InspectorText): string {
-  const values: string[] = []
-  if (binding.agentPreset) values.push(`${t('bindingPreset')} · ${binding.agentPreset}`)
-  if (binding.generation !== undefined) values.push(`${t('bindingGeneration')} · ${binding.generation}`)
-  if (binding.provider) values.push(`${t('bindingProvider')} · ${binding.provider}`)
-  if (binding.source) values.push(`${t('bindingSource')} · ${t(binding.source === 'declaration' ? 'sourceDeclaration' : 'sourceRegistration')}`)
-  return values.join(' · ')
 }
 function hasNativeSidecar(value: ContextCooperationReadout | undefined): boolean {
   return value !== undefined && (value.toolResults.state === 'active' || value.toolResults.state === 'observe'
@@ -69,55 +52,36 @@ function bindingBadge(data: Inspection | null, idle: BindingSnapshot | null, tar
   if (historical) {
     const binding = data?.compression
     const label = binding?.mode === 'enhanced' ? t('enhancedHistorical') : binding ? t(compressionLabel(binding.mode)) : t('unknownBinding')
-    return { mode: binding?.mode ?? 'unknown', text: t('historical'), detail: `${t('historicalBinding')} · ${label}`, title: binding?.reason ?? '' }
+    return { mode: binding?.mode ?? 'unknown', text: t('historical'), title: binding ? label : t('unknownBinding') }
   }
   if (stale) {
     const message = t(failed ? 'statusRefreshFailed' : 'statusRefreshing')
-    return { mode: 'unknown', text: message, detail: `${t('currentAgent')} · ${t(failed ? 'bindingRefreshFailed' : 'bindingRefreshing')}`, title: '' }
+    return { mode: 'unknown', text: message, title: message }
   }
   const currentIdle = idle?.target === target ? idle : null
   if (!currentIdle || currentIdle.state === 'loading') {
-    return { mode: 'unknown', text: t('statusRefreshing'), detail: `${t('currentAgent')} · ${t('bindingRefreshing')}`, title: '' }
+    return { mode: 'unknown', text: t('statusRefreshing'), title: t('statusRefreshing') }
   }
   if (currentIdle.state === 'failed') {
-    return { mode: 'unknown', text: t('statusRefreshFailed'), detail: `${t('currentAgent')} · ${t('bindingRefreshFailed')}`, title: '' }
+    return { mode: 'unknown', text: t('statusRefreshFailed'), title: t('statusRefreshFailed') }
   }
   if (currentIdle.state === 'missing' || !currentIdle.value) {
-    return { mode: 'unknown', text: t('statusMissing'), detail: `${t('currentAgent')} · ${t('bindingMissing')}`, title: '' }
+    return { mode: 'unknown', text: t('statusMissing'), title: t('statusMissing') }
   }
   const idleValue = currentIdle.value
   const inspected = data?.compression ?? null
   if (inspected && idleValue && bindingsDisagree(inspected, idleValue)) {
-    return { mode: 'unknown', text: t('statusConflict'), detail: `${t('currentAgent')} · ${t('bindingConflict')} · ${inspected.reason} / ${idleValue.reason}`, title: `${inspected.reason} / ${idleValue.reason}` }
+    return { mode: 'unknown', text: t('statusConflict'), title: t('statusConflict') }
   }
   const binding = inspected ?? idleValue
-  if (!binding) return { mode: 'unknown', text: t('statusMissing'), detail: `${t('currentAgent')} · ${t('bindingMissing')}`, title: '' }
+  if (!binding) return { mode: 'unknown', text: t('statusMissing'), title: t('statusMissing') }
   const cooperating = binding.mode === 'native' && hasNativeSidecar(data?.cooperation)
-  const reason = cooperating ? null : inactivityReason(binding)
-  const label = t(compressionLabel(binding.mode))
-  const detail = `${t('currentAgent')} · ${label}${cooperating ? ` · ${t('nativeCooperating')}` : ''}${reason ? ` · ${t(reason)}` : ''} · ${binding.reason}`
   const short = binding.mode === 'enhanced' ? 'statusEnhanced'
     : binding.mode === 'native' ? 'statusNative'
       : binding.mode === 'other' ? 'statusOther'
         : binding.mode === 'unconfigured' ? 'statusUnconfigured'
           : binding.mode === 'unavailable' ? 'statusUnavailable' : 'statusUnknown'
-  return { mode: binding.mode, text: t(short), detail, title: binding.reason }
-}
-
-function CooperationDetails({ value, t, stale = false }: { value: ContextCooperationReadout; t: InspectorText; stale?: boolean }) {
-  const tool = ({ off: 'coopOff', observe: 'coopObserve', active: 'coopActive', waiting: 'coopWaiting', unsupported: 'coopUnsupported' } as const)[value.toolResults.state]
-  const originals = ({ ready: 'coopOriginalsReady', empty: 'coopOriginalsEmpty', unavailable: 'coopOriginalsUnavailable' } as const)[value.originals.state]
-  const idle = ({ active: 'coopActive', off: 'coopOff', waiting: 'coopWaiting', unsupported: 'coopUnsupported' } as const)[value.idleMaintenance]
-  const pressure = ({ context: 'coopPressureContext', native: 'coopPressureNative', off: 'coopPressureOff', waiting: 'coopPressureWaiting', unsupported: 'coopPressureUnsupported', unknown: 'coopPressureUnknown' } as const)[value.requestPressure]
-  return <div className="cmv-request-details" data-context-cooperation="true">
-    <h4>{stale ? `${t('lastRead')} · ${t('cooperationDiagnostic')}` : t('cooperationDiagnostic')}</h4>
-    <div>
-      <p className="cmv-muted">{t('coopToolResults')} · {t(tool)}{value.toolResults.finalResultSeen ? ` · ${t('reductionPipelineOk')}` : ` · ${t('reductionPipelineUnknown')}`}</p>
-      <p className="cmv-muted">{t('coopOriginals')} · {t(originals)}{value.originals.count > 0 ? ` · ${exactTokens(value.originals.count)}` : ''}</p>
-      <p className="cmv-muted">{t('coopIdle')} · {t(idle)}</p>
-      <p className="cmv-muted">{t('coopRequestPressure')} · {t(pressure)}</p>
-    </div>
-  </div>
+  return { mode: binding.mode, text: t(short), title: t(cooperating ? 'nativeCooperating' : short) }
 }
 function capabilityWarnings(value: ContextCooperationReadout, t: InspectorText): string[] {
   const warnings: string[] = []
@@ -153,7 +117,6 @@ function idleStatusLabel(value: IdleStatus | IdleDiagnosticValue): InspectorLoca
 
 function diagnosticValue(value: IdleStatus): IdleDiagnosticValue {
   const { recovery, ...rest } = value
-  delete rest.updatedAt
   return { ...rest, recovery: recovery ? { available: recovery.available, message: recovery.message, riskAcceptanceRequired: recovery.riskAcceptanceRequired } : undefined }
 }
 
@@ -181,6 +144,8 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     async function read() {
+      const retainedAtStart = lastStatus.current?.target === target ? lastStatus.current.value : null
+      onDiagnostic({ target, value: retainedAtStart ? diagnosticValue(retainedAtStart) : null, freshness: retainedAtStart ? 'refreshing' : 'unknown' })
       if (lastBinding.current.target !== target || !lastBinding.current.signature) {
         reportBinding({ target, state: 'loading', value: null })
       }
@@ -189,7 +154,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
         if (abort.signal.aborted) return
         setState({ target, value }); lastStatus.current = { target, value }; setError('')
         reportBinding({ target, state: value.compression ? 'ready' : 'missing', value: value.compression ?? null })
-        onDiagnostic({ target, value: diagnosticValue(value), error: '' })
+        onDiagnostic({ target, value: diagnosticValue(value), freshness: 'current' })
         currentCompressionMode.current = value.compression?.mode ?? 'unknown'
         if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; setEmergencyPlan(null) }
         timer = setTimeout(() => { void read() }, value.status === 'compacting' ? 1000 : 5000)
@@ -199,7 +164,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
           const message = errorText(reason, t)
           reportBinding({ target, state: 'failed', value: null })
           const retained = lastStatus.current?.target === target ? lastStatus.current.value : null
-          onDiagnostic({ target, value: retained ? diagnosticValue(retained) : null, error: message })
+          onDiagnostic({ target, value: retained ? diagnosticValue(retained) : null, freshness: retained ? 'stale' : 'unknown' })
           lastCapacity.current = { target, signature: 'null' }
           onCapacity(null)
           currentCompressionMode.current = 'unknown'; emergencyEpoch.current++
@@ -248,7 +213,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
           || emergencyEpoch.current !== epochAtStart) return
         setState({ target, value: current }); lastStatus.current = { target, value: current }; setError('')
         reportBinding({ target, state: current.compression ? 'ready' : 'missing', value: current.compression ?? null })
-        onDiagnostic({ target, value: diagnosticValue(current), error: '' })
+        onDiagnostic({ target, value: diagnosticValue(current), freshness: 'current' })
         currentCompressionMode.current = current.compression?.mode ?? 'unknown'
         if (currentCompressionMode.current !== 'enhanced') { emergencyEpoch.current++; return }
         await api.executeEmergency({sessionId:target,token:plan.token,acceptUnknownCost:true},controller.signal)
@@ -262,7 +227,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     }catch(reason){if(!controller.signal.aborted){setEmergencyPlan(null);setRecoveryResult(errorText(reason,t))}}
     finally{if(!controller.signal.aborted)setRecovering(false)}
   }
-  const shortStatus = error ? t('idleUnknown') : value ? t(idleStatusLabel(value)) : t('idleWait')
+  const shortStatus = error ? value ? `${t('lastRead')} · ${t(idleStatusLabel(value))}` : t('idleUnknown') : value ? t(idleStatusLabel(value)) : t('idleWait')
   return <span role="status" aria-label={t('idle')}>{t('idle')} · {shortStatus}{message && <> · {message}</>}
     {!error && value?.recovery?.available && api.authorizeOnce && <Button size="sm" disabled={recovering} onClick={() => { void recover() }}>{value.recovery.riskAcceptanceRequired ? t('riskRecoveryButton') : t('recoveryButton')}</Button>}
     {!error && value?.emergency?.eligible && api.prepareEmergency && !emergencyPlan && <Button size="sm" disabled={recovering} onClick={()=>{void emergency(false)}}>{t('emergencyCheck')}</Button>}
@@ -284,10 +249,11 @@ function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspecti
   const effectiveCapacity = policy && gate ? capacityTokens(policy,gate.window) : null
   const recent = data.requests.at(-1)
   const recentWindow = requestWindow(data, recent)
-  const recentCapacity = !recent ? '—' : recent.input == null ? t('unknownUsage') : recentWindow === null ? t('requestWindowUnknown') : formatPercent(recent.input, recentWindow)
+  const recentInput = !recent ? '—' : recent.input == null ? t('unknownUsage') : `${formatTokens(recent.input)} ${t('tokens')}`
+  const recentRatio = !recent ? t('noRequest') : recent.input == null ? t('unknownUsage') : formatPercent(recent.input, recentWindow)
   const hit = recent?.input != null && recent.input > 0 && recent.cacheRead !== null ? recent.cacheRead / recent.input * 100 : null
-  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status">{status === 'compactFirst' ? <StateDot state="warning"/> : status === 'continue' ? <StateDot state="done"/> : null}{t(status)}</div></div><Tooltip label={contextGate ? t('admissionHint') : t('bindingHint')}><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens} data-context-request-gate={contextSidecar && gate ? 'active' : undefined}>{t('admissionPressure')} {reading ? `≈ ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · ${t('recentBudget')} ${formatPercent(effectiveCapacity.recent,gate.window)} · ${t('summary')} ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
-    <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{recentCapacity}</strong><span className="cmv-muted cmv-request-detail">{recent ? `${t('requestInputDetail')} · ${recent.input == null ? t('unknownUsage') : `${exactTokens(recent.input)} Token`}` : t('noRequest')}</span></div></div>
+  return <div className="cmv-card cmv-quick"><div><div className="cmv-request-title"><h3>{t('next')}</h3><div className="cmv-status">{status === 'compactFirst' ? <StateDot state="warning"/> : status === 'continue' ? <StateDot state="done"/> : null}{t(status)}</div></div><Tooltip label={contextGate ? t('admissionHint') : t('bindingHint')}><span tabIndex={0} className="cmv-muted" data-admission-tokens={reading?.tokens} data-context-request-gate={contextSidecar && gate ? 'active' : undefined}>{t('admissionPressure')} {reading ? `≈ ${formatTokens(reading.tokens)} ${t('tokens')} · ${formatPercent(reading.tokens,reading.window)}` : t('growthUnknown')} / {t('gate')} {formatPercent(gate?.admission,gate?.window)}{gate ? ` · ${source}` : ''}{effectiveCapacity && gate ? ` · ${t('recentBudget')} ${formatPercent(effectiveCapacity.recent,gate.window)} · ${t('summary')} ${formatPercent(Math.min(effectiveCapacity.summary,Math.floor(gate.window*0.1),data.model?.maxTokens??Infinity),gate.window)}` : ''}</span></Tooltip></div>
+    <div><h3>{t('recent')}</h3><div className="cmv-request-values"><strong>{recentInput}</strong><span className="cmv-muted cmv-request-detail">{recent ? `${t('requestInputDetail')} · ${recentRatio}` : t('noRequest')}</span></div></div>
     <div><h3>{t('cache')}</h3><div className="cmv-request-values"><strong>{hit === null ? '—' : `${Math.round(hit)}%`}</strong></div></div>
   </div>
 }
@@ -317,7 +283,7 @@ function ContentReader({ target, cutSeq, row, api, t, window, onSource }: Conten
     }).catch(reason => { if (!controller.signal.aborted) setError(errorText(reason, t)) })
     return () => controller.abort()
   }, [api, target, cutSeq, row.id, row.category, offset, sourceOffset, retry, t])
-  return <><div className="cmv-heading"><h3>{row.title}</h3><span className="cmv-muted">{formatPercent(row.tokens,window)}</span></div><div className="cmv-muted cmv-reader-meta">{t(row.category)} · {t('record')} {row.seq}{row.current ? '' : ` · ${t('replaced')}`}{row.images ? ` · ${row.images} ${t('images')}` : ''}</div><div className="cmv-muted cmv-source">{row.source}</div>
+  return <><div className="cmv-heading"><h3>{row.title}</h3><span className="cmv-muted">≈ {formatTokens(row.tokens)} {t('tokens')} · {formatPercent(row.tokens,window)}</span></div><div className="cmv-muted cmv-reader-meta">{t(row.category)} · {t('record')} {row.seq}{row.current ? '' : ` · ${t('replaced')}`}{row.images ? ` · ${row.images} ${t('images')}` : ''}</div><div className="cmv-muted cmv-source">{row.source}</div>
     {error ? <div role="alert"><p>{error}</p><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div> : !page ? <Loading/> : <><pre className="cmi-body" tabIndex={0}>{page.text || t('noText')}</pre>{(offset > 0 || page.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={offsets.length === 1} onClick={() => setOffsets(value => value.slice(0, -1))}>{t('previousText')}</Button><span>{t('characters')} {exactTokens(offset + 1)}–{exactTokens(offset + page.text.length)} / {exactTokens(page.totalChars)}</span><Button size="sm" disabled={page.nextOffset === null} onClick={() => { if (page.nextOffset !== null) setOffsets(value => [...value, page.nextOffset!]) }}>{t('nextText')}</Button></div>}</>}
     {row.category === 'summary' && page && <section className="cmv-summary-source" aria-label={t('sourceOriginals')}><h3>{t('sourceOriginals')}</h3><p className="cmv-muted">{t('sourceHint')}</p>
       {page.sources?.rows.length ? <><div className="cmi-content-list">{page.sources.rows.map(source => <button type="button" key={source.id} onClick={() => onSource(source)}><span className="cmv-row-title"><strong>{source.title}</strong></span><span className="cmv-muted">{t('record')} {source.seq} · {t(source.category)}</span></button>)}</div>
@@ -334,7 +300,7 @@ function ContentBrowser({ data, query, change, api, target, loading, t, initialS
   const grouped = query.group === 'message' || query.group === 'instruction'
   const filter = grouped ? `group:${query.group}` : query.group ?? query.category
   return <div><div className="cmv-content-tools"><Input aria-label={t('search')} placeholder={t('search')} value={query.search} onChange={(event: ChangeEvent<HTMLInputElement>) => change({ search: event.target.value.slice(0, 200) })}/><select aria-label={t('types')} value={filter} onChange={event => { const value = event.target.value; change(value.startsWith('group:') ? { group: value.slice(6) as ContextGroup, category: 'all' } : { group: undefined, category: value as Category | 'all' }) }}><option value="all">{t('all')}</option>{grouped && query.group && <option value={`group:${query.group}`}>{t(query.group)}</option>}{categories.map(item => <option key={item.id} value={item.id}>{t(item.id)}</option>)}</select><select aria-label={t('sort')} value={query.sort} onChange={event => change({ sort: event.target.value as InspectQuery['sort'] })}><option value="size">{t('size')}</option><option value="position">{t('position')}</option></select></div>
-    <div className="cmv-content-layout"><div className="cmi-content-list" aria-label={t('content')}>{data.rows.slice(0, shown).map(item => <button type="button" key={item.id} aria-pressed={row?.id === item.id} onClick={() => setSelected(item.id)}><span className="cmv-row-title"><i data-category={item.category}/><strong>{item.title}</strong><b>{formatPercent(item.tokens,contextWindow(data))}</b></span><span className="cmv-muted">{t(item.category)}{item.current ? '' : ` · ${t('replaced')}`}</span></button>)}{!data.rows.length && <div className="cmv-empty">{t('emptyContents')}</div>}{shown < data.rows.length && <Button size="sm" variant="ghost" onClick={() => setShown(value => value + 4)}>{t('more')}</Button>}</div>{row ? <ContentDetail key={`${target}:${data.cutSeq}:${row.id}`} target={target} cutSeq={data.cutSeq} row={row} api={api} t={t} window={contextWindow(data)}/> : <div className="cmv-empty">{t('selectContent')}</div>}</div>
+    <div className="cmv-content-layout"><div className="cmi-content-list" aria-label={t('content')}>{data.rows.slice(0, shown).map(item => <button type="button" key={item.id} aria-pressed={row?.id === item.id} onClick={() => setSelected(item.id)}><span className="cmv-row-title"><i data-category={item.category}/><strong>{item.title}</strong><b>{formatTokens(item.tokens)} <small>{t('tokens')} · {formatPercent(item.tokens,contextWindow(data))}</small></b></span><span className="cmv-muted">{t(item.category)}{item.current ? '' : ` · ${t('replaced')}`}</span></button>)}{!data.rows.length && <div className="cmv-empty">{t('emptyContents')}</div>}{shown < data.rows.length && <Button size="sm" variant="ghost" onClick={() => setShown(value => value + 4)}>{t('more')}</Button>}</div>{row ? <ContentDetail key={`${target}:${data.cutSeq}:${row.id}`} target={target} cutSeq={data.cutSeq} row={row} api={api} t={t} window={contextWindow(data)}/> : <div className="cmv-empty">{t('selectContent')}</div>}</div>
     <div className="cmv-content-footer"><label className="cmv-checkbox"><input type="checkbox" checked={query.archived} onChange={event => change({ archived: event.currentTarget.checked })}/><span>{t('archived')}</span></label><div className="cmv-pagination"><Button size="sm" disabled={loading || data.offset === 0} onClick={() => change({ offset: Math.max(0, data.offset - data.pageSize) })}>{t('previous')}</Button><span>{data.total ? data.offset + 1 : 0}–{Math.min(data.offset + Math.min(shown, data.rows.length), data.total)} / {exactTokens(data.total)}</span><Button size="sm" disabled={loading || data.offset + data.pageSize >= data.total} onClick={() => change({ offset: data.offset + data.pageSize })}>{t('nextPage')}</Button></div></div>
   </div>
 }
@@ -351,10 +317,19 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [idleBinding, setIdleBinding] = useState<BindingSnapshot | null>(null)
   const [idleDiagnostics, setIdleDiagnostics] = useState<IdleDiagnostic | null>(null)
   const [runDetailsTarget, setRunDetailsTarget] = useState('')
+  const [copyFeedback, setCopyFeedback] = useState('')
+  const [copyFailed, setCopyFailed] = useState(false)
   const recordsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setRunDetailsTarget('') }, [target])
+  const copyGeneration = useRef(0)
+  const copyTarget = useRef(target)
+  copyTarget.current = target
+  useEffect(() => {
+    copyGeneration.current++
+    setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setRunDetailsTarget(''); setCopyFeedback(''); setCopyFailed(false)
+    return () => { copyGeneration.current++ }
+  }, [target])
   const reportIdleDiagnostics = useCallback((value: Omit<IdleDiagnostic, 'signature'>) => {
-    const signature = JSON.stringify([value.target, value.error, value.value])
+    const signature = JSON.stringify([value.target, value.freshness, value.value])
     setIdleDiagnostics(current => current?.signature === signature ? current : { ...value, signature })
   }, [])
   const scrollToContent = useRef(false)
@@ -363,7 +338,6 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [requestState, setRequestState] = useState<{ key: string; loading: boolean; error: string }>({ key: '', loading: true, error: '' })
   const [retry, setRetry] = useState(0)
   const accepted = useSyncExternalStore(callback => form.subscribe(callback), () => form.getSnapshot())
-  const savedPolicy = accepted.value?.policy
   const revision = useSyncExternalStore(callback => pulse.subscribe(callback), () => pulse.getSnapshot())
   const effective = useMemo(() => query.sessionId === target ? query : { sessionId: target, ...defaultQuery }, [query, target])
   const key = JSON.stringify(effective)
@@ -375,6 +349,37 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const requestStale = loading || refreshing || !!error
   const historical = effective.atSeq !== null || !!safeData?.historical
   const binding = bindingBadge(safeData, idleBinding, target, historical, loading || !!error, !!error, t)
+  const latestRun = safeData?.compactions.at(-1)
+  const idleRun = idleDiagnostics?.target === target ? idleDiagnostics.value : null
+  const autoRunLabel = historical ? safeData?.compression ? `${t(compressionLabel(safeData.compression.mode))} · ${t('historical')}` : t('unknown') : binding.text
+  const toolRun = safeData?.cooperation?.toolResults.state
+  const toolRunLabel = toolRun === 'off' ? t('coopOff') : toolRun === 'observe' ? t('coopObserve') : toolRun === 'active' ? t('coopActive') : toolRun === 'waiting' ? t('coopWaiting') : toolRun === 'unsupported' ? t('coopUnsupported') : t('unknown')
+  const idleFreshness = idleDiagnostics?.target === target ? idleDiagnostics.freshness : 'unknown'
+  const idleRunPrefix = idleFreshness === 'current' ? '' : `${t(idleFreshness === 'refreshing' ? 'runRefreshing' : 'lastRead')} · `
+  const idleRunLabel = historical ? t('histUnavailable') : idleRun ? `${idleRunPrefix}${t(idleStatusLabel(idleRun))}${idleRun.restored ? ` · ${t('restored')}` : ''}${idleRun.updatedAt ? ` · ${formatTime(idleRun.updatedAt)}` : ''}` : idleFreshness === 'stale' ? t('idleUnknown') : t('unknown')
+  const latestRunLabel = !latestRun ? t('noCompaction') : `${t(latestRun.kind === 'prune' ? 'prune' : 'compact')} · ${t(latestRun.status)}`
+  const runDuration = latestRun?.endedAt !== undefined && latestRun.endedAt >= latestRun.startedAt
+    ? `${((latestRun.endedAt - latestRun.startedAt) / 1000).toFixed(1)} s` : latestRun?.status === 'running' ? t('running') : t('unknown')
+  const runUsage = !latestRun ? t('noCompaction') : latestRun.modelCallStatus === 'not_dispatched' ? t('notDispatched')
+    : latestRun.inputTokens === undefined && latestRun.outputTokens === undefined ? t('unknownUsage')
+      : `${latestRun.inputTokens === undefined ? '—' : formatTokens(latestRun.inputTokens)} / ${latestRun.outputTokens === undefined ? '—' : formatTokens(latestRun.outputTokens)} ${t('tokens')}${latestRun.inputTokens === undefined || latestRun.outputTokens === undefined ? ` · ${t('usageIntegrityUnknown')}` : ''}`
+  const runFreshness = historical ? 'historical' : requestStale ? error ? 'stale' : 'refreshing' : 'current'
+  const idleCopy = historical ? null : { ...(idleRun ?? {}), freshness: idleFreshness }
+  async function copyRunDiagnostics() {
+    if (!safeData) return
+    const generation = ++copyGeneration.current
+    const targetAtStart = target
+    setCopyFeedback(''); setCopyFailed(false)
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(createRunDiagnostics(safeData, idleCopy, runFreshness === 'historical' ? 'current' : runFreshness))
+      if (copyGeneration.current !== generation || copyTarget.current !== targetAtStart) return
+      setCopyFeedback(t('copySuccess'))
+    } catch {
+      if (copyGeneration.current !== generation || copyTarget.current !== targetAtStart) return
+      setCopyFailed(true); setCopyFeedback(t('copyFailed'))
+    }
+  }
   useEffect(() => {
     const controller = new AbortController()
     setRequestState(current => current.key === key ? { ...current, loading: true } : { key, loading: true, error: '' })
@@ -399,50 +404,23 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   function showCut(seq: number) { change({ ...defaultQuery, group: undefined, atSeq: seq }) }
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
-    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span></div><Tooltip label={t('settingsHint')}><span className="cmv-muted" tabIndex={0}>{t('settingsHint')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button></header>
+    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span>{refreshing && <span className="cmv-binding-refresh">{t('runRefreshing')}</span>}</div><Tooltip label={t('settingsHint')}><span className="cmv-muted" tabIndex={0}>{t('settingsLink')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button></header>
       <div className="cmv-meta">{!historical && <IdleStatusLine key={target} target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding} onDiagnostic={reportIdleDiagnostics}/>}</div>
-      {!historical && safeData?.cooperation && capabilityWarnings(safeData.cooperation, t).length > 0 && <div className="cmv-notice" role="status">{error && <>{t('lastRead')} · </>}{capabilityWarnings(safeData.cooperation, t).join(' · ')}</div>}
-      {safeData?.goal?.blockedReason && !historical && <div className="cmv-notice"><span role="status">{error && <>{t('lastRead')} · </>}{t('goalStopShort')}：{safeData.goal.blockedReason.message}</span></div>}
+      {!historical && safeData?.cooperation && capabilityWarnings(safeData.cooperation, t).length > 0 && <div className="cmv-notice" role="status">{requestStale && <>{t('lastRead')} · </>}{capabilityWarnings(safeData.cooperation, t).join(' · ')}</div>}
+      {safeData?.goal?.blockedReason && !historical && <div className="cmv-notice"><span role="status">{requestStale && <>{t('lastRead')} · </>}{t('goalStopShort')}：{safeData.goal.blockedReason.message}</span></div>}
       <details key={target} className="cmv-run-details" open={runDetailsTarget === target} onToggle={event => setRunDetailsTarget(event.currentTarget.open ? target : '')}>
         <summary>{t('runDetails')}</summary>
-        <div className="cmv-request-details">
-          <section><h4>{t('bindingDiagnostic')}</h4><p>{binding.text}{binding.detail && <> · {binding.detail}</>}</p>
-            {!historical && safeData?.compression && <p>{error ? `${t('lastRead')} · ` : ''}{t('inspectionBinding')} · {bindingMetadata(safeData.compression, t) || t('unknownBinding')} · {safeData.compression.reason}</p>}
-            {!historical && idleDiagnostics?.target === target && idleDiagnostics.value?.compression && <p>{idleDiagnostics.error ? `${t('lastRead')} · ` : ''}{t('idleBinding')} · {bindingMetadata(idleDiagnostics.value.compression, t) || t('unknownBinding')} · {idleDiagnostics.value.compression.reason}</p>}
-          </section>
-          {!historical && idleDiagnostics?.target === target && <section>
-            <h4>{idleDiagnostics?.error ? `${t('lastRead')} · ${t('idleDiagnostic')}` : t('idleDiagnostic')}</h4>
-            {idleDiagnostics.error && <p role="alert">{idleDiagnostics.error}</p>}
-            {idleDiagnostics.value && <>
-              <p>{t('runStatus')} · {t(idleStatusLabel(idleDiagnostics.value))}{idleDiagnostics.value.restored && <> · {t('restored')}</>}</p>
-              {idleDiagnostics.value.message && <p>{t('runMessage')} · {idleDiagnostics.value.message}</p>}
-              {idleDiagnostics.value.reasonCode && <p>{t('runMessage')} · {idleDiagnostics.value.reasonCode}</p>}
-              {idleDiagnostics.value.deadline && <p>{t('runDeadline')} · {idleDiagnostics.value.deadline}</p>}
-              {idleDiagnostics.value.execution && <p>{t('runExecution')} · {idleDiagnostics.value.execution}</p>}
-              {idleDiagnostics.value.capacity && <p>{t('runCapacity')} · {t('gate')} {formatPercent(idleDiagnostics.value.capacity.admission, idleDiagnostics.value.capacity.windowTokens)} ({exactTokens(idleDiagnostics.value.capacity.admission)}) · {t('planUpper')} {formatPercent(idleDiagnostics.value.capacity.upper, idleDiagnostics.value.capacity.windowTokens)} ({exactTokens(idleDiagnostics.value.capacity.upper)}) · {t('continuationReserve')} {formatPercent(idleDiagnostics.value.capacity.resumeHeadroom, idleDiagnostics.value.capacity.windowTokens)} ({exactTokens(idleDiagnostics.value.capacity.resumeHeadroom)}) · {t('reserveNeed')} {exactTokens(idleDiagnostics.value.capacity.requiredResumeHeadroom)} · {t('reserveMax')} {exactTokens(idleDiagnostics.value.capacity.resumeHeadroomLimit)}</p>}
-              {idleDiagnostics.value.recovery && <><p>{t('runRecovery')} · {idleDiagnostics.value.recovery.available ? t('recoveryAvailable') : t('recoveryUnavailable')}{idleDiagnostics.value.recovery.riskAcceptanceRequired && <> · {t('riskRecoveryButton')}</>}</p><p>{idleDiagnostics.value.recovery.message}</p><p>{t('recoveryStrategy')}</p></>}
-              {idleDiagnostics.value.emergency && <><p>{t('runEmergency')} · {idleDiagnostics.value.emergency.eligible ? t('emergencyAvailable') : t('emergencyUnavailable')}{idleDiagnostics.value.emergency.used && <> · {t('completed')}</>}</p><p>{idleDiagnostics.value.emergency.message}</p></>}
-            </>}
-          </section>}
-          {!historical && safeData?.cooperation && <CooperationDetails value={safeData.cooperation} t={t} stale={!!error}/>}
-          {!historical && <section>
-            <h4>{t('policyDiagnostic')}</h4>
-            <p data-saved-context-policy={savedPolicy ? (savedPolicy.enabled ? 'enabled' : 'disabled') : 'unknown'}>{t('coopSavedPolicy')} · {savedPolicy ? (savedPolicy.enabled ? t('coopPolicyEnabled') : t('coopPolicyDisabled')) : t('coopPolicyUnknown')}</p>
-            {savedPolicy && <>
-              <p>{savedPolicy.enabled ? t('coopPolicyEnabled') : t('coopPolicyDisabled')} · {t('trigger')} {savedPolicy.triggerPercent}% · {savedPolicy.capacityMode === 'percent' ? <>{t(savedPolicy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom')} · {t('target')} {savedPolicy.targetPercent}% · {t('recentBudget')} {savedPolicy.recentPercent}%</> : <>{t('legacyCapacity')} · {exactTokens(savedPolicy.absoluteTriggerTokens)} / {exactTokens(savedPolicy.absoluteTargetTokens)} Token</>}</p>
-              <p>{t('savedAbsolutePolicy')} · {savedPolicy.absoluteEnabled ? t('coopPolicyEnabled') : t('coopPolicyDisabled')} · {t('absoluteTrigger')} {exactTokens(savedPolicy.absoluteTriggerTokens)} / {exactTokens(savedPolicy.absoluteTargetTokens)} Token</p>
-              <p>{savedPolicy.capacityMode === 'percent' ? <>{t('recentBudget')} · {savedPolicy.recentPercent}% · {t('savedEarlyCheck')} {savedPolicy.earlyPercent}% · {t('savedSafetySpace')} {savedPolicy.safetyPercent}%</> : <>{t('savedLegacyRecent')} · {exactTokens(savedPolicy.recentTokens)} Token · {t('savedEarlyCheck')} {savedPolicy.earlyPercent}% · {t('savedSafetySpace')} {savedPolicy.safetyPercent}%</>}</p>
-              <p>{savedPolicy.idleEnabled ? t('coopActive') : t('coopOff')} · {t('idle')} {savedPolicy.idleMinutes} {t('minutes')} · {t('savedIdleFloor')} {savedPolicy.idleMinPercent}%</p>
-              {savedPolicy.summaryTimeoutMode === 'fixed'
-                ? <p>{t('fixedTimeout')} · {savedPolicy.timeoutMs / 1000} {t('seconds')}</p>
-                : <p>{t('adaptiveTimeout')} · {savedPolicy.summaryTotalMs / 1000} {t('seconds')} · {t('firstOutputWait')} {savedPolicy.summaryFirstOutputMs / 1000} {t('seconds')} · {t('progressWait')} {savedPolicy.summaryStallMs / 1000} {t('seconds')}</p>}
-              <p>{t('savedOutputPolicy')} · {savedPolicy.capacityMode === 'percent' ? <>{t('savedSummaryPercent')} {savedPolicy.summaryPercent}% · {t('savedRepairPercent')} {savedPolicy.repairPercent}%</> : <>{t('legacyCapacity')} · {t('savedSummaryPercent')} {exactTokens(savedPolicy.summaryMaxTokens)} Token</>} · {t('savedPasses')} {savedPolicy.maxPasses} · {t('savedCheckpoint')} {savedPolicy.checkpointFormat === 'json' ? 'JSON' : 'Markdown'} · {t('savedFormatRepair')} {savedPolicy.formatRepairEnabled ? t('coopPolicyEnabled') : t('coopPolicyDisabled')}</p>
-              <p>{t('savedToolPolicy')} · {savedPolicy.toolResultsMode === 'off' ? t('reductionOff') : savedPolicy.toolResultsMode === 'observe' ? t('reductionObserve') : t('reductionReduce')} · {t('savedToolLimits')} {exactTokens(savedPolicy.toolResultsMaxChars)} {t('characters')} / {exactTokens(savedPolicy.toolResultsMinSavings)} {t('characters')}</p>
-              <p>{t('savedArchiveLimits')} · {exactTokens(savedPolicy.archiveReadBudget)} {t('characters')} / {savedPolicy.archiveSearchLimit} {t('items')} · {t('savedPrefixPolicy')} {savedPolicy.prefixDiagnosticsEnabled ? t('coopPolicyEnabled') : t('coopPolicyDisabled')}</p>
-              <p>{t('policySessionNote')}</p>
-            </>}
-          </section>}
-          {safeData?.goal?.blockedReason && !historical && <section><h4>{error ? `${t('lastRead')} · ${t('goalDiagnostic')}` : t('goalDiagnostic')}</h4><p>{safeData.goal.blockedReason.code} · {safeData.goal.blockedReason.message}</p><p>{safeData.goal.roundsStarted}/{safeData.goal.maxGoalRounds} {t('goalRounds')} · {t('goalIndependent')}</p></section>}
+        <div className="cmv-run-panel">
+          <div className="cmv-run-head"><span className="cmv-muted">{t('sampledAt')} {safeData ? formatTime(safeData.sampledAt) : '—'}{requestStale ? ` · ${error ? t('lastRead') : t('runRefreshing')}` : ''}</span><Button size="sm" variant="outline" disabled={!safeData} onClick={() => { void copyRunDiagnostics() }}>{t('copyDiagnostics')}</Button></div>
+          {copyFeedback && <p className={copyFailed ? 'cmv-error' : 'cmv-muted'} role={copyFailed ? 'alert' : 'status'}>{copyFeedback}</p>}
+          {!safeData ? <p className="cmv-muted">{loading ? t('statusRefreshing') : t('noData')}</p> : <dl className="cmv-run-facts">
+            <div><dt>{t('runAuto')}</dt><dd>{autoRunLabel}</dd></div>
+            <div><dt>{t('runToolResults')}</dt><dd>{historical ? t('histUnavailable') : toolRunLabel}</dd></div>
+            <div><dt>{t('runPostTask')}</dt><dd>{idleRunLabel}</dd></div>
+            <div><dt>{t('runRecent')}</dt><dd>{latestRunLabel}</dd></div>
+            <div><dt>{t('runDuration')}</dt><dd>{runDuration}</dd></div>
+            <div><dt>{t('runUsage')}</dt><dd>{runUsage}</dd></div>
+          </dl>}
         </div>
       </details>
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')}><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
@@ -452,7 +430,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
         <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
         <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest}/></div>
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
-          {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatPercent(row.tokens,contextWindow(safeData))}</b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
+          {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatTokens(row.tokens)} <small>{t('tokens')} · {formatPercent(row.tokens,contextWindow(safeData))}</small></b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
           {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
         </div>
         <UsageDetails data={safeData} t={t} onCut={showCut} capacity={safeData.historical ? null : idleCapacity}/>

@@ -144,23 +144,43 @@
 .dsh-context-settings .cm-error { margin: 0 0 12px; color: var(--dsw-alias-label-error); font-size: 12px; line-height: 18px; }
 .dsh-context-settings .cm-feedback { margin-top: 10px; }
 
-/* Scoped layout for the plugin-owned settings controls. */
-.dsh-context-settings .cm-native-toggle { padding: 12px 0; font-size: 13px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
-.dsh-context-settings .cm-native-toggle .cm-hint { margin-top: 6px; }
-.dsh-context-settings .cm-native-presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0 0; }
-.dsh-context-settings .cm-native-advanced { padding: 12px 0; border-top: 0.5px solid var(--dsw-alias-border-l2); }
-.dsh-context-settings .cm-native-advanced > summary { font-size: 13px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
-.dsh-context-settings .cm-native-example { display: grid; gap: 6px; font-size: 13px; padding: 12px 0; }
-
-
-/* Plugin-owned form controls for target Hosts whose primitive package no longer includes SettingsForm atoms. */
+/* Compact settings rows follow the Host's native settings spacing and tokens. */
 .dsh-context-settings .cm-settings-form { min-width: 0; }
-.dsh-context-settings .cm-native-value { display: grid; gap: 6px; padding: 12px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
-.dsh-context-settings .cm-native-value-control { flex-wrap: wrap; }
-.dsh-context-settings .cm-native-value-control input { flex: 1 1 140px; min-width: 0; padding: 7px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
-.dsh-context-settings .cm-native-value-control input:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
-.dsh-context-settings .cm-native-value-control input[aria-invalid='true'] { border-color: var(--dsw-alias-label-error); }
+.dsh-context-settings .cm-native-value,
+.dsh-context-settings .cm-native-toggle,
+.dsh-context-settings .cm-native-select-row {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(132px,240px); align-items: center; gap: 4px 24px;
+  padding: 12px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); min-width: 0;
+}
+.dsh-context-settings .cm-native-copy { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.dsh-context-settings .cm-native-help { width: 15px; height: 15px; flex: none; display: inline-grid; place-items: center; border-radius: 50%; color: var(--dsw-alias-label-tertiary); box-shadow: inset 0 0 0 .5px var(--dsw-alias-border-l2); font-size: 10px; line-height: 1; cursor: help; }
+.dsh-context-settings .cm-native-help:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
+.dsh-context-settings .cm-native-copy .cm-label,
+.dsh-context-settings .cm-native-toggle .cm-label { display: block; font-size: 14px; line-height: 20px; }
+.dsh-context-settings .cm-native-copy .cm-hint,
+.dsh-context-settings .cm-native-toggle .cm-hint { margin-top: 3px; font-size: 12px; line-height: 17px; }
+.dsh-context-settings .cm-native-value-control { grid-column: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.dsh-context-settings .cm-native-value-control > button { flex: none; white-space: nowrap; }
+.dsh-context-settings .cm-native-input { flex: 0 1 112px; min-width: 0; }
+.dsh-context-settings .cm-native-input input,
+.dsh-context-settings .cm-native-value-control textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
+.dsh-context-settings .cm-native-value-control textarea { min-height: 64px; resize: vertical; }
+.dsh-context-settings .cm-native-input input:focus-visible,
+.dsh-context-settings .cm-native-value-control textarea:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
+.dsh-context-settings .cm-native-input input[aria-invalid='true'],
+.dsh-context-settings .cm-native-value-control textarea[aria-invalid='true'] { border-color: var(--dsw-alias-label-error); }
+.dsh-context-settings .cm-native-unit { flex: none; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-context-settings .cm-native-overridden { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.dsh-context-settings .cm-native-toggle { grid-template-columns: minmax(0,1fr) auto; }
+.dsh-context-settings .cm-native-select-row select { width: 100%; min-width: 0; max-width: 240px; justify-self: end; padding: 6px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
+.dsh-context-settings .cm-native-note { margin: 8px 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 17px; }
+.dsh-context-settings .cm-native-cost-note { margin: 1px 0 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 17px; }
+.dsh-context-settings .cm-native-legacy { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 10px 0; font-size: 12px; }
+.dsh-context-settings .cm-native-legacy .cm-hint { flex-basis: 100%; }
+.dsh-context-settings .cm-native-advanced { padding: 12px 0; border-top: .5px solid var(--dsw-alias-border-l2); }
+.dsh-context-settings .cm-native-advanced > summary { font-size: 13px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
+.dsh-context-settings .cm-native-advanced[open] { margin-bottom: 8px; }
+.dsh-context-settings .cm-actions { justify-content: flex-end; padding-top: 10px; }
 .dsh-context-settings .cm-native-switch { width: 36px; height: 22px; flex: none; display: inline-flex; align-items: center; padding: 2px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; background: var(--dsw-alias-bg-module-platform); cursor: pointer; }
 .dsh-context-settings .cm-native-switch > span { width: 16px; height: 16px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); transition: transform 120ms ease, background-color 120ms ease; }
 .dsh-context-settings .cm-native-switch[aria-checked='true'] { justify-content: flex-end; border-color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-state-business-primary); }
@@ -168,3 +188,10 @@
 .dsh-context-settings .cm-native-switch:disabled { opacity: .45; cursor: default; }
 .dsh-context-settings .cm-native-switch:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
 .dsh-context-settings .cm-native-save { display: flex; justify-content: flex-end; padding-top: 12px; }
+@media (max-width: 580px) {
+  .dsh-context-settings .cm-native-value,
+  .dsh-context-settings .cm-native-select-row { grid-template-columns: minmax(0,1fr); gap: 7px; }
+  .dsh-context-settings .cm-native-value-control { grid-column: 1; justify-content: flex-start; }
+  .dsh-context-settings .cm-native-select-row select { justify-self: stretch; max-width: none; }
+  .dsh-context-settings .cm-native-toggle { gap: 7px 16px; }
+}

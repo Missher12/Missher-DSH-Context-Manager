@@ -1,20 +1,12 @@
-# Context Manager 0.10.0-local.14
+# 2026-10-19 Context 0.10.0-local.15 plugin candidate: Settings and Inspector UI
 
-A [formal release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.14) is available and has been installed and checked in the native Ubuntu application. This update improves settings wording, retains expanded details during refresh, contains Inspector tooltips, and updates cumulative usage presentation.
-
-[Download and checksums](PUBLICATION.md) · [Current delivery record](DELIVERY-VERIFIED.json) · [Desktop and plugins](https://github.com/Missher12/Missher-DeepseekHarness-Desktop)
-
-## Frozen technical notes
-
-The notes below preserve the package-freeze stage. Their pending release, installation, and native-acceptance statements are historical; consult the current delivery record above.
-
-Local candidate: `@missher/dsh-context-manager` **0.10.0-local.14**. The independently accepted local.13 source was bound to 118 files. Local.14 updates Settings copy and refresh behavior, Inspector Tooltip placement/stacking, and cumulative Usage display. It remains a local candidate, not a formal Release or installation.
+Local candidate: `@missher/dsh-context-manager` **0.10.0-local.15**. Accepted and installed local.14 is the baseline; local.15 updates the Settings, session Context and Run details presentation. It remains a local candidate, not a formal Release or installation.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Local.14 evidence includes this task’s `TEST-R2-20261019.log` (9/9; run before the final Tooltip CSS adjustment), synthetic Settings previews at desktop and narrow widths, a non-empty cumulative Usage bar, and scrolled Tooltip geometry. Synthetic preview is not native Host acceptance. Local.13’s 118-file source acceptance, test groups, and documentation-only repack with 17 byte-identical runtime bundles are historical baseline facts; they do not describe local.14. See `PUBLICATION.md` and `COMPATIBILITY.json` for the current candidate boundary.
+Local.15 evidence includes the isolated build, Settings/Client typechecks, 12/12 targeted diagnostics and chart-usage tests, and synthetic desktop plus 390px narrow UI interactions. The preview uses RC.1 development primitives; Tooltip focus visuals and the native Switch remain for Desktop RC.2 Host acceptance. Screenshots are inline CUA tool outputs from this run; no public PNG files were generated. Local.14 remains the installation baseline. See `PUBLICATION.md` and `COMPATIBILITY.json` for the candidate boundary.
 
 Real-provider summary quality, actual billing, Host-native settings persistence, native Electron UI, natural Host/upgrade behavior, formal Release and installation remain separate pending checks. A synthetic adapter or package artifact cannot stand in for them.
 
@@ -29,7 +21,7 @@ Real-provider summary quality, actual billing, Host-native settings persistence,
 
 ## Public interface gallery
 
-This static candidate does not contain PNG previews yet. No browser was run and no screenshots were generated in this window. The public gallery needs a later authorized isolated visual pass with generation details and SHA checksums.
+This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
 
 ## Historical note: local.8 (2026-10-13)
 
@@ -37,7 +29,7 @@ This static candidate does not contain PNG previews yet. No browser was run and 
 
 This candidate implements deterministic structural repair with zero extra model calls, continuation headroom with a hard feasibility gate, separate dispatched/physical/candidate/applied/usage accounting with no blind replay, and an opt-in versioned sections checkpoint (json remains the default), plus read-only status-line metrics. E (tool de-load) and F (narrow preset) are not implemented because the host exposes no public contract; gap notes and a host patch candidate are recorded. Not installed, not published, no paid model acceptance. See `verification/automatic-compaction-20261013/READY.md`.
 
-**Repair-field compatibility (from local.7)**: when the structure check proves an array field was written as a single string, the program wraps the exact value locally and commits it with **zero extra model calls and no second charge**. `formatRepairEnabled` only gates that local repair. `repairPercent` and `formatRepairMaxTokens` remain readable from old configurations but are no longer spent or sent; the settings page marks them as compatibility-only. Older release notes below that mention resending failed output or a repair model call describe superseded behavior.
+**Repair-field compatibility (from local.7)**: when the structure check proves an array field was written as a single string, the program wraps the exact value locally and commits it with **zero extra model calls and no second charge**. `formatRepairEnabled` only gates that local repair. `repairPercent` and `formatRepairMaxTokens` remain readable from old configurations but do not trigger model calls or usage charges; Settings preserves their compatibility data without exposing separate controls. Older release notes below that mention resending failed output or a repair model call describe superseded behavior.
 
 The local.6 notes below are historical.
 
@@ -67,7 +59,7 @@ Historical local.5 recovery note: this candidate was recovered from published co
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Candidate version: **0.10.0-local.14**. This is a Cordis Bundle, not a Codex or Claude Code implementation. This candidate is not published and cannot be installed from a Release asset.
+Package: `@missher/dsh-context-manager`. Candidate version: **0.10.0-local.15**. This is a Cordis Bundle, not a Codex or Claude Code implementation. This candidate is not published and cannot be installed from a Release asset.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 
@@ -79,7 +71,7 @@ When that allowance is exhausted, run the manual rescue preflight, review the mo
 
 Preflight makes no model call, trims no original content and consumes no allowance. A cold session uses normal Host loading, which can append one initialization metadata event; every existing event is preserved, and preflight on a loaded session adds no events. Unfinished local summary transport, hot replacement or unverified installation metadata blocks rescue. Quit normally and reopen before checking again. Confirmation must still account for unknown prior provider cost.
 
-This historical release preserved the timeout choices then in use. See [publication notes](./PUBLICATION.md) for its scope. Backups and downgrades must retain sessions, old accounting and the `context_manager_emergency` domain; deleting records must not replenish an allowance. Historical download: [v0.10.0-local.4 Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.4). This old link is not an installation path for local.14.
+This historical release preserved the timeout choices then in use. See [publication notes](./PUBLICATION.md) for its scope. Backups and downgrades must retain sessions, old accounting and the `context_manager_emergency` domain; deleting records must not replenish an allowance. Historical download: [v0.10.0-local.4 Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.4). This old link is not an installation path for local.15.
 
 ## Wait while long compaction makes progress
 
@@ -91,7 +83,7 @@ Local.13 has no Release download asset yet; the preceding behavior description i
 
 ### Compact context view
 
-The actual model follows the current-context heading. The request strip keeps admission pressure and its check separate from the last request input and cache hit. Three compact cards show occupancy, the latest replaced region, and session usage. Unknown usage remains unknown; partial totals remain lower bounds. Two compaction records and three content previews appear by default, with full records, errors, bodies and sources available on demand. Accounting details and request turn/step identifiers remain under Data basis and details.
+The actual model follows the current-context heading. Session occupancy, composition, trends, compaction and content counts use K/M Tokens; percentages supplement shares, cache hits and savings. Unknown values remain unknown and partial totals remain lower bounds. Two compaction records and three content previews appear by default. Run details are collapsed and show six common facts; full diagnostics require an explicit copy action.
 
 ## Tool-result reduction, original archive and usage attribution
 
@@ -113,7 +105,7 @@ Summary failures retain their native error type so the Host's existing image-off
 
 ## Historical local.9 working-set behavior
 
-The older local.9 default used a 20K recent-history budget and an 8,192-token summary cap. Those values are historical, not local.14 new-install defaults. See the current settings table below.
+The older local.9 default used a 20K recent-history budget and an 8,192-token summary cap. Those values are historical, not local.15 new-install defaults. See the current settings table below.
 
 Durable per-session source cycles allow at most two main summary plans and four total calls across steps/restarts; sufficient new original content is required to renew a cycle. Identical automatic requests cannot replay. Explicit manual retries still have a four-call transaction ceiling. The format normalization is local and value-preserving for a proven single-string array-field error; it does not make another model call. Permits are separate from actual per-call usage accounting.
 
@@ -142,15 +134,15 @@ A version label alone is not a compatibility guarantee. The neutral overlay does
 
 ## Install and update
 
-Local.13 is a local package candidate, not a formal Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback must be recorded by their respective owners before the status changes. Do not replace this candidate with local.12 or an older package.
+Local.15 is a local package candidate, not a formal Release asset, and has not been installed on a daily device. Git sync, formal publication, anonymous-download checks, installation and Host-native readback must be recorded by their respective owners before the status changes. Do not replace this candidate with local.14 or an older package.
 
 ## Inspector and settings
 
 One continuous panel uses native DSH controls and theme tokens:
 
-- **Current context:** capacity and admission overview are percentages of the actual model window; details can also show estimated Token counts. The Context reserve appears for an Agent bound to the enhanced Context provider, or for native Basic only while its Context sidecar is active. Other states do not show the sidecar reserve. Basic remains responsible for its own threshold, overflow recovery and usage accounting.
-- **Changes and usage:** occupancy bars, before/after compaction, cumulative session tokens and cache hits. Summary calls have their own usage ledger, and compact attribution and tool-reduction status lines were added (details stay collapsed by default). Missing measurements remain unknown; cumulative tokens are neither current occupancy nor a bill, a partially reported total is marked as a known lower bound, and an all-unknown total reads as unknown.
-- **Effective content:** initially four rows and two recent compaction records, with expansion and pagination. Summary sources follow stored references. Text pages contain up to 16,000 characters; images show references. The inspector does not preload every historical body.
+- **Current context:** current occupancy, model window and composition labels use K/M Tokens, with percentages for shares, cache hits and savings; when the window is unknown, counts remain visible and ratios remain unknown. Capacity settings use percentages only in Settings, calculated against the actual model window. The Context reserve appears for an Agent bound to the enhanced Context provider, or for native Basic only while its Context sidecar is active. Other states do not show the sidecar reserve. Basic remains responsible for its own threshold, overflow recovery and usage accounting.
+- **Changes and usage:** trends, before/after compaction, session totals and content rows use K/M Tokens, with ratios as supporting values. Summary calls have their own usage ledger. Run details are collapsed by default and show six common facts; full diagnostics require an explicit copy action. Missing measurements remain unknown; cumulative tokens are neither current occupancy nor a bill, a partially reported total is marked as a known lower bound, and an all-unknown total reads as unknown.
+- **Effective content:** initially three rows and two recent compaction records, with expansion and pagination. Summary sources follow stored references. Text pages contain up to 16,000 characters; images show references. The inspector does not preload every historical body.
 
 The view does not activate an Agent, call a model or append session events. It hides only its conversation's composer and restores the draft when returning to the conversation. It does not poll full history or text bodies; only lightweight idle status refreshes while open. Analysis is bounded at 50,000 log events and reports an error beyond that limit. Host layout-marker changes require renewed validation of composer handling.
 
@@ -198,11 +190,11 @@ Built-in official DeepSeek routes also show peak/off-peak periods and a cost com
 
 ## Validation and limitations
 
-Local.14 carries bounded Settings and Inspector UI updates on the local.13 accepted source baseline; its new evidence and limits are summarized at the top.
+Local.15 carries the Settings, Context and Run details UI updates; targeted diagnostics/chart tests passed 12/12, and the isolated build/typechecks plus desktop/narrow synthetic interactions completed. The summary at the top records the remaining Host-native limits.
 
 Historical evidence from 2026-10-03 (not local.13) includes 115 passing tests using real AgentLoop/JSONL/storage with a mock model, then 20 focused tests after a naming-only revision. Isolated custom rc.2 Loader/RPC and controlled Web validation covered light/dark themes, 1280/800/335px, source pagination, hidden composer and equal-height cards. A later Intel macOS daily installation confirmed the entries and read-only RPC for that older version; this does not establish current local.13 acceptance or installation.
 
-Historical r3/older-package validation (not local.14): affected-source checks passed 88 cases with one environment skip. That older environment's Electron Node24 passed 115 of 116 key cases; the skipped ASAR-path case had a separate 3/3 Electron check. Host settings saves, restart, cold and loaded preflight, original events and old accounting were verified without real model requests for that earlier package. These are historical results, not new local.14 source, Host or installation acceptance. Native visuals, real-provider quality and remote machines remain unverified; overlapping groups are not additive. See [PUBLICATION.md](./PUBLICATION.md).
+Historical r3/older-package validation (not local.15): affected-source checks passed 88 cases with one environment skip. That older environment's Electron Node24 passed 115 of 116 key cases; the skipped ASAR-path case had a separate 3/3 Electron check. Host settings saves, restart, cold and loaded preflight, original events and old accounting were verified without real model requests for that earlier package. These are historical results, not new local.15 source, Host or installation acceptance. Native visuals, real-provider quality and remote machines remain unverified; overlapping groups are not additive. See [PUBLICATION.md](./PUBLICATION.md).
 
 These are separate, dated validation layers, not fresh acceptance on every platform. Real-provider summary quality, long-task semantic retention, and native Windows/Linux execution remain unverified. Compaction retries do not completely rerun the host's dynamic `preStep` rule/plan assembly; files and task state must be checked through existing tools as needed. See the repository's [verification records](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main/verification).
 
@@ -227,7 +219,7 @@ The linker creates this copy's explicit `harness-sdk` and development dependency
 
 ## Historical pre-local.13 timeout and retry note (superseded; not current local.13 policy)
 
-**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current local.14 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the local.14 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
+**The entire appendix below is retained as version history only.** Its statements that adaptive timing is opt-in and that automatic/manual/recovery calls share a 2-primary/4-total budget describe older behavior; do not apply them to local.13. Current local.15 policy is documented in the sections above: new installations default to adaptive timing (600 seconds total, 120 seconds to first meaningful output, 180 seconds stalled); existing configurations with no mode field remain fixed until explicitly switched and saved. Current manual and recovery budgets follow the local.15 ledger and policy. Native Basic retains its own accounting; Context call limits and ledger cover only the separate Context sidecar path.
 
 Existing configurations keep fixed mode and their exact transaction-wide `timeoutMs`. Adaptive mode is opt-in: 600 seconds total, 120 seconds to first nonempty text/reasoning, and 180 seconds stalled by default. Repairs share the remaining total. Usage/heartbeat/empty chunks never renew progress.
 

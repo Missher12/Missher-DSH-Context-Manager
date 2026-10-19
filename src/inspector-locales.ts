@@ -1,8 +1,10 @@
 /** Copy owned by the context panel. Native settings retain their existing copy. */
 export const zh = {
   latestCompaction: '最近压缩', recordList: '压缩记录', recordDetails: '查看记录与原因', dataBasis: '数据口径与详情', knownBound: '已知用量下界',
-  title: '上下文', readonly: '只读', refresh: '刷新数据', settingsHint: '设置 → 上下文管理',
+  title: '上下文', readonly: '只读', refresh: '刷新', settingsHint: '设置 → 上下文管理', settingsLink: '设置',
   runDetails: '运行详情', bindingDiagnostic: '压缩方式', cooperationDiagnostic: '功能状态', timeoutDiagnostic: '整理时限', policyDiagnostic: '已保存策略', idleDiagnostic: '空闲整理详情', goalDiagnostic: '任务停止详情',
+  runAuto: '自动压缩', runToolResults: '工具结果', runPostTask: '任务后整理', runRecent: '最近结果', runDuration: '耗时', runUsage: '本次用量', sampledAt: '最近采样',
+  copyDiagnostics: '复制诊断', copySuccess: '诊断已复制。', copyFailed: '复制失败；请检查剪贴板权限。', runRefreshing: '刷新中', notDispatched: '未调用模型',
   runStatus: '状态', runMessage: '说明', runDeadline: '时限', runExecution: '执行信息', runCapacity: '本次计划', runRecovery: '恢复方式', runEmergency: '人工恢复', legacyCapacity: '旧版 Token 设置仍生效', targetMismatch: '返回数据与当前会话不符',
   fixedTimeout: '固定总时限', adaptiveTimeout: '自适应总时限', firstOutputWait: '首次输出等待', progressWait: '无进展等待', seconds: '秒，到时停止整理', recoveryAvailable: '可授权一次恢复', emergencyAvailable: '可进行人工恢复预检',
   bindingPreset: 'Agent 预设', bindingGeneration: '绑定代次', bindingProvider: 'Provider', bindingSource: '绑定来源', sourceDeclaration: '声明', sourceRegistration: '注册',
@@ -46,7 +48,7 @@ export const zh = {
   recent: '最近请求容量', requestWindowUnknown: '窗口比例未知', requestInputDetail: '请求输入用量', cache: '缓存命中', noRequest: '暂无请求记录',
   trend: '占用变化', trendHint: '宿主投影估算的最近 40 个截面，不是准入门控计量。按记录顺序排列；缺失值留空。点击柱查看该截面的上下文。',
   noTrend: '暂无占用记录', replacement: '内容替换后', reply: '回复后', cut: '截面末尾',
-  record: '记录', unknownUsage: '用量未知', compactions: '压缩前后', segment: '本次替换片段 · 压缩前=100%' ,
+  record: '记录', unknownUsage: '用量未知', usageIntegrityUnknown: '已记录用量 · 完整性未知', compactions: '压缩前后', segment: '本次替换片段 · 压缩前=100%' ,
   before: '压缩前', after: '压缩后', noCompaction: '暂无压缩记录', reduced: '减少', increased: '增加',
   compact: '压缩', prune: '裁剪', running: '进行中', completed: '已完成', failed: '失败',
   triggerIdle: '闲置', triggerPressure: '请求前', triggerOverflow: '溢出', triggerManual: '手动', betweenTurns: '会话间', duringTask: '任务内', toolCleanup: '工具整理',
@@ -95,8 +97,10 @@ export const zh = {
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
   latestCompaction: 'Latest compaction', recordList: 'Compaction records', recordDetails: 'Record and reason', dataBasis: 'Data basis and details', knownBound: 'Known usage lower bound',
-  title: 'Context', readonly: 'Read only', refresh: 'Refresh', settingsHint: 'Settings → Context manager',
+  title: 'Context', readonly: 'Read only', refresh: 'Refresh', settingsHint: 'Settings → Context manager', settingsLink: 'Settings',
   runDetails: 'Run details', bindingDiagnostic: 'Compaction method', cooperationDiagnostic: 'Feature status', timeoutDiagnostic: 'Timing limits', policyDiagnostic: 'Saved settings', idleDiagnostic: 'Idle compaction details', goalDiagnostic: 'Task stop details',
+  runAuto: 'Automatic compaction', runToolResults: 'Tool results', runPostTask: 'Post-task compaction', runRecent: 'Latest result', runDuration: 'Duration', runUsage: 'This call usage', sampledAt: 'Sampled',
+  copyDiagnostics: 'Copy diagnostics', copySuccess: 'Diagnostics copied.', copyFailed: 'Copy failed; check clipboard permission.', runRefreshing: 'Refreshing', notDispatched: 'Model not called',
   runStatus: 'Status', runMessage: 'Details', runDeadline: 'Deadline', runExecution: 'Execution', runCapacity: 'Current plan', runRecovery: 'Recovery', runEmergency: 'Manual recovery', legacyCapacity: 'Legacy Token settings remain active', targetMismatch: 'Response does not match the current session',
   fixedTimeout: 'Fixed total limit', adaptiveTimeout: 'Adaptive total limit', firstOutputWait: 'First-output wait', progressWait: 'No-progress wait', seconds: 'seconds; compaction stops when it expires', recoveryAvailable: 'One recovery can be authorized', emergencyAvailable: 'Manual recovery can be checked',
   bindingPreset: 'Agent preset', bindingGeneration: 'Binding generation', bindingProvider: 'Provider', bindingSource: 'Binding source', sourceDeclaration: 'declaration', sourceRegistration: 'registration',
@@ -140,7 +144,7 @@ export const en: Record<InspectorLocaleKey, string> = {
   recent: 'Latest request capacity', requestWindowUnknown: 'Window percentage unknown', requestInputDetail: 'Request input usage', cache: 'Cache hit', noRequest: 'No request records',
   trend: 'Occupancy', trendHint: 'Last 40 estimated host-projection cuts, not admission measurements. Record order is preserved; missing values stay blank. Select a bar to inspect that cut.',
   noTrend: 'No occupancy records', replacement: 'After replacement', reply: 'After reply', cut: 'Current cut',
-  record: 'Record', unknownUsage: 'Usage unknown', compactions: 'Before & after', segment: 'Replaced segment · before = 100%' ,
+  record: 'Record', unknownUsage: 'Usage unknown', usageIntegrityUnknown: 'Recorded usage · completeness unknown', compactions: 'Before & after', segment: 'Replaced segment · before = 100%' ,
   before: 'Before', after: 'After', noCompaction: 'No compaction records', reduced: 'Reduced', increased: 'Increased',
   compact: 'Compaction', prune: 'Pruning', running: 'Running', completed: 'Completed', failed: 'Failed',
   triggerIdle: 'Idle', triggerPressure: 'Before request', triggerOverflow: 'Overflow', triggerManual: 'Manual', betweenTurns: 'Between turns', duringTask: 'During task', toolCleanup: 'Tool cleanup',
