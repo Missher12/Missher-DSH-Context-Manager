@@ -6,12 +6,12 @@
   "artifact": {
     "fileName": "missher-dsh-context-manager-0.10.1.tgz",
     "relativePath": "dist/missher-dsh-context-manager-0.10.1.tgz",
-    "sha256": "89fe968734b87da5a0448d2880794585c1f74fb787a33c174079788b49f145aa",
-    "sizeBytes": 353153,
+    "sha256": "2e7acc9321e8e5064e4e66876c68bce977bbc278a95866f70d4002d9470e4910",
+    "sizeBytes": 353675,
     "memberCount": 24
   },
-  "sourceManifestSha256": "e0c436a613f3a3eab2eb6192178e7ff397a74f0836b464fcd5e0a5faba0a176d",
-  "frozenInputManifestSha256": "517973969790d8c4b062322fd5f32451f5025a48cd91a69fbfec4709890add41",
+  "sourceManifestSha256": "15d4dc6e54dee81524ff655c3ea0c01a4a664f12d620908f9fb164aac6c8c17b",
+  "frozenInputManifestSha256": "1e66ad6f3759e54dc70902ac2d74db2f38cf3f11e8d8ecdb7478ed96563e6a11",
   "archiveMembers": [
     {
       "path": "package/LICENSE",
@@ -30,8 +30,8 @@
     },
     {
       "path": "package/lib/client.js",
-      "sha256": "8031da850f70cbfef414974237aa7c3bf3140366b87fd1ad99c0aa266262a1b5",
-      "sizeBytes": 821914
+      "sha256": "0cd76a94cb14e77cab2ef876f6e5757770f1c5d7774e03cc657b2221a4c94b67",
+      "sizeBytes": 822411
     },
     {
       "path": "package/lib/compaction-cycles.js",
@@ -105,8 +105,8 @@
     },
     {
       "path": "package/COMPATIBILITY.json",
-      "sha256": "ca3a67992540b44e40b5db8a5f53f395b3a34cad5e6ca3c8480ff4e332a9dae9",
-      "sizeBytes": 8299
+      "sha256": "a7cb57def84717f8637cb11f1a9ecf4a31f403869fa4701cd1520ec5f65c45a8",
+      "sizeBytes": 8628
     },
     {
       "path": "package/package.json",
@@ -115,13 +115,13 @@
     },
     {
       "path": "package/README.en.md",
-      "sha256": "7a634fffe0870f8f21a68267b93769d460f78173bb33dbce1e26cb4063bf0a9d",
-      "sizeBytes": 35261
+      "sha256": "6ea53edc30892ca7847e413b049203c28be15965375c62094818bbc426730c08",
+      "sizeBytes": 35661
     },
     {
       "path": "package/README.md",
-      "sha256": "426ff4c37483df7d7993761960674a73e38dd05cb9aec7c9d8b1f7495349e28d",
-      "sizeBytes": 29845
+      "sha256": "760186b9b94808c390dd6f767ac0c70d00e3477960c747c79860f9ba671bf375",
+      "sizeBytes": 30198
     },
     {
       "path": "package/THIRD_PARTY_NOTICES.md",
@@ -136,7 +136,7 @@
   ],
   "validation": {
     "build": "Bounded final build and24-member package boundary check passed.",
-    "scope": "Numeric field layout CSS only, plus version and documentation; no backend behavior or Host changes.",
+    "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
     "syntheticUI": "Actual RC.2 Input/Button in an isolated ContextSettings form: numeric editing, empty validation, reset and unchanged persisted draft baseline; Chinese/English layout checks.",
     "nativeUI": "pending actual RC.2 desktop acceptance",
     "modelRequests": 0,

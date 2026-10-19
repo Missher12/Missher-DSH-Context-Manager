@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "version": "0.10.1",
   "status": "source-reviewed-native-delivery-pending",
-  "verifiedAt": "2026-10-19T18:19:19.806601+00:00",
+  "verifiedAt": "2026-10-19T18:36:49.857975+00:00",
   "archive": {
     "fileName": "missher-dsh-context-manager-0.10.1.tgz",
     "relativePath": "dist/missher-dsh-context-manager-0.10.1.tgz",
-    "sha256": "89fe968734b87da5a0448d2880794585c1f74fb787a33c174079788b49f145aa",
-    "sizeBytes": 353153,
+    "sha256": "2e7acc9321e8e5064e4e66876c68bce977bbc278a95866f70d4002d9470e4910",
+    "sizeBytes": 353675,
     "memberCount": 24
   },
   "sourceInputsVerified": 64,

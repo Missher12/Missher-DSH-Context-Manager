@@ -3,10 +3,10 @@
   "product": "@missher/dsh-context-manager",
   "version": "0.10.1",
   "status": "source-reviewed-native-delivery-pending",
-  "scope": "Numeric field layout CSS only, plus version and documentation; no backend behavior or Host changes.",
+  "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
   "validation": {
     "build": "Bounded final build and24-member package boundary check passed.",
-    "scope": "Numeric field layout CSS only, plus version and documentation; no backend behavior or Host changes.",
+    "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
     "syntheticUI": "Actual RC.2 Input/Button in an isolated ContextSettings form: numeric editing, empty validation, reset and unchanged persisted draft baseline; Chinese/English layout checks.",
     "nativeUI": "pending actual RC.2 desktop acceptance",
     "modelRequests": 0,

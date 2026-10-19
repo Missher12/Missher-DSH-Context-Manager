@@ -145,7 +145,7 @@
 .dsh-context-settings .cm-feedback { margin-top: 10px; }
 
 /* Compact settings rows follow the Host's native settings spacing and tokens. */
-.dsh-context-settings .cm-settings-form { min-width: 0; }
+.dsh-context-settings .cm-settings-form { min-width: 0; container: cm-settings-form / inline-size; }
 .dsh-context-settings .cm-native-value,
 .dsh-context-settings .cm-native-toggle,
 .dsh-context-settings .cm-native-select-row {
@@ -189,6 +189,13 @@
 .dsh-context-settings .cm-native-switch:disabled { opacity: .45; cursor: default; }
 .dsh-context-settings .cm-native-switch:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
 .dsh-context-settings .cm-native-save { display: flex; justify-content: flex-end; padding-top: 12px; }
+@container cm-settings-form (max-width: 420px) {
+  .dsh-context-settings .cm-native-value,
+  .dsh-context-settings .cm-native-select-row { grid-template-columns: minmax(0,1fr); gap: 7px; }
+  .dsh-context-settings .cm-native-value-control { grid-column: 1; justify-content: flex-start; }
+  .dsh-context-settings .cm-native-select-row select { justify-self: stretch; max-width: none; }
+  .dsh-context-settings .cm-native-toggle { gap: 7px 16px; }
+}
 @media (max-width: 580px) {
   .dsh-context-settings .cm-native-value,
   .dsh-context-settings .cm-native-select-row { grid-template-columns: minmax(0,1fr); gap: 7px; }

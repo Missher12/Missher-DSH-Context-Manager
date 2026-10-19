@@ -4,7 +4,7 @@
   "runtimeDiagnosticVersion": "0.10.1",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.1 is a local candidate based on the released 0.10.0 source. It fixes numeric Context settings field geometry: the RC.2 Input wrapper keeps a stable 112px border-box, position stays fixed as Custom/Reset controls appear, and longer units can wrap without splitting. Only the settings field presentation changed; backend behavior, saved values, persistence and host source are unchanged. RC.2 Input/Button synthetic UI checks cover desktop and narrow layouts; Host-native acceptance, Release and installation of 0.10.1 remain pending.",
+  "candidateStatus": "0.10.1 narrow-r2 is a local candidate based on the released 0.10.0 source and preserves the 112px RC.2 Input border-box and stable Custom/Reset geometry. A named inline-size container on the settings form activates the existing single-column settings rules at 420px content width, so a narrow Host modal responds to its actual form width while the 580px viewport media query remains a fallback. The r1 Host review accepted 782px settings geometry and rejected the 600px viewport with a 312px form because Chinese labels wrapped one character per line; r2 addresses that layout. RC.2 synthetic preview checks passed at a 600px viewport with 312px form content and at a 564px form width in Chinese and English. Backend behavior, saved values, persistence and Host source are unchanged. Updated Host-native acceptance, Release and installation of 0.10.1 remain pending.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
