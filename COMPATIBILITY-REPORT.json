@@ -2,21 +2,28 @@
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
   "version": "0.10.0",
-  "status": "source-reviewed-native-delivery-pending",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
   "scope": "Context inspector heading common24px minimum boxes with long-state wrapping; normal semantic version.",
   "validation": {
     "build": "One bounded build and package boundary check passed.",
     "sourceAndPackage": "104 source inputs and24 package members independently verified; one dedicated fixture exported.",
     "scope": "Three scoped inspector header CSS declarations; version becomes0.10.0.14 libraries unchanged, engine/index version strings only.",
     "syntheticUI": "1280 short Chinese labels:24px base boxes and equal center;390 long Chinese/English status wraps; no horizontal overflow; refresh reachable.",
-    "nativeUI": "pending actual RC.2 desktop acceptance",
+    "nativeUI": "Actual Ubuntu RC.2 Electron heading and refresh accepted at1280/600; preservation verified. Native DOM coordinates were not available.",
     "modelRequests": 0,
-    "notRerun": "Unchanged backend behavior tests and earlier native Input acceptance are historical evidence, not rerun."
+    "notRerun": "Unchanged backend behavior tests and earlier native Input acceptance are historical evidence, not rerun.",
+    "storageCI": {
+      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39296313168",
+      "commit": "1243ab95cabdf632317cdaaae41a625520ffc0b4",
+      "jobsPassed": 12,
+      "totalJobs": 12
+    }
   },
   "compatibility": "Existing capability detection and host ranges unchanged. Tested hosts are evidence baselines, not exact-version requirements.",
   "previousVersionEvidence": {
     "version": "0.10.0-local.16",
     "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/ea67a35d6bc155a55caa183e21e198e65cd060b3/COMPATIBILITY-REPORT.json",
     "reportSha256": "687f1d899c627b55f44053d55b83c6170b2d3dcb8cddbdef6b0dbe65290a01cd"
-  }
+  },
+  "verifiedAt": "2026-10-19T17:48:59.071868+00:00"
 }

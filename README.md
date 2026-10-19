@@ -1,16 +1,16 @@
-# 2026-10-20 Context 0.10.0 候选：Inspector 标题行对齐
+# Context Manager 0.10.0
 
-本地候选：`@missher/dsh-context-manager` **0.10.0**。本候选基于已验收的 local.16 源码，只统一 Context Inspector 标题行的基础行盒和行高，保留字号层级、长状态换行及刷新操作。尚未发布或安装。
+`@missher/dsh-context-manager` **0.10.0** 已[正式发布](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0)，并安装到维护者的 Ubuntu RC.2 桌面。本次统一“上下文 / 只读 / 状态”标题行的基础行盒，保留字号层级、长状态换行及刷新操作；此前 local.16 的输入框边框修复继续保留。新版本使用正常语义版本号，不再带 `local` 后缀。
 
 本项目交付的是 Cordis Bundle 插件，不改 DeepSeek Harness 桌面 Host 源码、不另装兼容插件。Bundle 只插入 Context Manager 和只读 Inspector，不快照或重写宿主 preset。Host 的 provider 注册能力 v1 只影响 enhanced provider 注册；能力缺失不会自动替换或关闭 Host 的 Basic。冻结 RC.2 Loader 的离线集成使用合成适配器，验证默认 Basic 保留、Context 请求/闲置侧路协作以及 Basic 自己的 overflow 恢复。Basic 按自己的阈值、费用和账本工作；Context 的 2 个主摘要/4 次调用限制不覆盖 Basic，也不承诺所有窗口都只压一次。
 
 预算算术覆盖 32K、64K、100K、200K 和 1M Token 窗口。100K 多轮语义用固定事实 oracle 与合成摘要核对纠正、约束、待办、失败证据、来源配对、重载与单次副作用；它不是任意真实模型的摘要质量证明。该回放最终 checkpoint 总量不超过 4K Token，不代表每个中间快照或每种分词器均已实测。
 
-local.15 的 12/12 定向测试证据由 local.16 继承；local.16 包和标签保持不变。0.10.0 只调整 Context Inspector 标题行。合成浏览器检查覆盖 1280px 与 390px 下的长中英文状态换行和刷新可见性；这不是 Host 原生验收。local.14 保持为日常安装基线；本地包边界见 `PUBLICATION.md` 与 `COMPATIBILITY.json`。
+验证结果：精确包为 353,085 字节、24 个成员，本地、GitHub 摘要及一次匿名完整下载的 SHA256 一致。[跨平台存储 CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39296313168) 的 Windows / Ubuntu / macOS、Node 22 / 24 共 12 项全部通过。实际 RC.2 桌面在 1280 / 600 宽度下检查了标题行和刷新操作，会话、保存设置、其他插件及 Host 标题栏文件均保留。长中英文换行及基础行盒坐标来自 1280 / 390 合成预览，未冒称原生 DOM 测量。
 
-真实供应商模型质量、真实费用、Host 原生设置持久化、原生 Electron UI、自然宿主与升级流程、正式 Release 和安装仍分别待验；合成 Adapter 或包存在不能代替这些验收。
+本次原生验收覆盖受影响的标题行与刷新操作；真实供应商摘要质量、费用、其他设备及未测宿主仍属于独立验收范围。兼容范围与能力检测不变，RC.2 是验收基线，不是唯一可用版本。详见 [PUBLICATION.md](PUBLICATION.md) 与 [DELIVERY-VERIFIED.json](DELIVERY-VERIFIED.json)。包内文档保留冻结时状态，当前交付状态以本页为准。
 
-## local.9 功能范围（当前候选继承）
+## local.9 功能范围（当前版本继承）
 
 - **A 格式归一化与结构修复**：严格检查 checkpoint 结构；只有能确定为“数组字段误写成单个字符串”时才按原值本地包装，不增加模型调用。其他结构错误继续拒绝并保留原文。
 - **B 工作集增长与续跑余量**：动态保留工作集和 continuation headroom，并在发起与提交前检查完整占用和可行性。
@@ -20,7 +20,7 @@ local.15 的 12/12 定向测试证据由 local.16 继承；local.16 包和标签
 
 ## 公开界面配图
 
-当前候选不包含公开 PNG 配图。local.15 已完成本地合成 UI 预览；该预览用于布局检查，不代表 RC.2 Host 原生界面验收。公开图库仍需后续独立视觉阶段，并附生成方式与 SHA。
+仓库提供[合成标题行示例](examples/header-row-preview/index.html)，使用公开结构与源码 CSS 检查布局。私人桌面截图不公开。实际原生验收结果见上方；示例本身不能代替原生证据。
 
 ## 历史说明：local.8（2026-10-13）
 

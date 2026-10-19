@@ -1,14 +1,14 @@
-# 2026-10-20 Context 0.10.0 candidate: Inspector header alignment
+# Context Manager 0.10.0
 
-Local candidate: `@missher/dsh-context-manager` **0.10.0**. It starts from the accepted local.16 source and only gives the Context Inspector heading children a shared 24px base box with explicit line heights and box sizing. Title hierarchy, long-status wrapping and refresh behavior are preserved. It has not been published or installed.
+`@missher/dsh-context-manager` **0.10.0** is [formally released](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0) and installed on the maintainer's Ubuntu RC.2 desktop. This version aligns the Context Inspector title, read-only label and status using shared base boxes while preserving title hierarchy, long-status wrapping and refresh behavior. The accepted local.16 input-border fix is retained. This release uses a normal semantic version without a `local` suffix.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Local.15 targeted-test evidence is inherited through local.16; the local.16 package and tag remain unchanged. Version 0.10.0 only adjusts the Context Inspector heading row. The synthetic browser check covers long Chinese/English status wrapping and refresh visibility at 1280px and 390px; it is not Host-native acceptance. Local.14 remains the daily installation baseline. See `PUBLICATION.md` and `COMPATIBILITY.json` for package boundaries.
+Validation: the exact package has 24 members and is 353,085 bytes; local, GitHub and one anonymous full-download SHA256 checks agree. The [storage CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39296313168) passed all 12 Windows/Ubuntu/macOS jobs with Node 22/24. Native RC.2 checks covered the actual heading and refresh action at widths 1280 and 600; sessions, saved settings, other plugins and Host header clients were preserved. Long Chinese/English wrapping and equal base-box coordinates were checked in the 1280/390 synthetic fixture, not measured in the native DOM.
 
-Real-provider summary quality, actual billing, Host-native settings persistence, native Electron UI, natural Host/upgrade behavior, formal Release and installation remain separate pending checks. A synthetic adapter or package artifact cannot stand in for them.
+The native check covers the affected heading and refresh action. Real-provider summary quality, billing, other devices and untested Host versions are separate acceptance scopes. Existing capability checks and supported ranges are unchanged; RC.2 is an evidence baseline, not an exact-version requirement. See [PUBLICATION.md](PUBLICATION.md) and [DELIVERY-VERIFIED.json](DELIVERY-VERIFIED.json). The archive documentation retains its freeze-time status; current delivery status is recorded here.
 
 ## Inherited local.9 scope
 
@@ -17,11 +17,11 @@ Real-provider summary quality, actual billing, Host-native settings persistence,
 - **C Status and usage accounting:** dispatched and undispatched attempts are separate; `not_dispatched` does not count as unknown usage, while dispatched attempts without complete usage remain unknown.
 - **D Versioned checkpoint:** sections use `context-manager/3` and require explicit opt-in; JSON remains the default. Structural validity does not establish semantic fidelity.
 - **E Tool-result de-load:** a constrained path is implemented for successful foreground Bash output only: nonempty cwd, exit code 0, not cancelled or timed out, no signal, complete stdout/stderr, and empty stderr. A deterministic repeated-line rule makes no model call; the original is stored in the read-only archive first, and publication is counted only if the final Host result still carries the reference. `toolResultsMode` defaults to `observe`; the UI must be explicitly set to **Safe reduce** (`reduce`) before content changes. Other tools and failed or incomplete results pass through unchanged. There is no vector database or promise of actual Token or cost savings.
-- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural Host runtime, real-model quality and native UI remain pending.
+- **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; real-model quality and natural compaction behavior remain separate acceptance scopes. The current heading UI acceptance is recorded above.
 
 ## Public interface gallery
 
-This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
+The [synthetic header example](examples/header-row-preview/index.html) uses public markup and source CSS for layout review. Private desktop screenshots are excluded. Actual native UI acceptance is recorded above; the example alone is not native evidence.
 
 ## Historical note: local.8 (2026-10-13)
 
