@@ -26,15 +26,17 @@
     },
     {
       "path": "README.en.md",
-      "exportedSha256": "5a8c3df93313233a90fa6502a6df6d51a3940c96b7b59586ec0715a68b4e7fc4",
+      "exportedSha256": "1dcb30227e81a65a85139fd9505f46e3d22906fcd9b55c2c164f8c1733504a53",
       "previousLocal15Sha256": "143ab97ca81f1b63731028b560a8990394c0719e3dcc541fa2d0e88529e8c1f6",
-      "classification": "local16-native-input-fix"
+      "classification": "post-release-public-delivery-documentation",
+      "frozenExportedSha256": "5a8c3df93313233a90fa6502a6df6d51a3940c96b7b59586ec0715a68b4e7fc4"
     },
     {
       "path": "README.md",
-      "exportedSha256": "de3d4c6798fc65e94ef4fd785003f888bf8188d76e46db2d4d66824b59a96d17",
+      "exportedSha256": "caf97251c7f51d4239910e5feee7815403ffaaee27d492b785529b6b4facbcf6",
       "previousLocal15Sha256": "f49b274b7a5a723feed4779d7c95164f0fd922d8d458bf77dd7edd9cafc1b710",
-      "classification": "local16-native-input-fix"
+      "classification": "post-release-public-delivery-documentation",
+      "frozenExportedSha256": "de3d4c6798fc65e94ef4fd785003f888bf8188d76e46db2d4d66824b59a96d17"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -732,5 +734,14 @@
       "previousLocal15Sha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
       "classification": "unchanged-reviewed-local15-source"
     }
-  ]
+  ],
+  "postReleaseDocumentation": {
+    "updatedAt": "2026-10-19T14:24:42.493843+00:00",
+    "files": [
+      "README.en.md",
+      "README.md"
+    ],
+    "archiveUnchanged": true,
+    "sourceTagUnchanged": true
+  }
 }

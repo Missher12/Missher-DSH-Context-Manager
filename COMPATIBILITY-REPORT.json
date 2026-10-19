@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
   "version": "0.10.0-local.16",
-  "status": "reviewed-native-input-fix-awaiting-native-delivery",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
   "scope": "Fix RC.2 native Input double border from local.15; retain the approved compact settings and Context UI.",
   "validation": {
     "local16Build": "passed under the existing resource cap",
@@ -10,7 +10,7 @@
     "staticReview": "Input wrapper/inner/focus separation, textarea and invalid-state boundaries checked",
     "backendComparison": "14 lib files unchanged; engine/index version strings only; client CSS/copy changed",
     "inheritedLocal15Evidence": "12/12 targeted behavior tests and typechecks; not rerun because no TS/API/behavior change. Previously passing native non-Input observations retained.",
-    "nativeInput": "pending actual RC.2 focus/error/disabled and wide/narrow acceptance"
+    "nativeInput": "Passed actual RC.2 Electron: normal/focus/error/disabled, 1280/600, light/dark, English custom 49%, textarea retained; drafts discarded."
   },
   "compatibility": "Existing capability detection and declared host ranges retained. Tested versions are evidence baselines, not an exact-version requirement; no new blanket compatibility claim.",
   "previousVersionEvidence": {
@@ -23,5 +23,6 @@
     "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
     "Safe daily installation and preservation readback",
     "Formal Release and anonymous asset verification"
-  ]
+  ],
+  "verifiedAt": "2026-10-19T14:24:42.493843+00:00"
 }

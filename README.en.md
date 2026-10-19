@@ -1,14 +1,14 @@
-# 2026-10-19 Context 0.10.0-local.16 plugin candidate: RC.2 native Input styling fix
+# Context 0.10.0-local.16: RC.2 native Input fix
 
-Local candidate: `@missher/dsh-context-manager` **0.10.0-local.16**. This version inherits local.15's approved Settings, session Context and Run details UI and only fixes duplicate styling on the RC.2 native Input. It remains a local candidate, not a formal Release or installation.
+`@missher/dsh-context-manager` **0.10.0-local.16** is formally released and installed on the maintainer’s Ubuntu desktop with native UI acceptance. [Download the release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.16). It preserves the approved Settings, session Context and Run details UI and fixes the RC.2 native Input double border.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-Local.15 targeted tests and synthetic preview evidence are inherited by local.16; that preview uses RC.1 development primitives and does not prove the RC.2 native Input appearance. Desktop still needs to verify local.16 focus, error and disabled states in the actual Host. Local.14 remains the installation baseline. See `PUBLICATION.md` and `COMPATIBILITY.json` for the candidate boundary.
+Actual RC.2 Electron checks covered normal, focused, invalid and disabled Inputs, 1280/600 widths, light/dark themes and an editable English custom 49% value. Drafts were discarded; stored settings, all sessions and other plugins were preserved. The unchanged 12 targeted tests and typechecks reuse local.15 evidence. No paid model request was made. See [PUBLICATION.md](./PUBLICATION.md) and [COMPATIBILITY-REPORT.json](./COMPATIBILITY-REPORT.json) for delivery boundaries.
 
-Real-provider summary quality, actual billing, Host-native settings persistence, native Electron UI, natural Host/upgrade behavior, formal Release and installation remain separate pending checks. A synthetic adapter or package artifact cannot stand in for them.
+This acceptance did not test real-provider summary quality, billing or installation on other devices. Publication does not update another computer automatically. Packaged README files retain their freeze-time status; these repository documents describe current delivery. The release archive, tag and frozen-source hashes are unchanged.
 
 ## Inherited local.9 scope
 

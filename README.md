@@ -1,14 +1,14 @@
-# 2026-10-19 Context 0.10.0-local.16 插件候选：RC.2 原生输入框样式修正
+# Context 0.10.0-local.16：RC.2 原生输入框修正
 
-本地候选：`@missher/dsh-context-manager` **0.10.0-local.16**。此版本继承 local.15 已批准的 Settings、会话上下文和运行详情界面，只修正 RC.2 原生 Input 的内外框重复样式。它仍是本地候选，尚未正式发布或安装。
+`@missher/dsh-context-manager` **0.10.0-local.16** 已正式发布，并在维护者 Ubuntu 桌面完成安装和原生界面验收。[下载正式版本](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.16)。本版继承已批准的设置、会话上下文及运行详情界面，修正 RC.2 原生输入框重复边框。
 
 本项目交付的是 Cordis Bundle 插件，不改 DeepSeek Harness 桌面 Host 源码、不另装兼容插件。Bundle 只插入 Context Manager 和只读 Inspector，不快照或重写宿主 preset。Host 的 provider 注册能力 v1 只影响 enhanced provider 注册；能力缺失不会自动替换或关闭 Host 的 Basic。冻结 RC.2 Loader 的离线集成使用合成适配器，验证默认 Basic 保留、Context 请求/闲置侧路协作以及 Basic 自己的 overflow 恢复。Basic 按自己的阈值、费用和账本工作；Context 的 2 个主摘要/4 次调用限制不覆盖 Basic，也不承诺所有窗口都只压一次。
 
 预算算术覆盖 32K、64K、100K、200K 和 1M Token 窗口。100K 多轮语义用固定事实 oracle 与合成摘要核对纠正、约束、待办、失败证据、来源配对、重载与单次副作用；它不是任意真实模型的摘要质量证明。该回放最终 checkpoint 总量不超过 4K Token，不代表每个中间快照或每种分词器均已实测。
 
-local.15 的定向测试和合成预览证据由 local.16 继承；该预览使用 RC.1 开发控件，不证明 RC.2 原生输入框外观。local.16 的 RC.2 焦点、错误态和禁用态仍待 Desktop 验收。local.14 保持为安装基线；本地包的完整边界见 `PUBLICATION.md` 与 `COMPATIBILITY.json`。
+实际 RC.2 Electron 已检查输入框普通、焦点、错误和禁用状态，以及 1280/600 宽度、浅色/深色与英文自定义 49% 输入。设置草稿未保存，原设置、全部会话及其他插件保持不变。12 项未受影响的定向测试和类型检查沿用 local.15 证据；本轮没有重复付费模型测试。交付边界见 [PUBLICATION.md](./PUBLICATION.md) 和 [COMPATIBILITY-REPORT.json](./COMPATIBILITY-REPORT.json)。
 
-真实供应商模型质量、真实费用、Host 原生设置持久化、原生 Electron UI、自然宿主与升级流程、正式 Release 和安装仍分别待验；合成 Adapter 或包存在不能代替这些验收。
+真实供应商摘要质量、费用和其他设备的安装仍未在本次验收中测试；发布不表示其他电脑已经更新。包内 README 保留冻结时内容，最新交付状态以本仓库文档为准；正式包、标签和源码冻结哈希保持不变。
 
 ## local.9 功能范围（当前候选继承）
 

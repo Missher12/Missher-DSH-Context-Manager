@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "version": "0.10.0-local.16",
-  "status": "reviewed-native-input-fix-awaiting-native-delivery",
-  "verifiedAt": "2026-10-19T14:02:15.851857+00:00",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
+  "verifiedAt": "2026-10-19T14:24:42.493843+00:00",
   "archive": {
     "fileName": "missher-dsh-context-manager-0.10.0-local.16.tgz",
     "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.16.tgz",
@@ -13,9 +13,9 @@
   "sourceInputsVerified": 104,
   "archiveMembersVerified": 24,
   "boundaries": {
-    "installed": false,
-    "released": false,
-    "nativeRc2UiAccepted": false,
+    "installed": true,
+    "released": true,
+    "nativeRc2UiAccepted": true,
     "modelRequests": false,
     "backendBehaviorChanged": false
   },
@@ -23,13 +23,64 @@
     "version": "0.10.0-local.14",
     "status": "formal-release-and-ubuntu-native-installation-verified"
   },
-  "pending": [
-    "Actual RC.2 Input normal/focus/error/disabled and wide/narrow layout",
-    "Safe daily installation and preservation readback",
-    "Formal Release and anonymous asset verification"
-  ],
+  "pending": [],
   "previousCandidate": {
     "version": "0.10.0-local.15",
     "status": "source tag retained; native double-border defect rejected; never formally released; daily rolled back to local.14"
-  }
+  },
+  "release": {
+    "at": "2026-10-19T14:08:18.959477+00:00",
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.16",
+    "id": 417367851,
+    "tag": "v0.10.0-local.16",
+    "commit": "40aee25ad46c1797dd92b42ad09dec1a4cfc6cea",
+    "draft": false,
+    "prerelease": false,
+    "latest": true,
+    "anonymousDownloadsMatched": true,
+    "assets": [
+      {
+        "name": "missher-dsh-context-manager-0.10.0-local.16.tgz",
+        "bytes": 352823,
+        "sha256": "0c97e1ec067afd785f28a9bc8c075dfe7d1883759cb8152fe0db59526c083e2c",
+        "id": 656458348,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.16/missher-dsh-context-manager-0.10.0-local.16.tgz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 114,
+        "sha256": "421456ebd6a1607acfe52ec1181929fd2cfdff47caa38c885e9b975c5a9bf044",
+        "id": 656458484,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.0-local.16/SHA256SUMS"
+      }
+    ]
+  },
+  "native": {
+    "host": "official RC.2, Ubuntu Electron",
+    "windowWidths": [
+      1280,
+      600
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "inputStates": [
+      "normal",
+      "focused",
+      "invalid",
+      "disabled"
+    ],
+    "englishCustom49ReadableEditable": true,
+    "textareaPreserved": true,
+    "settingsDraftsSaved": false,
+    "storedSettingsAndSessionsPreserved": true,
+    "otherPluginsPreserved": true
+  },
+  "notClaimed": [
+    "real-provider summary quality or billing",
+    "remote device installation",
+    "renderer-memory byte hash",
+    "Header optical alignment"
+  ]
 }
