@@ -66,9 +66,8 @@ test('settings section contains only policy controls and does not read any sessi
     await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
     const capabilityStatus = document.querySelector('[role="status"]')?.textContent ?? ''
-    assert.match(capabilityStatus, /宿主未提供 Context 增强 provider 切换接口/)
-    assert.match(capabilityStatus, /会话页“上下文”会分别显示本会话的请求压力、闲置整理和工具结果能力/)
-    assert.match(capabilityStatus, /保存策略不代表所有会话均已启用/)
+    assert.match(capabilityStatus, /当前版本不支持切换增强压缩/)
+    assert.match(document.querySelector('[role="note"]')?.textContent ?? '', /保存设置不代表所有会话均已启用/)
     assert.doesNotMatch(capabilityStatus, /官方 Basic|宿主压缩 API 不可用/,
       'an unavailable enhanced switch must not be presented as a globally inactive plugin or Basic-only host')
     assert.equal(document.querySelectorAll('style').length, 2)
@@ -76,7 +75,7 @@ test('settings section contains only policy controls and does not read any sessi
       'page and nested settings styles must not be claimed by another plugin')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
     assert.equal(document.querySelectorAll('select').length, 0)
-    await click('提前整理 · 70%')
+    await click('提前 · 70%')
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
@@ -151,7 +150,17 @@ test('inspector cancels stale Session reads, never flashes another Session and r
   const state = { status: 'ready', writable: true, revision: 1, value: { policy: defaults } }
   const form = { subscribe: () => () => {}, getSnapshot: () => state }
   const pulse = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => 1 }
-  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }), inspect: (query, signal) => new Promise(resolve => calls.push({ query, signal, resolve })), content: () => { throw new Error('content is lazy') } }
+  const api = {
+    idleStatus: async ({ sessionId }) => sessionId === 'second-session' ? new Promise(() => {}) : ({ status: 'off', dueAt: null,
+      message: '闲置自动压缩已关闭', owner: 'context-manager',
+      compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'fixture enhanced binding' },
+      emergency: { eligible: true, used: false, message: 'synthetic check only' } }),
+    prepareEmergency: async () => ({ token: 'synthetic-only', expiresAt: Date.now() + 120000, cycle: 1, warning: 'synthetic warning', model: 'fixture',
+      deadline: 'two minutes', estimatedInput: 100 }),
+    executeEmergency: async () => ({ granted: true }),
+    inspect: (query, signal) => new Promise(resolve => calls.push({ query, signal, resolve })),
+    content: () => { throw new Error('content is lazy') },
+  }
   const snapshot = sessionId => ({ sessionId, cursor: 1, cutSeq: 1, sampledAt: 1000, historical: false,
     pressure: null, official: null, usage: null, model: { provider: 'fixture', model: sessionId, effort: null, maxTokens: null },
     parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, pressureHistory: [], compactions: [] })
@@ -159,13 +168,18 @@ test('inspector cancels stale Session reads, never flashes another Session and r
   const render = async target => { await act(async () => root.render(React.createElement(client.ContextInspectorView, { target, form, api, pulse }))); await act(async () => new Promise(resolve => setTimeout(resolve, 230))) }
   try {
     await render('first-session')
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '检查一次人工恢复（不调用模型）').click())
+    assert.ok([...document.querySelectorAll('button')].some(button => button.textContent === '确认未知费用风险并额外调用一次'),
+      'the synthetic preflight is only a plan and does not call a model')
     await render('second-session')
+    assert.ok(![...document.querySelectorAll('button')].some(button => button.textContent === '确认未知费用风险并额外调用一次'),
+      'an emergency confirmation from the previous session is cleared on the first render for a new target')
     assert.equal(calls[0].signal.aborted, true)
     await act(async () => calls[0].resolve(snapshot('first-session')))
     assert.ok(!document.body.textContent.includes('fixture / first-session'))
     await act(async () => calls[1].resolve(snapshot('second-session')))
     assert.match(document.body.textContent, /fixture \/ second-session/)
-    assert.match(document.querySelector('.cmv-quick')?.textContent ?? '', /压缩绑定未知/)
+    assert.match(document.querySelector('.cmv-quick')?.textContent ?? '', /等待完整参数/)
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0, 'all context sections share one panel')
     for (const title of ['当前上下文', '最近压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelector('#cmi-content-panel'), null, 'entry shows compact preview without loading bodies')
@@ -387,11 +401,11 @@ test('settings UI stages edits, validates them and saves the complete policy wit
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     assert.equal(document.querySelector('style').dataset.plugin, 'dsh-context-manager')
-    assert.match(document.body.textContent, /新消息会计入检查/)
+    assert.match(document.body.textContent, /新消息和预留空间可能让检查提前/)
     assert.equal(document.querySelector('#context-manager-idleMinutes').value, '15')
     assert.equal(document.querySelector('#context-manager-idleMinPercent').value, '65')
     const buttons = () => [...document.querySelectorAll('button')]
-    await act(async () => buttons().find(b => b.textContent === '提前整理 · 70%').click())
+    await act(async () => buttons().find(b => b.textContent === '提前 · 70%').click())
     assert.equal(writes.length, 0)
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
     await act(async () => setDomInput(document.querySelector('#context-manager-idleMinPercent'), '70'))
@@ -593,7 +607,16 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
   const root = createRoot(document.getElementById('root'))
   const render = async (snapshot, idleMode = null, idleCapacity = null) => {
     const statusMode = idleMode ?? snapshot.compression?.mode ?? null
-    const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '', ...(statusMode ? { compression: { mode: statusMode, hostCapability: 'supported', reason: `idle ${statusMode}` } } : {}), ...(idleCapacity ? { capacity: idleCapacity } : {}) }), inspect: async () => snapshot }
+    const api = {
+      idleStatus: async () => ({ status: 'off', dueAt: null, message: '',
+        ...(statusMode ? { compression: { mode: statusMode, hostCapability: 'supported', reason: `idle ${statusMode}` } } : {}),
+        ...(idleCapacity ? { capacity: idleCapacity } : {}),
+        ...(statusMode === 'enhanced' ? { emergency: { eligible: true, used: false, message: 'synthetic-only' } } : {}) }),
+      prepareEmergency: async () => ({ token: 'synthetic-only', expiresAt: Date.now() + 120000, cycle: 1,
+        warning: 'synthetic preview only', model: 'synthetic', deadline: 'two minutes', estimatedInput: 100 }),
+      executeEmergency: async () => { throw new Error('synthetic emergency must not execute') },
+      inspect: async () => snapshot,
+    }
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'admission', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
   }
@@ -602,13 +625,15 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
   try {
     await render({ ...base, admission: reading })
     assert.equal(binding().dataset.mode, 'enhanced')
-    assert.match(binding().textContent, /Context 增强（当前会话）/)
+    assert.match(binding().textContent, /整理功能已接入/)
     assert.match(status().textContent, /预计先压缩，再执行/)
     assert.equal(status().querySelector('[data-admission-tokens]').dataset.admissionTokens, '170000')
     assert.match(status().textContent, /检查线 79\.00%/)
     assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /50\.00%/)
-    assert.match(document.querySelector('.cmv-meta').textContent, /自动工作集/)
-    assert.doesNotMatch(document.querySelector('.cmv-meta').textContent, /目标 55%/)
+    assert.equal(document.querySelector('.cmv-run-details').open, false)
+    await act(async () => document.querySelector('.cmv-run-details summary').click())
+    assert.match(document.querySelector('.cmv-run-details').textContent, /自动工作集/)
+    assert.match(document.querySelector('.cmv-run-details').textContent, /目标 55%/)
     await render({ ...base, pressure: { ...base.pressure, projected: 190000 }, admission: { ...reading, tokens: 50000 } })
     assert.match(status().textContent, /预计可继续执行/)
     for (const snapshot of [base, { ...base, admission: { ...reading, outputReserve: null } },
@@ -624,11 +649,15 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
       assert.match(status().textContent, /检查线 —/)
       assert.equal(binding().dataset.mode, mode)
-      if (mode === 'native') assert.match(binding().textContent, /策略未用于此会话/)
+      if (mode === 'native') {
+        assert.equal(binding().textContent, '由系统整理', 'the first screen uses a concise native status')
+        assert.match(document.querySelector('.cmv-run-details').textContent, /策略未用于此会话/)
+      }
     }
     await render({ ...base, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' }, admission: reading }, 'native')
     assert.equal(binding().dataset.mode, 'unknown', 'conflicting current reads fail closed')
-    assert.match(binding().textContent, /读数不一致/)
+    assert.equal(binding().textContent, '状态不一致，待确认')
+    assert.match(document.querySelector('.cmv-run-details').textContent, /读数不一致/)
     assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
     const latestRequest = { seq: 3, time: 1001, turn: 1, step: 2, provider: 'offline', model: '200k', input: 43210, output: 800, cacheRead: null }
     await render({ ...base, requests: [latestRequest] })
@@ -657,14 +686,24 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.doesNotMatch(capacityDetails, /Token/,'capacity details use percentages while usage ledgers retain Token units')
     await render({...base,admission:{...reading,window:1000000}})
     assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
+    await render({ ...base, admission: reading })
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '检查一次人工恢复（不调用模型）')?.click())
+    await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
+    assert.ok([...document.querySelectorAll('button')].some(button => button.textContent === '确认未知费用风险并额外调用一次'),
+      'the synthetic emergency plan is visible for a current session and does not dispatch a model call')
     await render({ ...base, pressure:null, admission: reading, historical: true, rows:[{id:'past',seq:1,title:'historical row',category:'user',current:true,source:'fixture',tokens:20000,images:0}], total:1 })
     assert.match(document.querySelector('.cmv-content').textContent,/10\.00%/,'historical preview uses cut window, not current admission or null pressure')
     assert.match(status().textContent, /历史截面/)
-    assert.match(status().textContent, /准入计量 未知/)
+    assert.match(status().textContent, /本次请求占用 未知/)
     assert.equal(status().querySelector('[data-admission-tokens]'), null)
     assert.equal(binding().dataset.mode, 'enhanced')
-    assert.match(binding().textContent, /历史截面（不代表当前）/)
+    assert.equal(binding().textContent, '历史截面')
+    assert.match(document.querySelector('.cmv-run-details').textContent, /历史截面（不代表当前）/)
     assert.doesNotMatch(binding().textContent, /当前会话/)
+    assert.equal(document.querySelector('.cmv-meta').textContent, '', 'historical data removes current idle and emergency controls')
+    assert.ok(![...document.querySelectorAll('button')].some(button => button.textContent === '确认未知费用风险并额外调用一次'),
+      'a pending emergency plan is discarded when the current view becomes historical')
+    assert.doesNotMatch(document.body.textContent, /synthetic preview only|synthetic-only/)
     assert.equal(document.querySelector('[data-compact-capacity]'), null, 'historical cuts do not reuse current idle-plan capacity')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
@@ -674,6 +713,7 @@ test('binding badge does not present retained enhancement as current while refre
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { sessionId: 'binding-refresh', cursor: 1, cutSeq: 1, sampledAt: 10, historical: false,
     compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Context active' }, pressure: null, official: null, usage: null,
+    cooperation: { toolResults: { state: 'unsupported', finalResultSeen: false }, originals: { state: 'unavailable', count: 0 }, idleMaintenance: 'unsupported', requestPressure: 'unsupported' },
     admission: { tokens: 50000, logRevision: 1, baseline: 'usage', window: 200000, outputReserve: 8192 },
     model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0,
     requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
@@ -682,11 +722,12 @@ test('binding badge does not present retained enhancement as current while refre
   let pulseRevision = 1
   const pulseListeners = new Set()
   const pulse = { subscribe: callback => { pulseListeners.add(callback); return () => pulseListeners.delete(callback) }, getSnapshot: () => pulseRevision }
-  let behavior = 'success', idleBehavior = 'success', rejectPending
+  let behavior = 'success', idleBehavior = 'success', rejectPending, rejectIdle
   const api = {
     idleStatus: async () => {
       if (idleBehavior === 'failure') throw new Error('idle offline')
-      return { status: 'off', dueAt: null, message: '', compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Idle active' } }
+      if (idleBehavior === 'pending') return new Promise((_, reject) => { rejectIdle = reject })
+      return { status: 'off', dueAt: null, message: '闲置自动压缩已关闭', owner: 'context-manager', compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Idle active' } }
     },
     inspect: async () => {
       if (behavior === 'failure') throw new Error('offline')
@@ -702,31 +743,44 @@ test('binding badge does not present retained enhancement as current while refre
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'binding-refresh', form, api, pulse })))
     await wait(230)
     assert.equal(binding().dataset.mode, 'enhanced')
+    assert.match(document.querySelector('.cmv-meta').textContent, /闲置整理 · 已关闭/,
+      'only an explicit enhanced idle-disabled status is labeled as off')
     assert.match(document.querySelector('.cmv-quick').textContent, /预计可继续执行/)
     idleBehavior = 'failure'
     await refreshPulse(); await wait(230)
     assert.equal(binding().dataset.mode, 'unknown', 'an idle polling failure cannot fall back to a retained Inspection binding')
-    assert.match(binding().textContent, /刷新失败，当前绑定未知/)
+    assert.equal(binding().textContent, '状态刷新失败')
+    assert.match(document.querySelector('.cmv-run-details').textContent, /刷新失败，当前绑定未知/)
     assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /预计可继续执行|预计先压缩/)
     idleBehavior = 'success'
     await refreshPulse(); await wait(230)
     assert.equal(binding().dataset.mode, 'enhanced', 'a successful current idle read restores the actual binding')
     assert.match(document.querySelector('.cmv-quick').textContent, /预计可继续执行/)
     behavior = 'pending'
-    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '刷新数据').click())
+    idleBehavior = 'pending'
+    await act(async () => document.querySelector('.cmv-run-details summary').click())
+    assert.equal(document.querySelector('.cmv-run-details').open, true)
+    await refreshPulse()
     await wait(230)
+    assert.equal(binding().dataset.mode, 'enhanced', 'same-session background inspection does not clear a confirmed binding while pending')
+    assert.equal(document.querySelector('.cmv-run-details').open, true, 'same-session polling does not remount or collapse run details')
+    await refreshPulse()
+    await wait(230)
+    assert.equal(binding().dataset.mode, 'enhanced', 'a second pending refresh keeps the confirmed binding visible')
+    assert.equal(document.querySelector('.cmv-run-details').open, true, 'consecutive same-session refreshes preserve the open details panel')
+    rejectPending(new Error('offline')); rejectIdle(new Error('idle offline'))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
     assert.equal(binding().dataset.mode, 'unknown')
-    assert.match(binding().textContent, /正在刷新绑定状态/)
-    assert.doesNotMatch(binding().textContent, /Context 增强/)
-    await act(async () => { rejectPending(new Error('offline')); await new Promise(resolve => setTimeout(resolve, 0)) })
-    assert.equal(binding().dataset.mode, 'unknown')
-    assert.match(binding().textContent, /刷新失败，当前绑定未知/)
-    assert.doesNotMatch(binding().textContent, /Context 增强/)
+    assert.equal(binding().textContent, '状态刷新失败')
+    assert.match(document.querySelector('.cmv-run-details').textContent, /刷新失败，当前绑定未知/)
+    assert.equal(document.querySelector('.cmv-run-details').open, true, 'real failures remain visible without resetting the user-opened details')
+    assert.match(document.querySelector('[data-context-cooperation] h4')?.textContent ?? '', /上次读数/,
+      'retained cooperation capabilities are labeled as the last read after inspection fails')
     behavior = 'pending'
     idleBehavior = 'failure'
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'other-session', form, api, pulse })))
     assert.equal(binding().dataset.mode, 'unknown', 'switching sessions cannot carry over the previous Agent badge')
-    assert.doesNotMatch(binding().textContent, /Context 增强/)
+    assert.equal(document.querySelector('.cmv-run-details').open, false, 'a new session starts with collapsed run details')
     rejectPending(new Error('cancelled'))
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
@@ -761,8 +815,15 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
   try {
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'basic-context-sidecar', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.match(document.querySelector('.cmv-meta').textContent, /本会话未启用/,
+      'a native Basic provider does not prove that the Context idle setting was explicitly switched off')
     assert.equal(document.querySelector('.cmv-binding-status').dataset.mode, 'native')
-    assert.match(document.querySelector('.cmv-binding-status').textContent, /Basic provider · Context 插件侧路已接入/)
+    assert.equal(document.querySelector('.cmv-binding-status').textContent, '由系统整理',
+      'the first-screen binding label stays concise')
+    assert.equal(document.querySelector('.cmv-run-details').open, false)
+    await act(async () => document.querySelector('.cmv-run-details summary').click())
+    assert.match(document.querySelector('.cmv-run-details').textContent, /官方 Basic provider · Context 插件侧路已接入/,
+      'provider and sidecar diagnostics remain available in the collapsed run details')
     assert.match(read().textContent, /预计先压缩，再执行/)
     assert.match(read().textContent, /检查线 79\.00%/)
     assert.equal(read().querySelector('[data-context-request-gate]').dataset.contextRequestGate, 'active')
@@ -803,7 +864,7 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
     formState.value = { policy: { ...defaults, enabled: false } }
     snapshot = { ...snapshot, cooperation: { ...baseCooperation, requestPressure: 'off' } }
     await refresh()
-    assert.match(read().textContent, /官方 Basic 压缩 provider/)
+    assert.match(read().textContent, /Context 请求检查未启用/)
     assert.match(document.querySelector('[data-context-cooperation]').textContent, /完整请求压力整理 · 未启用/)
     assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'disabled')
     assert.equal(read().querySelector('[data-context-request-gate]'), null)
@@ -824,13 +885,13 @@ test('percentage settings require explicit legacy migration, preserve old fields
  const edit=async(key,value)=>act(async()=>setDomInput(document.getElementById(`context-manager-${key}`),value))
  try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
-  assert.match(document.body.textContent,/旧配置兼容/)
+  assert.match(document.body.textContent,/旧配置仍按原 Token 值执行/)
   assert.equal(document.getElementById('context-manager-recentPercent').disabled,true)
   assert.equal(document.getElementById('context-manager-example'),null,'no guessed model denominator')
-  await click('提前整理 · 70%');await click('保存设置')
+  await click('提前 · 70%');await click('保存设置')
   assert.equal(writes[0].ops[0].value.capacityMode,'legacy','ordinary save never migrates')
   assert.equal(writes[0].ops[0].value.absoluteTriggerTokens,200000)
-  await click('改用下方百分比并解除旧绝对上限')
+  await click('切换到下方百分比并解除旧绝对上限')
   assert.equal(writes.length,1,'explicit switch still requires native save')
   assert.equal(document.getElementById('context-manager-recentPercent').disabled,false)
   for(const value of ['', '0', '51']){await edit('recentPercent',value);assert.equal(button('保存设置').disabled,true)}
@@ -890,8 +951,8 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(document.querySelector('#context-manager-archiveSearchLimit').value, '3')
     assert.equal(button('观察').getAttribute('aria-pressed'), 'true')
     assert.equal(button('安全精简').getAttribute('aria-pressed'), 'false')
-    assert.match(document.body.textContent, /引用原文长期保留，卸载不会删除/)
-    assert.match(document.body.textContent, /不是 Token 口径/)
+    assert.match(document.body.textContent, /原文保存在本机，卸载不会删除/)
+    assert.match(document.querySelector('.cm-native-advanced')?.textContent ?? '', /按可见文本字符比较/)
     // An unimplemented retention switch must not be offered.
     assert.equal(document.body.textContent.includes('archiveRetention'), false)
     // Empty is invalid, never zero.

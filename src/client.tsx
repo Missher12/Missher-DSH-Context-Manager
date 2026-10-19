@@ -1,6 +1,7 @@
 import { useState, useEffect, useSyncExternalStore } from 'react'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, zh, type InspectorLocaleKey } from './inspector-locales.ts'
+import { settingsEn, settingsText, settingsZh, type SettingsLocaleKey, type SettingsText } from './settings-locales.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -36,7 +37,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-declare module '@deepseek-ai/dsh-client-ui-slots' { interface LocaleNamespaceMap { 'context.manager': InspectorLocaleKey } }
+declare module '@deepseek-ai/dsh-client-ui-slots' { interface LocaleNamespaceMap { 'context.manager': InspectorLocaleKey; 'context.manager.settings': SettingsLocaleKey } }
 
 type Values = { policy: Policy }
 export const inject = ['locale', 'slots', 'configForms', 'sessions', 'remote', 'remote.session', 'modelDirectories']
@@ -49,6 +50,8 @@ const STYLE_OWNER = 'dsh-context-manager'
 export async function apply(ctx: Context) {
   ctx.effect(() => ctx.locale.register('context.manager', { zh, en }), 'context-manager: locale')
   const t = ctx.locale.bind('context.manager')
+  ctx.effect(() => ctx.locale.register('context.manager.settings', { zh: settingsZh, en: settingsEn }), 'context-manager: settings locale')
+  const settingsT = ctx.locale.bind('context.manager.settings')
   const form = ctx.configForms.get<Values>('context-manager')
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right', id: 'context-manager-period', order: 100,
@@ -75,8 +78,8 @@ export async function apply(ctx: Context) {
       api.authorizeOnce = async (query, signal) => unwrap(await recovery.remote.contextRecovery.authorizeOnce(query, signal))
     })
     scope.effect(() => scope.configForms.whileServed(['context-manager'], () => scope.slots.inject('settings.section', () => scope.slots.register({
-      name: 'settings.section', id: 'context-manager', order: 65, label: '上下文管理',
-      inject: () => ({ form, compatibility: api.compatibility! }),
+      name: 'settings.section', id: 'context-manager', order: 65, label: () => settingsT('title'), locale: 'context.manager.settings',
+      inject: () => ({ form, compatibility: api.compatibility!, t: settingsT }),
     }, ContextPage))))
     scope.slots.inject('conversation.view', () => scope.slots.register({
       name: 'conversation.view', id: 'context-manager', order: 20, label: () => t('title'), locale: 'context.manager',
@@ -90,7 +93,7 @@ export async function apply(ctx: Context) {
   })
 }
 
-export function ContextPage({ form, compatibility }: { form: ConfigForm<Values>; compatibility: NonNullable<InspectorApi['compatibility']> }) {
+export function ContextPage({ form, compatibility, t = settingsText() }: { form: ConfigForm<Values>; compatibility: NonNullable<InspectorApi['compatibility']>; t?: SettingsText }) {
   const [host, setHost] = useState<HostCapabilityReadout | null>(null)
   useEffect(() => {
     const controller = new AbortController()
@@ -98,22 +101,34 @@ export function ContextPage({ form, compatibility }: { form: ConfigForm<Values>;
       integration: { state: 'unknown', reason: '无法读取 Context provider 注册状态' } }))
     return () => controller.abort()
   }, [compatibility])
+  const status = !host ? 'statusChecking'
+    : host.state === 'unsupported' ? 'statusUnsupported'
+      : host.state === 'unknown' ? 'statusUnknown'
+        : host.integration.state === 'registered' ? 'statusAvailable'
+          : host.integration.state === 'pending' ? 'statusPending'
+            : host.integration.state === 'failed' ? 'statusFailed'
+              : host.integration.state === 'inactive' ? 'statusInactive' : 'statusUnknown'
+  const capability = !host || host.state === 'unknown' ? 'capabilityUnknown'
+    : host.state === 'supported' ? 'capabilitySupported' : 'capabilityUnsupported'
+  const registration = !host ? 'registrationUnknown'
+    : host.integration.state === 'registered' ? 'registrationRegistered'
+      : host.integration.state === 'pending' ? 'registrationPending'
+        : host.integration.state === 'failed' ? 'registrationFailed'
+          : host.integration.state === 'inactive' ? 'registrationInactive' : 'registrationUnknown'
   return <section aria-label="上下文管理" className="dsh-context-settings">
-    <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">上下文管理</h2>
-    <p className="cm-intro">设置何时先压缩、再继续执行。会话数据位于“对话 / 轨迹”后的“上下文”页签。</p>
-    <p className="cm-intro" role="status">
-      {host?.state === 'unsupported' ? `宿主未提供 Context 增强 provider 切换接口：${host.reason}`
-        : host?.state === 'supported' ? '宿主提供 Context 增强 provider 切换接口。'
-          : 'Context 增强 provider 切换接口状态未知。'}{' '}
-      {!host ? '正在读取 provider 注册状态。'
-        : host.integration.state === 'pending' ? '增强 provider 注册正在准备中。'
-          : host.integration.state === 'registered' ? '增强 provider 已注册，供符合条件的会话选用。'
-            : host.integration.state === 'failed' ? `增强 provider 注册失败：${host.integration.reason ?? '原因未知'}。`
-              : host.integration.state === 'unknown' ? `增强 provider 注册状态未知${host.integration.reason ? `：${host.integration.reason}` : '。'}`
-                : `增强 provider 当前未注册${host.integration.reason ? `：${host.integration.reason}` : '。'}`}{' '}
-      会话页“上下文”会分别显示本会话的请求压力、闲置整理和工具结果能力；保存策略不代表所有会话均已启用。
-    </p>
-    <ContextSettings form={form} />
+    <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">{t('title')}</h2>
+    <p className="cm-intro">{t('intro')}</p>
+    <p className="cm-intro" role={status === 'statusFailed' ? 'alert' : 'status'}>{t(status)}</p>
+    <p className="cm-hint" role="note">{t('savedPolicyNote')}</p>
+    <details className="cm-native-advanced">
+      <summary>{t('technicalDetails')}</summary>
+      <p className="cm-hint">{t('hostCapability')} · {t(capability)}{host?.version === undefined ? '' : ` · v${host.version}`}</p>
+      <p className="cm-hint">{t('detailReason')} · {host?.reason ?? t('statusChecking')}</p>
+      <p className="cm-hint">{t('registration')} · {t(registration)}</p>
+      {host?.integration.reason && <p className="cm-hint">{t('detailReason')} · {host.integration.reason}</p>}
+      <p className="cm-hint">{t('sessionStatusNote')}</p>
+    </details>
+    <ContextSettings form={form} t={t} />
   </section>
 }
 
@@ -154,7 +169,7 @@ function ContextSwitch({ label, checked, disabled, onChange }: { label: string; 
 }
 
 /** Context settings controls use the actual RC.2 UI primitives where available and scoped native controls for removed form atoms. */
-export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
+export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm<Values>; t?: SettingsText }) {
   const accepted = useSyncExternalStore(callback => form.subscribe(callback), () => form.getSnapshot())
   const [draft, setDraft] = useState(() => toDraft(accepted.value?.policy ?? defaults))
   const [revision, setRevision] = useState(accepted.revision)
@@ -198,43 +213,42 @@ export function ContextSettings({ form }: { form: ConfigForm<Values> }) {
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
     <div className="cm-settings-form" aria-busy={saving}>
       {accepted.status !== 'ready' && <p className="cm-hint" role="status">正在读取上下文设置…</p>}
-      {accepted.status === 'ready' && !accepted.writable && <p className="cm-hint" role="status">当前连接不支持保存设置。</p>}
+        {accepted.status === 'ready' && !accepted.writable && <p className="cm-hint" role="status">当前连接不支持保存设置。</p>}
       <fieldset disabled={disabled} className="cm-native-fields">
         {draft.summaryTimeoutMode === 'fixed' && <div role="status">
-          <p className="cm-hint">当前保留固定总时限 {Number(draft.timeoutMs) / 1000} 秒；即使摘要持续输出也会到时停止。长任务建议按输出进展等待，成功后自动继续当前任务。</p>
-          <Button size="sm" disabled={disabled} onClick={() => edit({ summaryTimeoutMode: 'adaptive' })}>切换为按进展等待</Button>
-          <p className="cm-hint">点击后保存设置才生效；保留原固定值及现有分层时限。不会恢复已经结束的任务，也不会重试未知收费请求。</p>
+          <p className="cm-hint">{t('fixedTimeoutPrefix')} {Number(draft.timeoutMs) / 1000} {t('seconds')}</p>
+          <Button size="sm" disabled={disabled} onClick={() => edit({ summaryTimeoutMode: 'adaptive' })}>{t('switchAdaptive')}</Button>
+          <p className="cm-hint">{t('timeoutSaveNote')}</p>
         </div>}
-        {toggle('enabled', '自动压缩', '在执行前检查完整请求，必要时先压缩。关闭后停止自动整理，超出安全窗口时暂停。')}
-        <div className="cm-native-presets" role="group" aria-label="压缩策略">
-          {([[70, '提前整理 · 70%'], [80, '均衡 · 80%'], [85, '稍后整理 · 85%']] as const).map(([triggerPercent, label]) =>
+        {toggle('enabled', t('autoLabel'), t('autoHint'))}
+        <div className="cm-native-presets" role="group" aria-label={t('presetGroup')}>
+          {([[70, t('presetEarly')], [80, t('presetBalanced')], [85, t('presetLate')]] as const).map(([triggerPercent, label]) =>
             <Button key={triggerPercent} size="sm" variant="outline" aria-pressed={policy.triggerPercent === triggerPercent}
               onClick={() => edit({ triggerPercent: String(triggerPercent) })}>{label}</Button>)}
         </div>
-        {numeric('triggerPercent', '上下文用到多少时压缩（%）', '按当前模型窗口计算。新消息会计入检查，输出预留和安全空间可能使实际阈值更低。')}
-        <div className="cm-native-presets" role="group" aria-label="历史保留策略">
-          {([['automatic', '自动工作集'], ['custom', '自定义占用上限']] as const).map(([historyMode, label]) =>
+        {numeric('triggerPercent', t('thresholdLabel'), t('thresholdHint'))}
+        <div className="cm-native-presets" role="group" aria-label={t('historyGroup')}>
+          {([['automatic', t('historyAutomatic')], ['custom', t('historyCustom')]] as const).map(([historyMode, label]) =>
             <Button key={historyMode} size="sm" variant="outline" aria-pressed={policy.historyMode === historyMode} disabled={!draft.enabled}
               onClick={() => edit({ historyMode })}>{label}</Button>)}
         </div>
         <p className="cm-hint">{automatic
-          ? '保留受保护任务、有界近期原文与滚动检查点。压后总占用按实际内容计算，不使用保存的百分比或绝对占用上限；旧值仍保留。'
-          : '在工作集规划上增加压后总占用上限。必要指令和当前任务不能为满足上限而被删除；无法达到时说明原因并保留任务。切回自动工作集不会删除这些设置。'}</p>
-        {!automatic && numeric('targetPercent', '压后占用上限（%）', '按真实完整窗口计算；须比检查阈值至少低 10 个百分点，输出预留可能进一步降低有效上限。', !draft.enabled)}
-        {draft.capacityMode !== 'percent' && <div role="status"><p className="cm-hint">旧配置兼容：原近期原文、摘要、修复及已启用的绝对预算继续执行。各会话按真实模型窗口显示实际百分比；此全局设置页不假定窗口。下方百分比尚未启用。</p>
-          <Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>改用下方百分比并解除旧绝对上限</Button>
-          <p className="cm-hint">保存后生效。模型窗口变化会改变实际额度；请先检查下方百分比。原配置值保留供回退，旧费用和恢复额度不变。</p></div>}
-        {draft.capacityMode === 'percent' && <p className="cm-hint">容量按每次请求的真实模型窗口计算；不再使用旧绝对上限。输出仍受模型限制及摘要的协议安全上限约束；本地结构修复不调用模型。小窗口向下取整，不扩大额度。各会话显示实际有效百分比。</p>}
-        {toggle('idleEnabled', '闲置自动压缩', '任务正常结束后计时。新消息到达时取消整理；摘要会使用当前模型并消耗 Token。', !draft.enabled)}
-        {numeric('idleMinutes', '任务结束后闲置时长（分钟）', '推荐 15 分钟，可设 1–1440 分钟。只处理本次运行中使用过的会话，应用退出后不执行。', !draft.enabled || !draft.idleEnabled)}
-        <div className="cm-native-presets" role="group" aria-label="工具结果精简模式">
-          {([['off', '关闭'], ['observe', '观察'], ['reduce', '安全精简']] as const).map(([toolResultsMode, label]) =>
+          ? t('historyAutomaticHint') : t('historyCustomHint')}</p>
+        {!automatic && numeric('targetPercent', t('targetLabel'), t('targetHint'), !draft.enabled)}
+        {draft.capacityMode !== 'percent' && <div role="status"><p className="cm-hint">{t('legacyConfigNote')}</p>
+          <Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>{t('switchPercent')}</Button>
+          <p className="cm-hint">{t('capacitySavedNote')}</p></div>}
+        {draft.capacityMode === 'percent' && <p className="cm-hint">{t('capacityPercentHint')}</p>}
+        {toggle('idleEnabled', t('idleLabel'), t('idleHint'), !draft.enabled)}
+        {numeric('idleMinutes', t('idleMinutesLabel'), t('idleMinutesHint'), !draft.enabled || !draft.idleEnabled)}
+        <div className="cm-native-presets" role="group" aria-label={t('toolGroup')}>
+          {([['off', t('toolOff')], ['observe', t('toolObserve')], ['reduce', t('toolReduce')]] as const).map(([toolResultsMode, label]) =>
             <Button key={toolResultsMode} size="sm" variant="outline" aria-pressed={policy.toolResultsMode === toolResultsMode}
               disabled={!draft.enabled} onClick={() => edit({ toolResultsMode })}>{label}</Button>)}
         </div>
-        <p className="cm-hint">工具结果精简：关闭时不介入；观察模式只按规则测算并记录，不改动宿主工具结果；安全精简在确认最终结果保留短文后发布，未确认的引用不计入成果。字符阈值是可见文本长度，不是 Token 口径。引用原文长期保留，卸载不会删除；本版没有清理动作或配额设置。</p>
-        {toggle('prefixDiagnosticsEnabled', '请求前缀指纹诊断', '只读采集并比较请求前缀（系统指令、工具定义与顺序）的指纹，用于说明前缀变化；关闭只停止这项诊断，不删除任何业务用量。', !draft.enabled)}
+        <p className="cm-hint">{t('toolResultsHint')}</p>
         <details className="cm-native-advanced"><summary>高级设置</summary>
+          {toggle('prefixDiagnosticsEnabled', t('prefixLabel'), t('prefixHint'), !draft.enabled)}
           {numeric('recentPercent', '近期原文预算（%）', '按真实模型窗口计算；指令、受保护任务及检查点另计。仍受窗口安全空间和近期原文安全上限约束。', !draft.enabled || draft.capacityMode !== 'percent')}
           {numeric('idleMinPercent', '闲置压缩最低占用（%）', automatic
             ? `当前按 ${policy.idleMinPercent || '—'}% 检查，不受保存的压后占用上限影响。实际门槛不会超过请求准入线。`

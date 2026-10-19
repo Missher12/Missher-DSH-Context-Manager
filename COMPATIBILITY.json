@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.0-local.13",
-  "runtimeDiagnosticVersion": "0.10.0-local.13",
+  "candidatePackageVersion": "0.10.0-local.14",
+  "runtimeDiagnosticVersion": "0.10.0-local.14",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "Local.13 is a plugin-only packaging candidate based on the independently accepted 118-file review-fix source. The accepted tests verify offline RC.2 Loader cooperation with native Basic through synthetic adapters. This does not claim formal Release, installation, real-provider quality or natural Host acceptance.",
+  "candidateStatus": "Local.14 is a plugin-only packaging candidate with the accepted source fixes and bounded Settings/Inspector UI review. Synthetic browser evidence covers desktop and narrow layouts, non-empty cumulative Usage, and scrolled Tooltip positioning. This does not claim formal Release, installation, real-provider quality or natural Host acceptance.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
@@ -108,7 +108,17 @@
       "Host-native settings persistence and native Electron UI",
       "Real provider/model quality and billing",
       "Formal Release, anonymous download and installation"
-    ]
+    ],
+    "local14UiPreview": {
+      "status": "synthetic-preview-only",
+      "settings": [
+        "desktop 1280x900",
+        "narrow 390x844"
+      ],
+      "usage": "non-empty cumulative bar, 18,000 total, 25% cache hit",
+      "tooltip": "narrow viewport after scrollY=140; within viewport",
+      "hostNativeAcceptance": false
+    }
   },
   "compatibilityRanges": {
     "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",

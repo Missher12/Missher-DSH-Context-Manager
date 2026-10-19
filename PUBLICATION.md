@@ -1,3 +1,15 @@
+# Context Manager 0.10.0-local.14：设置和提示气泡修复
+
+本版整理设置页文字，刷新后保留详情展开状态，并修复上下文条提示气泡被拉成大黑块、遮挡图表的问题；累计用量条的显示同步调整。后端与 local.13 相比只有两个诊断版本字符串变化，压缩策略和用户预算设置保持原有行为。
+
+最终冻结包 `missher-dsh-context-manager-0.10.0-local.14.tgz`，352324 bytes，24 个成员，SHA-256：`1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf`。源码账本覆盖 119 个文件，包与编译运行文件逐项匹配。首个说明未修正的候选包未用于交付。
+
+服务器与客户端类型检查通过；9/9 定向测试运行于最后的 Tooltip CSS 调整之前，CSS 调整另经合成浏览器的 hover/focus、宽窄窗口及滚动定位验证。设置页宽窄、非空累计条比例亦已检查。合成 UI 不等于本机原生 Host 验收，也不证明真实模型质量或费用。
+
+本机安装与正式 Release 由独立交付流程记录，当前状态见 [DELIVERY-VERIFIED.json](./DELIVERY-VERIFIED.json)；可下载资产以 [Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) 为准。兼容继续按能力和版本范围判断，不限定某个精确宿主版本。
+
+## local.13 历史交付记录
+
 # Context 0.10.0-local.13：正式发布与原生交付
 
 2026-10-19（Asia/Shanghai）。本版已发布为[正式 Latest Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.13)，并完成 Ubuntu 日常安装、实际官方 Host 设置持久化与原生 Electron 界面验收。详细机器可读结果见 [DELIVERY-VERIFIED.json](./DELIVERY-VERIFIED.json)。

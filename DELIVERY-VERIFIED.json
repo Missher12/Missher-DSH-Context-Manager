@@ -1,41 +1,58 @@
 {
   "schemaVersion": 1,
-  "verifiedAt": "2026-10-18T20:04:59.650273+00:00",
-  "version": "0.10.0-local.13",
-  "status": "formally_released_and_native_ubuntu_install_verified",
-  "productSourceCommit": "315725ad48fc5bc0f865dd54862f7f574618324c",
-  "tag": "v0.10.0-local.13",
-  "releaseUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.13",
-  "formalLatest": true,
+  "version": "0.10.0-local.14",
+  "status": "source-delivery-prepared-install-and-release-pending",
   "archive": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
-    "sizeBytes": 347254,
-    "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-    "githubDigestAndAnonymousDownloadMatched": true
-  },
-  "integrity": {
-    "installedProductFilesMatched": 24,
-    "runtimeFilesMatched": 17,
-    "sourceManifestSha256": "37dd71dcd4bb9c4dee426742942c3365038b6d243c4e03fdef919ebc791b95e7",
-    "productSourceAndArchiveUnchangedByThisDeliveryRecord": true
-  },
-  "nativeAcceptance": {
-    "platform": "Ubuntu",
-    "desktopVersion": "0.2.1-rc.2.20261017.1",
-    "runtimeVersion": "0.2.1-rc.2",
-    "managerAndInspectorActive": true,
-    "provider": "@deepseek-ai/dsh-compaction-basic",
-    "contextRequestPressureCooperationActive": true,
-    "actualElectronSettingsAndInspectorObserved": true,
-    "settingsPersistedAcrossActualHostRestart": true,
-    "persistenceScope": "Isolated actual official Host; saved daily settings preserved",
-    "businessModelPromptsSubmitted": 0
+    "fileName": "missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
+    "sizeBytes": 352324,
+    "memberCount": 24
   },
   "boundaries": [
-    "No real-provider summary quality or billing evaluation",
-    "No other-device or all-business acceptance claim",
-    "Zero-prompt native verification does not establish final tool-result interception",
-    "Installation backups and native screenshots remain private"
+    "No new native Host acceptance yet",
+    "No real-provider calls",
+    "Frozen package is unchanged"
   ],
-  "frozenEvidenceNote": "SOURCE-MANIFEST, RELEASE-MANIFEST and COMPATIBILITY-REPORT describe the package freeze. Their staging flags are historical; this record describes the subsequent publication and native delivery."
+  "previousDelivery": {
+    "schemaVersion": 1,
+    "verifiedAt": "2026-10-18T20:04:59.650273+00:00",
+    "version": "0.10.0-local.13",
+    "status": "formally_released_and_native_ubuntu_install_verified",
+    "productSourceCommit": "315725ad48fc5bc0f865dd54862f7f574618324c",
+    "tag": "v0.10.0-local.13",
+    "releaseUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.0-local.13",
+    "formalLatest": true,
+    "archive": {
+      "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
+      "sizeBytes": 347254,
+      "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "githubDigestAndAnonymousDownloadMatched": true
+    },
+    "integrity": {
+      "installedProductFilesMatched": 24,
+      "runtimeFilesMatched": 17,
+      "sourceManifestSha256": "37dd71dcd4bb9c4dee426742942c3365038b6d243c4e03fdef919ebc791b95e7",
+      "productSourceAndArchiveUnchangedByThisDeliveryRecord": true
+    },
+    "nativeAcceptance": {
+      "platform": "Ubuntu",
+      "desktopVersion": "0.2.1-rc.2.20261017.1",
+      "runtimeVersion": "0.2.1-rc.2",
+      "managerAndInspectorActive": true,
+      "provider": "@deepseek-ai/dsh-compaction-basic",
+      "contextRequestPressureCooperationActive": true,
+      "actualElectronSettingsAndInspectorObserved": true,
+      "settingsPersistedAcrossActualHostRestart": true,
+      "persistenceScope": "Isolated actual official Host; saved daily settings preserved",
+      "businessModelPromptsSubmitted": 0
+    },
+    "boundaries": [
+      "No real-provider summary quality or billing evaluation",
+      "No other-device or all-business acceptance claim",
+      "Zero-prompt native verification does not establish final tool-result interception",
+      "Installation backups and native screenshots remain private"
+    ],
+    "frozenEvidenceNote": "SOURCE-MANIFEST, RELEASE-MANIFEST and COMPATIBILITY-REPORT describe the package freeze. Their staging flags are historical; this record describes the subsequent publication and native delivery."
+  }
 }

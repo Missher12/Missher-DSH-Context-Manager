@@ -1,20 +1,48 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.13",
+  "version": "0.10.0-local.14",
   "status": "local-staging-only",
   "artifact": {
-    "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
-    "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
-    "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-    "sizeBytes": 347254,
+    "fileName": "missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
+    "sizeBytes": 352324,
     "memberCount": 24
+  },
+  "supersedesPreReadmeCorrectionCandidate": {
+    "sha256": "ad1e9c1cb2c34e840b804c90de2933b81b1d55c2f541bbf75cf02e2fc23d08f7",
+    "status": "preserved; superseded because package README incorrectly described local.14 as documentation-only"
+  },
+  "sourceManifestSha256": "2d84e36cbe0459516cb88513df80f7f468e63c2a25c99b1ab1e3d993edc88a66",
+  "packageBoundaryAudit": {
+    "package": "private-audit:missher-dsh-context-manager-0.10.0-local.14.tgz",
+    "sha256": "1bd15fed11096696653c922b43a997a4467bc9998afc79364bc3b021c1df85cf",
+    "fileCount": 24,
+    "containsBridgeCode": false,
+    "dependsOnBridge": false,
+    "lifecyclePatchHooks": false,
+    "clientProviders": [
+      "@deepseek-ai/dsh-client-ui-settings",
+      "@deepseek-ai/dsh-api-session-controller",
+      "@deepseek-ai/dsh-client-ui-conversation",
+      "@deepseek-ai/dsh-api-remotes",
+      "@deepseek-ai/dsh-client-ui-model-selection",
+      "@deepseek-ai/dsh-client-locale"
+    ],
+    "hostConfigTargets": [],
+    "insertedIds": [
+      "context-manager",
+      "context-manager-inspector"
+    ],
+    "verificationFilesBundled": false,
+    "note": "Read-only package audit; does not replace behavior or native UI acceptance."
   },
   "archiveMembers": [
     {
       "path": "package/COMPATIBILITY.json",
-      "sizeBytes": 7757,
-      "sha256": "7e436d62fcb0ad5dc9f51d224cd70a2a2ec7e4fe82a094ca6f767b0a9c303564"
+      "sizeBytes": 8122,
+      "sha256": "a34f1bc4d509c46d616e9413007d7007187a9fd3f0cf60727743c719cb8988db"
     },
     {
       "path": "package/LICENSE",
@@ -23,13 +51,13 @@
     },
     {
       "path": "package/README.en.md",
-      "sizeBytes": 35499,
-      "sha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af"
+      "sizeBytes": 35017,
+      "sha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73"
     },
     {
       "path": "package/README.md",
-      "sizeBytes": 30322,
-      "sha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749"
+      "sizeBytes": 30010,
+      "sha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8"
     },
     {
       "path": "package/THIRD_PARTY_NOTICES.md",
@@ -53,8 +81,8 @@
     },
     {
       "path": "package/lib/client.js",
-      "sizeBytes": 788587,
-      "sha256": "29bfe3d969bc9d68753598acae715c51f96e8fd656ee5ac7585e21d21016c266"
+      "sizeBytes": 822479,
+      "sha256": "3cbb6ae2bb98166041df9d89c1d4697a39705818b17747343225f52a5592c87f"
     },
     {
       "path": "package/lib/compaction-cycles.js",
@@ -79,7 +107,7 @@
     {
       "path": "package/lib/engine.js",
       "sizeBytes": 168077,
-      "sha256": "d5cbd541f79db120acc8ffa3cb5a174d3d6fe61ee40d4f575d4d581254eb7686"
+      "sha256": "21b9ae5afbe763710b4f0901b8b82ddb846c7b08a4fd6f0c60fea2cc5ea673bc"
     },
     {
       "path": "package/lib/history-tools.js",
@@ -89,7 +117,7 @@
     {
       "path": "package/lib/index.js",
       "sizeBytes": 366956,
-      "sha256": "9ab1d1bd6f98694a315661a16524dbd2e302808d9db774dcf44e6c9328059919"
+      "sha256": "e1d36f677f8d1a919c510fe250c048df49595a699a4c38ce7631bccb7f7b1a76"
     },
     {
       "path": "package/lib/inspector-fold.js",
@@ -129,76 +157,62 @@
     {
       "path": "package/package.json",
       "sizeBytes": 5302,
-      "sha256": "74404cd92038fe6598480cfa2f6b42cd4670389d834fadbf4e5b13d6b44c5780"
+      "sha256": "1fd55dab52a589a15b44e6bba134c5915544511ffa5b9622fa80c7bd28d74230"
     }
   ],
-  "sourceExport": {
-    "boundFileCount": 118,
-    "sourceManifest": "SOURCE-MANIFEST.json",
-    "sourceManifestSha256": "37dd71dcd4bb9c4dee426742942c3365038b6d243c4e03fdef919ebc791b95e7",
-    "acceptanceReceiptSha256": "9c4ee7266d435b8ffa259408dd80749866cd6b88d9704eb8ec538172fe97302f"
+  "runtimeBundles": {
+    "archive.js": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
+    "chart-data.js": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
+    "client.js": "3cbb6ae2bb98166041df9d89c1d4697a39705818b17747343225f52a5592c87f",
+    "compaction-cycles.js": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
+    "compatibility.js": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
+    "diagnostics.js": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+    "efficiency.js": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
+    "engine.js": "21b9ae5afbe763710b4f0901b8b82ddb846c7b08a4fd6f0c60fea2cc5ea673bc",
+    "history-tools.js": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
+    "index.js": "e1d36f677f8d1a919c510fe250c048df49595a699a4c38ce7631bccb7f7b1a76",
+    "inspector-fold.js": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+    "inspector.js": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
+    "policy.js": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
+    "reducer.js": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
+    "tool-results.js": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
+    "typert.js": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
+    "working-set.js": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581"
   },
-  "verification": {
-    "build": "passed",
-    "typecheck": "passed",
-    "packageBoundary": "passed on final doc-refresh archive 2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-    "archiveExtractedSettingsSmoke": "2/2 synthetic settings cases passed on original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359 only; not rerun on final documentation-only archive",
-    "archiveExtractedRc2LoaderSmoke": "1/1 synthetic RC.2 Loader case passed on original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359 only; not rerun on final documentation-only archive",
-    "publicExportMatchesArchiveMembers": true,
-    "localWorkspacePathLeakScan": "passed",
-    "generatorFixtureFollowup": "2/2 passed; source fixture only",
-    "packageArtifactUnchangedAfterFixtureFollowup": true,
-    "sourceFixtureFollowupArchiveSha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-    "documentationRefreshArchiveExtractedSmoke": "not-run; documentation-only candidate"
-  },
-  "publication": {
-    "released": false,
-    "publicDownloadUrl": null,
-    "installed": false,
-    "nativeHostAcceptance": false,
-    "realProviderAcceptance": false
-  },
-  "documentationRefresh": {
-    "checkedAtUtc": "2026-10-18T19:41:57Z",
-    "purpose": "Documentation-only final local.13 candidate; English README historical appendix is explicitly superseded by the current policy.",
-    "artifact": {
-      "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
-      "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
-      "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-      "sizeBytes": 347254,
-      "memberCount": 24
+  "evidence": {
+    "focusedTests": {
+      "path": "../TEST-R2-20261019.log",
+      "sha256": "64fbf317c558c3c99a30b8933fd92dd06b9a9eb320720faed2c3aa8bd38093ee",
+      "passed": 9,
+      "total": 9,
+      "note": "Run preceded final Tooltip CSS adjustment; not a full suite."
     },
-    "supersedesStagedDocumentationCandidates": [
-      {
-        "sha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-        "status": "original accepted archive; preserved unchanged"
+    "typecheck": {
+      "server": {
+        "path": "../TSC-SERVER-LOCAL14-R2-20261019.log",
+        "sha256": "07103d0206699769180121b7822e2cd1500cf1d709dbdab0e62a6d4ce74319e6",
+        "exitCode": 0
       },
-      {
-        "sha256": "05ecf8b8f2cfa2d4750ba828d6c1f17926c6be5d7454794c30a67fd5b1c733fd",
-        "status": "intermediate bilingual documentation candidate; preserved unchanged"
+      "client": {
+        "path": "../TSC-CLIENT-LOCAL14-R2-20261019.log",
+        "sha256": "d57fbd279766da2b084e2c9fcf887caf8d1742ebbbf801c1d211af54044f34ac",
+        "exitCode": 0
       }
-    ],
-    "changedMembersComparedWithPreviousDocumentationCandidate": [
-      "package/README.en.md"
-    ],
-    "changedMembersComparedWithOriginalAcceptedArchive": [
-      "package/README.en.md",
-      "package/README.md"
-    ],
-    "runtimeLibMemberCount": 17,
-    "runtimeLibMembersByteIdenticalToOriginalArchive": true,
-    "packageBoundary": {
-      "status": "passed",
-      "logSha256": "5d0e6fdd6cb5891581a4fec3403f27e3940c47e69f6bbf728786e3e6f722893f",
-      "archiveSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-      "memberCount": 24,
-      "containsBridgeCode": false,
-      "dependsOnBridge": false,
-      "lifecyclePatchHooks": false,
-      "hostConfigTargets": [],
-      "verificationFilesBundled": false
     },
-    "extractedSettingsAndLoaderSmoke": "not rerun on this documentation-only candidate; synthetic 2/2 settings and 1/1 RC.2 Loader smoke applies only to original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-    "releaseInstallHostOrRealProviderAcceptance": false
-  }
+    "ui": "Synthetic desktop/narrow Settings, non-empty Usage, and scrolled Tooltip checks; not native Host acceptance."
+  },
+  "runtimeComparisonToLocal13": {
+    "packageSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+    "memberCount": 17,
+    "backendMembers": "14 byte-identical; engine.js/index.js differ only in local.14 diagnostic version string",
+    "client.js": "substantive UI bundle change"
+  },
+  "notClaimed": [
+    "formal Release",
+    "public download",
+    "installation",
+    "natural Host UI acceptance",
+    "real-provider behavior"
+  ],
+  "publicExportNote": "Private local audit paths replaced by log names; audit logs and daily data are not included. Package hash and every archive member hash are unchanged."
 }

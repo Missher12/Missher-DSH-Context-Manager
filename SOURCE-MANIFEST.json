@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.0-local.13",
-  "sourceScope": "118 independently bound candidate files; runtime files rebuilt for local.13",
+  "version": "0.10.0-local.14",
+  "sourceScope": "119 ledger entries: 118-file independently accepted local.13 source baseline plus explicit local.14 UI/test changes and added src/settings-locales.ts. local.14 does not claim a new independent full-source acceptance.",
   "independentAcceptance": {
     "verdict": "accepted_for_canonical_integration_and_packaging",
     "receiptSha256": "9c4ee7266d435b8ffa259408dd80749866cd6b88d9704eb8ec538172fe97302f",
@@ -11,19 +11,23 @@
     "boundFileCount": 118
   },
   "fileCounts": {
-    "accepted-source-exact": 91,
-    "intentional-local13-source-or-metadata-override": 10,
-    "rebuilt-runtime-exact-to-accepted": 14,
-    "rebuilt-runtime-comment-path-normalization-only": 1,
-    "rebuilt-runtime-local13-version-string-only": 2
+    "intentional-local14-source-or-metadata-override": 5,
+    "accepted-source-exact": 86,
+    "intentional-local13-source-or-metadata-override": 5,
+    "rebuilt-runtime-identical-to-local13": 14,
+    "rebuilt-runtime-local14-client-ui-update": 1,
+    "rebuilt-runtime-local14-version-only": 2,
+    "intentional-local14-ui-or-test-update": 5,
+    "added-local14-source-file": 1
   },
   "files": [
     {
       "path": "COMPATIBILITY.json",
       "acceptedSha256": "2bd5a824d3efe24f3e2903f9e80f5fbaf35a8875c0409a363427d4a5a3ff0250",
-      "exportedSha256": "7e436d62fcb0ad5dc9f51d224cd70a2a2ec7e4fe82a094ca6f767b0a9c303564",
-      "classification": "intentional-local13-source-or-metadata-override",
-      "reason": "local.13 package and validation evidence, plugin-only boundaries and explicit pending layers"
+      "exportedSha256": "a34f1bc4d509c46d616e9413007d7007187a9fd3f0cf60727743c719cb8988db",
+      "classification": "intentional-local14-source-or-metadata-override",
+      "reason": "Local.14 package/runtime metadata and acceptance boundaries.",
+      "previousLocal13Sha256": "7e436d62fcb0ad5dc9f51d224cd70a2a2ec7e4fe82a094ca6f767b0a9c303564"
     },
     {
       "path": "LICENSE",
@@ -41,16 +45,18 @@
     {
       "path": "README.en.md",
       "acceptedSha256": "8aefe1537a12f3fab8fa0ce7c2aa9bf7f50032aa4057f7854613462a63f8e4a6",
-      "exportedSha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af",
-      "classification": "intentional-local13-source-or-metadata-override",
-      "reason": "local.13 documentation and evidence scope update"
+      "exportedSha256": "feb95ef1a22e4ff2f635bdfa738af0c27d9fd249e8453325689c4f62e4cf4f73",
+      "classification": "intentional-local14-source-or-metadata-override",
+      "reason": "Local.14 current summary replaces stale local.13 package claims.",
+      "previousLocal13Sha256": "86b10be2f90c91a73577dd081d400fe66bdecc43d3a8130dbbfcd09f9479d6af"
     },
     {
       "path": "README.md",
       "acceptedSha256": "eb6d41e459d53396b3f6290e65ea587bfd96dac95785a785f601477f6a42a0a3",
-      "exportedSha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749",
-      "classification": "intentional-local13-source-or-metadata-override",
-      "reason": "local.13 documentation and evidence scope update"
+      "exportedSha256": "68ad85e20f7fb541a4eeb6139d137dd8c63d54f856c0d0515b89424311f373a8",
+      "classification": "intentional-local14-source-or-metadata-override",
+      "reason": "Local.14 current summary replaces stale local.13 package claims.",
+      "previousLocal13Sha256": "56955920f501bcd870448609955bb1446aa3b5b3a4e6aee8f021a94ab2060749"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -68,110 +74,131 @@
       "path": "lib/archive.js",
       "acceptedSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
       "exportedSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/chart-data.js",
       "acceptedSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
       "exportedSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/client.js",
       "acceptedSha256": "ccaa732108efed04a5828aa0c0a12b536aa7cb3d1b7f7c86d299d70525a819e3",
-      "exportedSha256": "29bfe3d969bc9d68753598acae715c51f96e8fd656ee5ac7585e21d21016c266",
-      "classification": "rebuilt-runtime-comment-path-normalization-only"
+      "exportedSha256": "3cbb6ae2bb98166041df9d89c1d4697a39705818b17747343225f52a5592c87f",
+      "classification": "rebuilt-runtime-local14-client-ui-update",
+      "previousLocal13Sha256": "29bfe3d969bc9d68753598acae715c51f96e8fd656ee5ac7585e21d21016c266",
+      "reason": "Substantive local.14 client bundle output; see recorded input UI source changes."
     },
     {
       "path": "lib/compaction-cycles.js",
       "acceptedSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
       "exportedSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/compatibility.js",
       "acceptedSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
       "exportedSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/diagnostics.js",
       "acceptedSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
       "exportedSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/efficiency.js",
       "acceptedSha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
       "exportedSha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/engine.js",
       "acceptedSha256": "73753e3e2d0636fb0e32c11a173dbeeda95b6bc568ecd2af0825749afe120145",
-      "exportedSha256": "d5cbd541f79db120acc8ffa3cb5a174d3d6fe61ee40d4f575d4d581254eb7686",
-      "classification": "rebuilt-runtime-local13-version-string-only"
+      "exportedSha256": "21b9ae5afbe763710b4f0901b8b82ddb846c7b08a4fd6f0c60fea2cc5ea673bc",
+      "classification": "rebuilt-runtime-local14-version-only",
+      "previousLocal13Sha256": "d5cbd541f79db120acc8ffa3cb5a174d3d6fe61ee40d4f575d4d581254eb7686",
+      "reason": "Only the embedded diagnostic version differs from the local.13 runtime member."
     },
     {
       "path": "lib/history-tools.js",
       "acceptedSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
       "exportedSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/index.js",
       "acceptedSha256": "9c6b5efbde5aa1f4993b723950794bbf18e51da8102a1c39a77c9b74e28fad46",
-      "exportedSha256": "9ab1d1bd6f98694a315661a16524dbd2e302808d9db774dcf44e6c9328059919",
-      "classification": "rebuilt-runtime-local13-version-string-only"
+      "exportedSha256": "e1d36f677f8d1a919c510fe250c048df49595a699a4c38ce7631bccb7f7b1a76",
+      "classification": "rebuilt-runtime-local14-version-only",
+      "previousLocal13Sha256": "9ab1d1bd6f98694a315661a16524dbd2e302808d9db774dcf44e6c9328059919",
+      "reason": "Only the embedded diagnostic version differs from the local.13 runtime member."
     },
     {
       "path": "lib/inspector-fold.js",
       "acceptedSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
       "exportedSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/inspector.js",
       "acceptedSha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
       "exportedSha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/policy.js",
       "acceptedSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
       "exportedSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/reducer.js",
       "acceptedSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
       "exportedSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/tool-results.js",
       "acceptedSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
       "exportedSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/typert.js",
       "acceptedSha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
       "exportedSha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "lib/working-set.js",
       "acceptedSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
       "exportedSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
-      "classification": "rebuilt-runtime-exact-to-accepted"
+      "classification": "rebuilt-runtime-identical-to-local13",
+      "reason": "Exact byte match with local.13 runtime member."
     },
     {
       "path": "package.json",
       "acceptedSha256": "f7dd5a41e7e824acebaf5cc47f87f6f464b31338b4ff1644fae38510fdaf4cf7",
-      "exportedSha256": "74404cd92038fe6598480cfa2f6b42cd4670389d834fadbf4e5b13d6b44c5780",
-      "classification": "intentional-local13-source-or-metadata-override",
-      "reason": "version bumped to 0.10.0-local.13"
+      "exportedSha256": "1fd55dab52a589a15b44e6bba134c5915544511ffa5b9622fa80c7bd28d74230",
+      "classification": "intentional-local14-source-or-metadata-override",
+      "reason": "Package version advanced to local.14.",
+      "previousLocal13Sha256": "74404cd92038fe6598480cfa2f6b42cd4670389d834fadbf4e5b13d6b44c5780"
     },
     {
       "path": "pnpm-workspace.yaml",
@@ -263,8 +290,10 @@
     {
       "path": "src/client.tsx",
       "acceptedSha256": "5536564afbc255c38dfcaebda8f42d6d12f2bde824fb7a1cd8c66fa7d69ef547",
-      "exportedSha256": "5536564afbc255c38dfcaebda8f42d6d12f2bde824fb7a1cd8c66fa7d69ef547",
-      "classification": "accepted-source-exact"
+      "exportedSha256": "2003040f4ff8b4687f524135e5e34f0080eeb41f28c81cb881dd642db44b6710",
+      "classification": "intentional-local14-ui-or-test-update",
+      "previousLocal13Sha256": "5536564afbc255c38dfcaebda8f42d6d12f2bde824fb7a1cd8c66fa7d69ef547",
+      "reason": "Settings UI entry and client integration updated for local.14 copy/refresh behavior."
     },
     {
       "path": "src/compaction-cycles.ts",
@@ -353,8 +382,10 @@
     {
       "path": "src/inspector-locales.ts",
       "acceptedSha256": "f1a7c2d2c5d7a1d9f6d3675dfeb118f7cb8f1441b53e5edb3943eeb4b69c59a7",
-      "exportedSha256": "f1a7c2d2c5d7a1d9f6d3675dfeb118f7cb8f1441b53e5edb3943eeb4b69c59a7",
-      "classification": "accepted-source-exact"
+      "exportedSha256": "659736c32f299f9cb7725997dd544ae1a693e07946cd4168ed07942410a10bb4",
+      "classification": "intentional-local14-ui-or-test-update",
+      "previousLocal13Sha256": "f1a7c2d2c5d7a1d9f6d3675dfeb118f7cb8f1441b53e5edb3943eeb4b69c59a7",
+      "reason": "Inspector labels and helper text updated for local.14."
     },
     {
       "path": "src/inspector-types.ts",
@@ -365,8 +396,10 @@
     {
       "path": "src/inspector-view.tsx",
       "acceptedSha256": "40923f0f45d5c06b00a5e2289285550429a255ccc611bf22d1c7a8ba3800b984",
-      "exportedSha256": "40923f0f45d5c06b00a5e2289285550429a255ccc611bf22d1c7a8ba3800b984",
-      "classification": "accepted-source-exact"
+      "exportedSha256": "966b8c011ffe4cc65e6507d2900305cff312160d0a88ab8ad43af1f63281e6c1",
+      "classification": "intentional-local14-ui-or-test-update",
+      "previousLocal13Sha256": "40923f0f45d5c06b00a5e2289285550429a255ccc611bf22d1c7a8ba3800b984",
+      "reason": "Inspector Usage/Tooltip presentation updates for local.14."
     },
     {
       "path": "src/inspector-wire.ts",
@@ -377,8 +410,10 @@
     {
       "path": "src/inspector.css",
       "acceptedSha256": "4d37c8f494a13ec86e89c71af765e8b11ccc9e1a782815d4feddc910e3455edb",
-      "exportedSha256": "4d37c8f494a13ec86e89c71af765e8b11ccc9e1a782815d4feddc910e3455edb",
-      "classification": "accepted-source-exact"
+      "exportedSha256": "9d32a438bf80c16b5d04ec333015956dc212150a278988f6d6e289388465624d",
+      "classification": "intentional-local14-ui-or-test-update",
+      "previousLocal13Sha256": "4d37c8f494a13ec86e89c71af765e8b11ccc9e1a782815d4feddc910e3455edb",
+      "reason": "Tooltip placement/stacking and Usage bar layout corrections for local.14."
     },
     {
       "path": "src/inspector.ts",
@@ -441,6 +476,12 @@
       "classification": "accepted-source-exact"
     },
     {
+      "path": "src/settings-locales.ts",
+      "exportedSha256": "f097f2e9cd2c44d56ddf0c080fb163eb7488407b3ff8011364bd845772d9c667",
+      "classification": "added-local14-source-file",
+      "reason": "Settings display copy and refresh text source added to the local.14 source ledger; not present in the 118-file local.13 manifest."
+    },
+    {
       "path": "src/startup-guard.ts",
       "acceptedSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
       "exportedSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
@@ -491,9 +532,10 @@
     {
       "path": "src/version.ts",
       "acceptedSha256": "9602820fd1a68f788b4753a548e3b23cc14057b59127364e0526f6a843090441",
-      "exportedSha256": "dbf14b0c23131bbeda460275935937bf57a2325124e1f4713abbbca288c0c487",
-      "classification": "intentional-local13-source-or-metadata-override",
-      "reason": "runtime diagnostic version bumped to 0.10.0-local.13"
+      "exportedSha256": "8ee2e9bb5e33e981ac3f611b7b201103d2a63925a1795bb9ab7b600d64b865ab",
+      "classification": "intentional-local14-source-or-metadata-override",
+      "reason": "Runtime diagnostic version advanced to local.14.",
+      "previousLocal13Sha256": "dbf14b0c23131bbeda460275935937bf57a2325124e1f4713abbbca288c0c487"
     },
     {
       "path": "src/working-set.ts",
@@ -673,8 +715,10 @@
     {
       "path": "tests/settings.test.mjs",
       "acceptedSha256": "993d3a01fc307fe040986d7566d42ec70d742cd6818f76ae0bfd664756e8409a",
-      "exportedSha256": "993d3a01fc307fe040986d7566d42ec70d742cd6818f76ae0bfd664756e8409a",
-      "classification": "accepted-source-exact"
+      "exportedSha256": "36e413782e9c1604b49dcabbe548922e9c6a36860826d85c6e6cdf86fdea8692",
+      "classification": "intentional-local14-ui-or-test-update",
+      "previousLocal13Sha256": "993d3a01fc307fe040986d7566d42ec70d742cd6818f76ae0bfd664756e8409a",
+      "reason": "Focused settings fixture updated alongside local.14 Settings behavior."
     },
     {
       "path": "tests/startup-guard.test.mjs",
@@ -737,77 +781,42 @@
       "classification": "accepted-source-exact"
     }
   ],
-  "postPackageSourceFollowup": {
-    "testFile": "tests/compatibility.test.mjs",
-    "acceptedSourceSha256": "28b939086ba5febcd08d8fbe1536d1e5c1cc41e10ee382013613660f3a2bb97a",
-    "updatedSourceSha256": "5be887e311fc5d4d9f5ce55acab30cccf15b524a4c49277fa5030284cadfd89f",
-    "testLogSha256": "1fc47a1c38b966311c406f062fc67df202860191ec65eab79b6c709eb6d6de1d",
-    "command": "node --test --test-concurrency=1 --test-name-pattern='^(the shipped overlay is neutral and leaves preset declarations to the Host|compatibility metadata updates package fields while preserving accepted and extension evidence)$' tests/compatibility.test.mjs",
-    "result": {
-      "passed": 2,
-      "total": 2,
-      "failed": 0
+  "local14Evidence": {
+    "focusedTests": {
+      "path": "../TEST-R2-20261019.log",
+      "sha256": "64fbf317c558c3c99a30b8933fd92dd06b9a9eb320720faed2c3aa8bd38093ee",
+      "passed": 9,
+      "total": 9,
+      "note": "Ran before the final Tooltip CSS adjustment; not a full suite."
     },
-    "checks": [
-      "neutral overlay assertions retained",
-      "two-argument renderCompatibility fixture",
-      "acceptedCandidate evidence preserved",
-      "unknown extension fields preserved",
-      "pending future evidence remains not-run",
-      "only package version and peer ranges change"
-    ],
-    "packageArtifactSha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-    "packageArtifactRebuilt": false,
-    "resourceScope": {
-      "MemoryMax": 3221225472,
-      "MemorySwapMax": 268435456,
-      "CPUQuota": "100%",
-      "NodeMaxOldSpaceSize": 1536,
-      "workers": 1,
-      "DSH_GATE_CONCURRENCY": 1
-    }
-  },
-  "documentationRefresh": {
-    "checkedAtUtc": "2026-10-18T19:41:57Z",
-    "purpose": "Documentation-only final local.13 candidate; English README historical appendix is explicitly superseded by the current policy.",
-    "artifact": {
-      "fileName": "missher-dsh-context-manager-0.10.0-local.13.tgz",
-      "relativePath": "anonymous-download/docfix-final/missher-dsh-context-manager-0.10.0-local.13.tgz",
-      "sha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-      "sizeBytes": 347254,
-      "memberCount": 24
-    },
-    "supersedesStagedDocumentationCandidates": [
-      {
-        "sha256": "4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-        "status": "original accepted archive; preserved unchanged"
+    "typecheck": {
+      "server": {
+        "path": "../TSC-SERVER-LOCAL14-R2-20261019.log",
+        "sha256": "07103d0206699769180121b7822e2cd1500cf1d709dbdab0e62a6d4ce74319e6",
+        "exitCode": 0
       },
-      {
-        "sha256": "05ecf8b8f2cfa2d4750ba828d6c1f17926c6be5d7454794c30a67fd5b1c733fd",
-        "status": "intermediate bilingual documentation candidate; preserved unchanged"
+      "client": {
+        "path": "../TSC-CLIENT-LOCAL14-R2-20261019.log",
+        "sha256": "d57fbd279766da2b084e2c9fcf887caf8d1742ebbbf801c1d211af54044f34ac",
+        "exitCode": 0
       }
-    ],
-    "changedMembersComparedWithPreviousDocumentationCandidate": [
-      "package/README.en.md"
-    ],
-    "changedMembersComparedWithOriginalAcceptedArchive": [
-      "package/README.en.md",
-      "package/README.md"
-    ],
-    "runtimeLibMemberCount": 17,
-    "runtimeLibMembersByteIdenticalToOriginalArchive": true,
-    "packageBoundary": {
-      "status": "passed",
-      "logSha256": "5d0e6fdd6cb5891581a4fec3403f27e3940c47e69f6bbf728786e3e6f722893f",
-      "archiveSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
-      "memberCount": 24,
-      "containsBridgeCode": false,
-      "dependsOnBridge": false,
-      "lifecyclePatchHooks": false,
-      "hostConfigTargets": [],
-      "verificationFilesBundled": false
     },
-    "extractedSettingsAndLoaderSmoke": "not rerun on this documentation-only candidate; synthetic 2/2 settings and 1/1 RC.2 Loader smoke applies only to original archive 4b0c94db3b1b8ca99589bed94b66e273c4042112cf0df75208cbb53762540359",
-    "releaseInstallHostOrRealProviderAcceptance": false
+    "uiPreview": {
+      "kind": "synthetic-preview",
+      "screenshots": {
+        "settings-desktop.png": "e770d660f0720b2c0fd2c53e9d6669744bdefee835cf3dd12269505bf835a493",
+        "settings-narrow.png": "b38da525db6970961a84cd7e3d6861db1ecdf39e884a7d72e142bbfb503b1aed",
+        "inspector-usage-desktop.png": "d6d865c0a22df4d9eeba0329d534cd9cd2685f9091669eaebbd6d0470566a7f7",
+        "inspector-usage-narrow.png": "8c95ee61289d2657ae6ef1112c973e8bef0b2af73f6205e4e713ff5eda2086cc",
+        "inspector-tooltip-scrolled-narrow.png": "47aa108f4aecce3eb9d1982458f37ff5042ff2b387640fe879e359faffcd4111"
+      },
+      "hostNativeAcceptance": false
+    },
+    "runtimeComparisonToLocal13": {
+      "packageSha256": "2c1223f1388a384bf1fac725abed1d3b03684215d992fb49e3ae313649c085fc",
+      "memberCount": 17,
+      "backendMembers": "16 backend files; 14 byte-identical and engine.js/index.js differ only in local.14 diagnostic version string",
+      "client.js": "substantive UI bundle update"
+    }
   }
 }
