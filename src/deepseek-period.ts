@@ -1,11 +1,11 @@
-/** Current official tariff schedule, checked 2026-09-29.
+/** Current official tariff schedule, checked 2026-10-20.
  * https://api-docs.deepseek.com/zh-cn/quick_start/pricing/
  * 2026 public holiday calendar: State Council, 国办发明电〔2025〕7号
  * https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
  * For the live indicator only; never use this snapshot to price past calls.
  */
 export const PRICING_URL = 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/'
-export const RULE_CHECKED = '2026-09-29'
+export const RULE_CHECKED = '2026-10-20'
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const BEIJING_OFFSET = 8 * HOUR

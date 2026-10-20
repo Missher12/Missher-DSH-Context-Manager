@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
+import type {} from '@deepseek-ai/dsh-token-meter/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -16,7 +17,7 @@ import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { ContextInspectorView, type ContextViewInjected } from './inspector-view.tsx'
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
-import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi } from './inspector-types.ts'
+import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi, SessionUsageReadout } from './inspector-types.ts'
 import type { HostCapabilityReadout } from './compatibility.ts'
 import { TYPERT_REMOTE } from './inspector-wire.ts'
 import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
@@ -39,6 +40,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
       compatibility(query: {}, signal: AbortSignal): Promise<RemoteResult<HostCapabilityReadout>>
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
+      sessionUsage(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<SessionUsageReadout>>
       content(query: ContentQuery, signal: AbortSignal): Promise<RemoteResult<ContentPage>>
     }
   }
@@ -52,6 +54,7 @@ export const inject = ['locale', 'slots', 'configForms', 'sessions', 'remote', '
 // Page styles are mounted after the module factory. Explicit ownership keeps
 // another plugin's later materialization from claiming and removing them.
 const STYLE_OWNER = 'dsh-context-manager'
+const EMPTY_USAGE_PULSE = { subscribe: (_callback: () => void) => () => {}, getSnapshot: () => null }
 
 /** Native conversation tab plus a separate parameter-only settings section. */
 export async function apply(ctx: Context) {
@@ -60,12 +63,6 @@ export async function apply(ctx: Context) {
   ctx.effect(() => ctx.locale.register('context.manager.settings', { zh: settingsZh, en: settingsEn }), 'context-manager: settings locale')
   const settingsT = ctx.locale.bind('context.manager.settings')
   const form = ctx.configForms.get<Values>('context-manager')
-  ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
-    name: 'conversation.input.right', id: 'context-manager-period', order: 100,
-    inject: (sessionId: string): PeakIndicatorProps => ({
-      directory: ctx.modelDirectories.directoryFor(sessionId as SessionId).store,
-    }),
-  }, PeakIndicator))
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE)
   ctx.effect(() => unmount, 'context-manager: remote')
   ctx.inject(['remote.contextInspector'], scope => {
@@ -77,8 +74,22 @@ export async function apply(ctx: Context) {
       compatibility: async signal => unwrap(await scope.remote.contextInspector.compatibility({}, signal)),
       idleStatus: async (query, signal) => unwrap(await scope.remote.contextInspector.idleStatus(query, signal)),
       inspect: async (query, signal) => unwrap(await scope.remote.contextInspector.inspect(query, signal)),
+      sessionUsage: async (query, signal) => unwrap(await scope.remote.contextInspector.sessionUsage(query, signal)),
       content: async (query, signal) => unwrap(await scope.remote.contextInspector.content(query, signal)),
     }
+    scope.slots.inject('conversation.input.right', () => scope.slots.register({
+      name: 'conversation.input.right', id: 'context-manager-period', order: 100,
+      inject: (sessionId: string): PeakIndicatorProps => {
+        const id = sessionId as SessionId
+        const session = ctx.sessions.binding(id)?.session
+        return {
+          sessionId,
+          directory: ctx.modelDirectories.directoryFor(id).store,
+          usagePulse: session?.projections.faceOf('tokenUsage') ?? EMPTY_USAGE_PULSE,
+          readUsage: signal => api.sessionUsage({ sessionId }, signal),
+        }
+      },
+    }, PeakIndicator))
     scope.inject(['remote.contextRecovery'], recovery => {
       api.prepareEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.prepareEmergency(query, signal))
       api.executeEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.executeEmergency(query, signal))

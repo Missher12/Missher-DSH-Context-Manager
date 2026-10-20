@@ -13,8 +13,9 @@ import { pressureHistory } from './pressure-history.ts'
 export { pressureHistory } from './pressure-history.ts'
 import { indexContext, MAX_EVENTS } from './inspector-fold.ts'
 import { attributeSession } from './efficiency.ts'
-import { inspectQuerySchema, contentQuerySchema } from './inspector-wire.ts'
-import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout } from './inspector-types.ts'
+import { inspectQuerySchema, contentQuerySchema, sessionUsageQuerySchema } from './inspector-wire.ts'
+import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout, SessionUsageQuery, SessionUsageReadout } from './inspector-types.ts'
+import { estimateSessionCost } from './session-cost.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type ContextManager from './index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -232,6 +233,33 @@ export class ContextInspector extends TypertRemoteService {
         activeCount: index.indexed.filter(item => item.row.current).length, archivedCount: index.indexed.filter(item => !item.row.current).length,
         requests: index.requests, requestCount: index.requestCount, compactions }
     })
+  }
+  @Remote('sessionUsage')
+  async sessionUsage(input: SessionUsageQuery, signal: AbortSignal): Promise<SessionUsageReadout> {
+    const query = sessionUsageQuerySchema().parse(input)
+    const cancel = AbortSignal.any([signal, this.lifetime.signal, AbortSignal.timeout(12000)])
+    const observation = await this.ctx.sessionQuery.observeSession(SessionId(query.sessionId), { signal: cancel, projectionMode: 'all' })
+    try {
+      cancel.throwIfAborted()
+      const usage = observation.projections?.values.tokenUsage
+      const summary = this.getManager()?.summaryLedger?.stats(query.sessionId)
+      const references = {
+        ...(usage === undefined ? {} : { host: { source: 'host-token-usage',
+          uncachedInputTokens: usage.uncachedInputTokens, cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens } }),
+        ...(summary === undefined ? {} : { summary: { source: 'summary-ledger', input: summary.input, output: summary.output,
+          cacheRead: summary.cacheRead, cacheWrite: summary.cacheWrite, attempts: summary.attempts, unknownAttempts: summary.unknownAttempts } }),
+        fingerprint: false,
+      } as const
+      if (observation.events.length > MAX_EVENTS) {
+        const limited = attributeSession([], references)
+        return { ...estimateSessionCost(limited), sessionId: query.sessionId, sampledAt: Date.now(), status: 'analysis-limit' }
+      }
+      // This endpoint only needs usage metadata. Avoid even inspecting private system-prompt text.
+      const attribution = attributeSession(observation.events, references)
+      cancel.throwIfAborted()
+      return { ...estimateSessionCost(attribution), sessionId: query.sessionId, sampledAt: Date.now(), status: 'ready' }
+    } finally { observation[Symbol.dispose]() }
   }
   @Remote('content')
   async content(input: ContentQuery, signal: AbortSignal): Promise<ContentPage> {

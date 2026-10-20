@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.1",
-  "status": "formal-release-and-ubuntu-native-installation-verified",
+  "version": "0.10.2",
+  "status": "source-reviewed-native-delivery-pending",
   "artifact": {
-    "fileName": "missher-dsh-context-manager-0.10.1.tgz",
-    "relativePath": "dist/missher-dsh-context-manager-0.10.1.tgz",
-    "sha256": "2e7acc9321e8e5064e4e66876c68bce977bbc278a95866f70d4002d9470e4910",
-    "sizeBytes": 353675,
+    "fileName": "missher-dsh-context-manager-0.10.2.tgz",
+    "relativePath": "dist/missher-dsh-context-manager-0.10.2.tgz",
+    "sha256": "a151f8f88e2361a3a95da17e72a6014e5fdda4115157ba954dfb65861d5b73f0",
+    "sizeBytes": 357905,
     "memberCount": 24
   },
-  "sourceManifestSha256": "5c4ec1fc85b608ea07eb71efa7ce06f0ac09233227e55733ae9a08039aa4174b",
-  "frozenInputManifestSha256": "1e66ad6f3759e54dc70902ac2d74db2f38cf3f11e8d8ecdb7478ed96563e6a11",
+  "sourceManifestSha256": "869a4722f2d5ce83cd4bb969f15ea835114d279ef309702caa32a7cf4876c244",
+  "frozenInputManifestSha256": "4dfdffc76b272066a7f573f211a850edbce2caec18333584b6838eec81a1f495",
   "archiveMembers": [
     {
       "path": "package/LICENSE",
@@ -30,8 +30,8 @@
     },
     {
       "path": "package/lib/client.js",
-      "sha256": "0cd76a94cb14e77cab2ef876f6e5757770f1c5d7774e03cc657b2221a4c94b67",
-      "sizeBytes": 822411
+      "sha256": "4bd286c1f6dc02c8f0398fe1a24e7759b1cfab0ec096bec4cd46e9716a5626ae",
+      "sizeBytes": 830833
     },
     {
       "path": "package/lib/compaction-cycles.js",
@@ -50,12 +50,12 @@
     },
     {
       "path": "package/lib/efficiency.js",
-      "sha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
-      "sizeBytes": 10195
+      "sha256": "c26bb33e66b6c09e7d058c79a20c1df56c09f89a06da18ac81a483fd8f459f59",
+      "sizeBytes": 12409
     },
     {
       "path": "package/lib/engine.js",
-      "sha256": "b2b38e95fa8963a38e1681f00e4bd14839b95c07e9e1bac135036aa2326c6d05",
+      "sha256": "3bb5f238a9e3d4609fc25fa073b5993de8a7e5fcf7b8887521cc06f10cbcdc58",
       "sizeBytes": 168068
     },
     {
@@ -65,7 +65,7 @@
     },
     {
       "path": "package/lib/index.js",
-      "sha256": "b6c31622b61fd102af66c5aaaf178c16e68cae4e3069ca8176aadc484ba397ec",
+      "sha256": "a864f4e6429f7d34f23facd379a2c5fb1c1c560030aeeae47d4af7b7c3cb0b95",
       "sizeBytes": 366947
     },
     {
@@ -75,8 +75,8 @@
     },
     {
       "path": "package/lib/inspector.js",
-      "sha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
-      "sizeBytes": 58345
+      "sha256": "0f3fd06dac96ecde4999462a154de80e682cff4b62bb83ae3f610e774fc578bd",
+      "sizeBytes": 66342
     },
     {
       "path": "package/lib/policy.js",
@@ -95,8 +95,8 @@
     },
     {
       "path": "package/lib/typert.js",
-      "sha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
-      "sizeBytes": 16456
+      "sha256": "5df45e214e95342701c250de9263d12361fcd0b115787174d8f275e8829589c1",
+      "sizeBytes": 17943
     },
     {
       "path": "package/lib/working-set.js",
@@ -105,23 +105,23 @@
     },
     {
       "path": "package/COMPATIBILITY.json",
-      "sha256": "a7cb57def84717f8637cb11f1a9ecf4a31f403869fa4701cd1520ec5f65c45a8",
-      "sizeBytes": 8628
+      "sha256": "4b911465e4e6c8cbd86dc4cea24560d8b9623423a60e5c52ddf6c70bfc799490",
+      "sizeBytes": 8631
     },
     {
       "path": "package/package.json",
-      "sha256": "8e31ce47aa2072dbee2354aa05b2ae4264f34c051e61996da7121bca60bb507c",
+      "sha256": "e73718737a77d09e84e2652d6231978c8f9314dd6049937d52093f21a42da64f",
       "sizeBytes": 5293
     },
     {
       "path": "package/README.en.md",
-      "sha256": "6ea53edc30892ca7847e413b049203c28be15965375c62094818bbc426730c08",
-      "sizeBytes": 35661
+      "sha256": "7631fd576ee243faba7dbaa56b5c194f4445d56604d95a02c8a84468e74977b2",
+      "sizeBytes": 35622
     },
     {
       "path": "package/README.md",
-      "sha256": "760186b9b94808c390dd6f767ac0c70d00e3477960c747c79860f9ba671bf375",
-      "sizeBytes": 30198
+      "sha256": "bec30186bede5fe596b69d69eab2267338eb2e2fbf8ea6eb0bb6e3f7b66140cb",
+      "sizeBytes": 30133
     },
     {
       "path": "package/THIRD_PARTY_NOTICES.md",
@@ -135,47 +135,16 @@
     }
   ],
   "validation": {
-    "build": "Bounded final build and24-member package boundary check passed.",
-    "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
-    "syntheticUI": "Final112px geometry verified with312px form at600px viewport and564px form in Chinese/English. Earlier edit/empty/reset sequence used identical JS. Content-width layout prevents vertical labels.",
-    "nativeUI": "Final installed package accepted through actual desktop narrow-layout and numeric-editing/discard checks; earlier empty/reset sequence uses identical JS. Settings and other plugins preserved; no native DOM coordinate claim.",
+    "focusedSyntheticTests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "serverClientTypecheck": "passed",
+    "buildAndPackageBoundary": "passed; 24 exact members independently verified",
+    "syntheticUI": "1280x900 and390x844; automatic totals, model switch, new-settlement refresh, failure/retry, empty/zero and analysis limit",
+    "nativeUI": "pending Desktop owner",
     "modelRequests": 0,
-    "notRerun": "Unchanged backend suites were not rerun.",
-    "storageCI": {
-      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39304043931",
-      "commit": "f6236dde4dfd70fc3a267e6ba4732e140a71228e",
-      "jobsPassed": 12,
-      "totalJobs": 12
-    }
+    "scope": "Current-session token-cost estimates in the composer period panel; Host, compaction policy and version ranges unchanged."
   },
-  "previousAcceptedVersion": "0.10.0",
-  "verifiedAt": "2026-10-19T18:48:43.775074+00:00",
-  "frozenPublicationSourceManifestSha256": "15d4dc6e54dee81524ff655c3ea0c01a4a664f12d620908f9fb164aac6c8c17b",
-  "publication": {
-    "at": "2026-10-19T18:48:06.655729+00:00",
-    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.1",
-    "id": 417627290,
-    "tag": "v0.10.1",
-    "commit": "f6236dde4dfd70fc3a267e6ba4732e140a71228e",
-    "draft": false,
-    "prerelease": false,
-    "latest": true,
-    "anonymousDownloadsMatched": true,
-    "assets": [
-      {
-        "name": "missher-dsh-context-manager-0.10.1.tgz",
-        "bytes": 353675,
-        "sha256": "2e7acc9321e8e5064e4e66876c68bce977bbc278a95866f70d4002d9470e4910",
-        "id": 657123962,
-        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.1/missher-dsh-context-manager-0.10.1.tgz"
-      },
-      {
-        "name": "SHA256SUMS",
-        "bytes": 105,
-        "sha256": "9178802eaa94ce31e370b8719e07fa7b44272f04c8c2e17ace2e9cff09b9541f",
-        "id": 657124000,
-        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.1/SHA256SUMS"
-      }
-    ]
-  }
+  "previousAcceptedVersion": "0.10.1"
 }

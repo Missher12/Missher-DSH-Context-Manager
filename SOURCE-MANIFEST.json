@@ -1,870 +1,877 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.1",
-  "sourceScope": "Frozen source inputs and runtime libraries; previously public synthetic header example retained. Native acceptance recorded separately.",
-  "frozenInputManifestSha256": "1e66ad6f3759e54dc70902ac2d74db2f38cf3f11e8d8ecdb7478ed96563e6a11",
+  "version": "0.10.2",
+  "sourceScope": "Accepted plugin source and tests; runtime is bound to the exact archive, not the inherited canonical lib. Native acceptance is separate.",
+  "frozenInputManifestSha256": "4dfdffc76b272066a7f573f211a850edbce2caec18333584b6838eec81a1f495",
   "files": [
     {
       "path": "COMPATIBILITY.json",
-      "exportedSha256": "a7cb57def84717f8637cb11f1a9ecf4a31f403869fa4701cd1520ec5f65c45a8",
-      "sizeBytes": 8628,
-      "previousSourceExportSha256": "ca3a67992540b44e40b5db8a5f53f395b3a34cad5e6ca3c8480ff4e332a9dae9",
-      "classification": "frozen-0.10.1"
+      "exportedSha256": "4b911465e4e6c8cbd86dc4cea24560d8b9623423a60e5c52ddf6c70bfc799490",
+      "sizeBytes": 8631,
+      "previousAcceptedSha256": "a7cb57def84717f8637cb11f1a9ecf4a31f403869fa4701cd1520ec5f65c45a8",
+      "classification": "frozen-0.10.2"
     },
     {
       "path": "LICENSE",
       "exportedSha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0",
       "sizeBytes": 1092,
-      "previousSourceExportSha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0",
-      "classification": "unchanged-from-prior-0.10.1-source"
+      "previousAcceptedSha256": "ce8673c8401e4711ae7065b169cb74af3e41823b86bfcfd8c6ce5300523e6fd0",
+      "classification": "unchanged-from-0.10.1"
     },
     {
       "path": "README.en.md",
-      "exportedSha256": "c018ad55061e0fd233fe1cedba46c82d9826d19a5859c1d55ac731d16a75b36a",
-      "sizeBytes": 35857,
-      "previousSourceExportSha256": "7a634fffe0870f8f21a68267b93769d460f78173bb33dbce1e26cb4063bf0a9d",
-      "classification": "post-delivery-documentation-only",
-      "frozenExportedSha256": "6ea53edc30892ca7847e413b049203c28be15965375c62094818bbc426730c08",
-      "frozenSizeBytes": 35661
+      "exportedSha256": "7631fd576ee243faba7dbaa56b5c194f4445d56604d95a02c8a84468e74977b2",
+      "sizeBytes": 35622,
+      "previousAcceptedSha256": "c018ad55061e0fd233fe1cedba46c82d9826d19a5859c1d55ac731d16a75b36a",
+      "classification": "frozen-0.10.2"
     },
     {
       "path": "README.md",
-      "exportedSha256": "4401d57aec07e456b2713cbed87f792a0a5cfdf272371fe582282a22f503f808",
-      "sizeBytes": 30358,
-      "previousSourceExportSha256": "426ff4c37483df7d7993761960674a73e38dd05cb9aec7c9d8b1f7495349e28d",
-      "classification": "post-delivery-documentation-only",
-      "frozenExportedSha256": "760186b9b94808c390dd6f767ac0c70d00e3477960c747c79860f9ba671bf375",
-      "frozenSizeBytes": 30198
+      "exportedSha256": "bec30186bede5fe596b69d69eab2267338eb2e2fbf8ea6eb0bb6e3f7b66140cb",
+      "sizeBytes": 30133,
+      "previousAcceptedSha256": "4401d57aec07e456b2713cbed87f792a0a5cfdf272371fe582282a22f503f808",
+      "classification": "frozen-0.10.2"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
       "exportedSha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810",
       "sizeBytes": 2231,
-      "previousSourceExportSha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810",
-      "classification": "unchanged-from-prior-0.10.1-source"
+      "previousAcceptedSha256": "564bdab0e5b8dd04bed7c4cb64098c2c6a5b840d682abcc62e8cfafae208f810",
+      "classification": "unchanged-from-0.10.1"
     },
     {
       "path": "cordis.patch.yml",
       "exportedSha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f",
       "sizeBytes": 278,
-      "previousSourceExportSha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "package.json",
-      "exportedSha256": "8e31ce47aa2072dbee2354aa05b2ae4264f34c051e61996da7121bca60bb507c",
-      "sizeBytes": 5293,
-      "previousSourceExportSha256": "8e31ce47aa2072dbee2354aa05b2ae4264f34c051e61996da7121bca60bb507c",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "pnpm-lock.yaml",
-      "exportedSha256": "9d7d164b3ca005e6c073be7b7a36a0d04a70b1ca8206bbc377a594d1eaafb1df",
-      "sizeBytes": 32502,
-      "previousSourceExportSha256": "9d7d164b3ca005e6c073be7b7a36a0d04a70b1ca8206bbc377a594d1eaafb1df",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "pnpm-workspace.yaml",
-      "exportedSha256": "154fb2443986859dfd9b66e8de78f4cf094ed052db638493e371283b9f8eb9d4",
-      "sizeBytes": 3388,
-      "previousSourceExportSha256": "154fb2443986859dfd9b66e8de78f4cf094ed052db638493e371283b9f8eb9d4",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/archive-faults.mjs",
-      "exportedSha256": "588552c50375a1332b50f63e5805a904b80f1bcbaf3fbbf79860769c4ed1b9b2",
-      "sizeBytes": 9741,
-      "previousSourceExportSha256": "588552c50375a1332b50f63e5805a904b80f1bcbaf3fbbf79860769c4ed1b9b2",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/archive-faults.upstream.json",
-      "exportedSha256": "ca6b6b328c33c2f280f1ac82ae5b950d983e790f77aca18e2e1ab393c4da41d1",
-      "sizeBytes": 509,
-      "previousSourceExportSha256": "ca6b6b328c33c2f280f1ac82ae5b950d983e790f77aca18e2e1ab393c4da41d1",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/build.mjs",
-      "exportedSha256": "514750df526797489042577c372b873ddb97c67481b2e1887cb4f77a7787eef9",
-      "sizeBytes": 3157,
-      "previousSourceExportSha256": "514750df526797489042577c372b873ddb97c67481b2e1887cb4f77a7787eef9",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/check-archive-platform.mjs",
-      "exportedSha256": "8c51beccd50e64e49cb685ba27dea15cb29ab1b2643f09771bf2f6fa1232dc2c",
-      "sizeBytes": 5820,
-      "previousSourceExportSha256": "8c51beccd50e64e49cb685ba27dea15cb29ab1b2643f09771bf2f6fa1232dc2c",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/check-recovery-platform.mjs",
-      "exportedSha256": "db2a8f9bff7c38fa1da6e688a11094f9a4a712ec130b0b2fe836030b54f24bc0",
-      "sizeBytes": 3592,
-      "previousSourceExportSha256": "db2a8f9bff7c38fa1da6e688a11094f9a4a712ec130b0b2fe836030b54f24bc0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/generate-overlay.mjs",
-      "exportedSha256": "1807054ddbec30bc699660544892125abc841e1083be87535f892adeb1fdf6ea",
-      "sizeBytes": 1692,
-      "previousSourceExportSha256": "1807054ddbec30bc699660544892125abc841e1083be87535f892adeb1fdf6ea",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/link-harness.mjs",
-      "exportedSha256": "51c04642ed1d9107d22700189e1bd2608649e2399db6e898dcd8e660b5836508",
-      "sizeBytes": 3760,
-      "previousSourceExportSha256": "51c04642ed1d9107d22700189e1bd2608649e2399db6e898dcd8e660b5836508",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/verify-package-boundary.mjs",
-      "exportedSha256": "5db9b40d0afca78bae381b8a21ad2ad579379c7ca300c6dd7240402484e84c59",
-      "sizeBytes": 5669,
-      "previousSourceExportSha256": "5db9b40d0afca78bae381b8a21ad2ad579379c7ca300c6dd7240402484e84c59",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "scripts/verify-profile.mjs",
-      "exportedSha256": "90052103c47e203d22d82538685f39eafd60d4a9163f2f4588beed551ca773c0",
-      "sizeBytes": 1132,
-      "previousSourceExportSha256": "90052103c47e203d22d82538685f39eafd60d4a9163f2f4588beed551ca773c0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/archive.ts",
-      "exportedSha256": "5f1e2fb95844021a62972a413c68554cc3632614fa54a10d4188c411b3aced3d",
-      "sizeBytes": 47189,
-      "previousSourceExportSha256": "5f1e2fb95844021a62972a413c68554cc3632614fa54a10d4188c411b3aced3d",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/chart-data.ts",
-      "exportedSha256": "8f04b5c44a3795985953db5a17ee71f2fa9e057070c7ebb78bf48c704329c615",
-      "sizeBytes": 5927,
-      "previousSourceExportSha256": "8f04b5c44a3795985953db5a17ee71f2fa9e057070c7ebb78bf48c704329c615",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/checkpoint.ts",
-      "exportedSha256": "f6b95e9ac8bbe044e5f2edf585ef050815fafb6ab1610d641ff1f90f90709708",
-      "sizeBytes": 21199,
-      "previousSourceExportSha256": "f6b95e9ac8bbe044e5f2edf585ef050815fafb6ab1610d641ff1f90f90709708",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/client.css",
-      "exportedSha256": "e9227dfaec100da8704f46fa8de4a34f6b4998f81592ca910b38a209d2bedee0",
-      "sizeBytes": 12181,
-      "previousSourceExportSha256": "6719eae27f71f5fc50997435be0ad7388e0089bda482f1ef3c5d8cf6d6f38639",
-      "classification": "frozen-0.10.1"
-    },
-    {
-      "path": "src/client.tsx",
-      "exportedSha256": "d6c40994ea3023abcbe8d998ab6f9e0f311155543103b00a486690bdca5f3962",
-      "sizeBytes": 22581,
-      "previousSourceExportSha256": "d6c40994ea3023abcbe8d998ab6f9e0f311155543103b00a486690bdca5f3962",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/compaction-cycles.ts",
-      "exportedSha256": "5c3983730bb9667cf3de3bfa1e3c97c584f85342baee12a95d4bd14b8bae1237",
-      "sizeBytes": 7953,
-      "previousSourceExportSha256": "5c3983730bb9667cf3de3bfa1e3c97c584f85342baee12a95d4bd14b8bae1237",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/compatibility.ts",
-      "exportedSha256": "5c6b0b739659c295d24a28ab0c93329341d948c45371f95567511c8ea87ebf15",
-      "sizeBytes": 9491,
-      "previousSourceExportSha256": "5c6b0b739659c295d24a28ab0c93329341d948c45371f95567511c8ea87ebf15",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/deepseek-period.ts",
-      "exportedSha256": "9595514bbe9d8053bd769a91ca98c6deed6eaa14383aeba2a63164f0db4105e5",
-      "sizeBytes": 3934,
-      "previousSourceExportSha256": "9595514bbe9d8053bd769a91ca98c6deed6eaa14383aeba2a63164f0db4105e5",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/diagnostics-types.ts",
-      "exportedSha256": "2bdf8ede181dfc2d87dbc1d87c237f4eaafe5536e90712ef3efbcaf833b8a885",
-      "sizeBytes": 1001,
-      "previousSourceExportSha256": "2bdf8ede181dfc2d87dbc1d87c237f4eaafe5536e90712ef3efbcaf833b8a885",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/diagnostics.ts",
-      "exportedSha256": "3dd0dc4b33f1662090cc67f39d20f3d29258456b64bce78f80075a5f06f9d5df",
-      "sizeBytes": 7073,
-      "previousSourceExportSha256": "3dd0dc4b33f1662090cc67f39d20f3d29258456b64bce78f80075a5f06f9d5df",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/efficiency.ts",
-      "exportedSha256": "c6c208ac3b082f2c8e4f3ca3cc60162af2a061e2a1959b10e923df2610560718",
-      "sizeBytes": 19743,
-      "previousSourceExportSha256": "c6c208ac3b082f2c8e4f3ca3cc60162af2a061e2a1959b10e923df2610560718",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/engine.ts",
-      "exportedSha256": "2858af166417d715209dc75559e98bedb434fa15352ea8198a0a4e6b0eb9395b",
-      "sizeBytes": 95478,
-      "previousSourceExportSha256": "2858af166417d715209dc75559e98bedb434fa15352ea8198a0a4e6b0eb9395b",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/history-tools.ts",
-      "exportedSha256": "5ad7baa9cb950170975619f6f4e247d3a0a2d54f8f1a1d65dd92b7403c56f4d0",
-      "sizeBytes": 37419,
-      "previousSourceExportSha256": "5ad7baa9cb950170975619f6f4e247d3a0a2d54f8f1a1d65dd92b7403c56f4d0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/idle-store.ts",
-      "exportedSha256": "9a36116b1a509d527ae6517dd898b6e91248b5da82a90b8a26a24bb120c60e6f",
-      "sizeBytes": 9717,
-      "previousSourceExportSha256": "9a36116b1a509d527ae6517dd898b6e91248b5da82a90b8a26a24bb120c60e6f",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/idle-types.ts",
-      "exportedSha256": "bcc1a605eb77b217cc5f81fd1ee697da2ce17aa9eb86381f46884c5c7bad9a44",
-      "sizeBytes": 2634,
-      "previousSourceExportSha256": "bcc1a605eb77b217cc5f81fd1ee697da2ce17aa9eb86381f46884c5c7bad9a44",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/idle.ts",
-      "exportedSha256": "b1c5a7e8efbc41e8e93e5e0d07c46ebe0f15c6116d15df98a1aad35b6dc74f12",
-      "sizeBytes": 20892,
-      "previousSourceExportSha256": "b1c5a7e8efbc41e8e93e5e0d07c46ebe0f15c6116d15df98a1aad35b6dc74f12",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/index.ts",
-      "exportedSha256": "650c26b773ded2bb079e3a1dc0a8d0e5ded12cd76b7aaa4bf6c7eebfca943a45",
-      "sizeBytes": 32123,
-      "previousSourceExportSha256": "650c26b773ded2bb079e3a1dc0a8d0e5ded12cd76b7aaa4bf6c7eebfca943a45",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-charts.tsx",
-      "exportedSha256": "4981dbaf30de2ab1d325a02147a9b6993459e3bbb428d28d4f698f5b4da44145",
-      "sizeBytes": 29307,
-      "previousSourceExportSha256": "4981dbaf30de2ab1d325a02147a9b6993459e3bbb428d28d4f698f5b4da44145",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-fold.ts",
-      "exportedSha256": "50c9c9a4414c8b7b737b40c6f45fd43fd74439d55af86dcb042c67fff29b1b4a",
-      "sizeBytes": 7688,
-      "previousSourceExportSha256": "50c9c9a4414c8b7b737b40c6f45fd43fd74439d55af86dcb042c67fff29b1b4a",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-locales.ts",
-      "exportedSha256": "869107a922ba936d9c06943b4b8a7e6552c0eb96acf10fcb4206ab72f692b7f3",
-      "sizeBytes": 33292,
-      "previousSourceExportSha256": "869107a922ba936d9c06943b4b8a7e6552c0eb96acf10fcb4206ab72f692b7f3",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-types.ts",
-      "exportedSha256": "471b824b52fbbbc90902bfc05d3599a4556596e21d42f35775db6d7b99d231fc",
-      "sizeBytes": 9785,
-      "previousSourceExportSha256": "471b824b52fbbbc90902bfc05d3599a4556596e21d42f35775db6d7b99d231fc",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-view.tsx",
-      "exportedSha256": "94ee57e2407dad9319c9b9c642009ade98a4b21b204da65723bcb3657e706075",
-      "sizeBytes": 40060,
-      "previousSourceExportSha256": "94ee57e2407dad9319c9b9c642009ade98a4b21b204da65723bcb3657e706075",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector-wire.ts",
-      "exportedSha256": "bced48d601d9e9504f15dc3d00ddb4b9cdb2525e3a52af5e79cad043ef66f108",
-      "sizeBytes": 15031,
-      "previousSourceExportSha256": "bced48d601d9e9504f15dc3d00ddb4b9cdb2525e3a52af5e79cad043ef66f108",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector.css",
-      "exportedSha256": "77108f0484c5cf3c1266d8caa35266e29bb9a0368c8a68ef202af7839b4671b6",
-      "sizeBytes": 20951,
-      "previousSourceExportSha256": "77108f0484c5cf3c1266d8caa35266e29bb9a0368c8a68ef202af7839b4671b6",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/inspector.ts",
-      "exportedSha256": "937360207609eb095d6c2ea3f3a37251a18db6e0820902845bb8715fe92021ff",
-      "sizeBytes": 22115,
-      "previousSourceExportSha256": "937360207609eb095d6c2ea3f3a37251a18db6e0820902845bb8715fe92021ff",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/overview.tsx",
-      "exportedSha256": "f347c7ce49405a85fcde0de5e2f45f2162689d1149677d42ccf9ff0f1ee98d50",
-      "sizeBytes": 11248,
-      "previousSourceExportSha256": "f347c7ce49405a85fcde0de5e2f45f2162689d1149677d42ccf9ff0f1ee98d50",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/peak-indicator.css",
-      "exportedSha256": "927f111d229f5260091a835cce7c911b1fb587ddac3119b1f55b702c5e0d20e0",
-      "sizeBytes": 5111,
-      "previousSourceExportSha256": "927f111d229f5260091a835cce7c911b1fb587ddac3119b1f55b702c5e0d20e0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/peak-indicator.tsx",
-      "exportedSha256": "2bc846e9bb9b82634df01caf19f79796c0ac6887f68f49cb5214385c18ae4354",
-      "sizeBytes": 8258,
-      "previousSourceExportSha256": "2bc846e9bb9b82634df01caf19f79796c0ac6887f68f49cb5214385c18ae4354",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/policy.ts",
-      "exportedSha256": "35dff8b3d2df0951ff98f14ce084f2b78cf73d4de8b7b1fad34ec0f369ee55c3",
-      "sizeBytes": 16872,
-      "previousSourceExportSha256": "35dff8b3d2df0951ff98f14ce084f2b78cf73d4de8b7b1fad34ec0f369ee55c3",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/pressure-history.ts",
-      "exportedSha256": "15ebe3c814ec74a18c0c68f2d47006b3c69fc4fc1d01e7f6510b76df1fa9a65d",
-      "sizeBytes": 2019,
-      "previousSourceExportSha256": "15ebe3c814ec74a18c0c68f2d47006b3c69fc4fc1d01e7f6510b76df1fa9a65d",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/readonly-view.ts",
-      "exportedSha256": "46b5483bea24f3c7c91c9903c100fa092de8466dc5b02ca46b606fe46ba92d88",
-      "sizeBytes": 1654,
-      "previousSourceExportSha256": "46b5483bea24f3c7c91c9903c100fa092de8466dc5b02ca46b606fe46ba92d88",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/recovery-journal.ts",
-      "exportedSha256": "9f4de42742a14afc672c286c0f4c556f338d2181d9a3dcaff63721575daf73d6",
-      "sizeBytes": 17937,
-      "previousSourceExportSha256": "9f4de42742a14afc672c286c0f4c556f338d2181d9a3dcaff63721575daf73d6",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/reducer.ts",
-      "exportedSha256": "4734061bf9fc759e9875ef7d1059e483f33ec5bb540e5afc3b118dfcb397118b",
-      "sizeBytes": 5877,
-      "previousSourceExportSha256": "4734061bf9fc759e9875ef7d1059e483f33ec5bb540e5afc3b118dfcb397118b",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/registration.ts",
-      "exportedSha256": "23a10351602e0c44b4ca9b34b0147f4e9bf2300079c45844ec039fe7b76907b5",
-      "sizeBytes": 1796,
-      "previousSourceExportSha256": "23a10351602e0c44b4ca9b34b0147f4e9bf2300079c45844ec039fe7b76907b5",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/run-diagnostics.ts",
-      "exportedSha256": "c7ae491a2e1e720501a5c72683d13d1fb4c6ec8e978f4d314b7dfdada8de1966",
-      "sizeBytes": 3252,
-      "previousSourceExportSha256": "c7ae491a2e1e720501a5c72683d13d1fb4c6ec8e978f4d314b7dfdada8de1966",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/settings-locales.ts",
-      "exportedSha256": "c5569b670ff886d1d757976743287a38edc2fbde53bdaa8a4a72b05eac578ca7",
-      "sizeBytes": 12512,
-      "previousSourceExportSha256": "c5569b670ff886d1d757976743287a38edc2fbde53bdaa8a4a72b05eac578ca7",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/startup-guard.ts",
-      "exportedSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
-      "sizeBytes": 3608,
-      "previousSourceExportSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/styles.d.ts",
-      "exportedSha256": "aaba130925aed4d5acbcc59b90dda1de7b21c3d2ec166aaeeca4b9456cc0c5f2",
-      "sizeBytes": 68,
-      "previousSourceExportSha256": "aaba130925aed4d5acbcc59b90dda1de7b21c3d2ec166aaeeca4b9456cc0c5f2",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/summary-deadline.ts",
-      "exportedSha256": "62d0700f811094166f7030fd345aaf33055626979416f535e243b19dce6c179b",
-      "sizeBytes": 6298,
-      "previousSourceExportSha256": "62d0700f811094166f7030fd345aaf33055626979416f535e243b19dce6c179b",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/summary-ledger.ts",
-      "exportedSha256": "292a8dbdee4e7922f48642bc4635c45ab414cd33ef2de297830430b86eaaacc1",
-      "sizeBytes": 11095,
-      "previousSourceExportSha256": "292a8dbdee4e7922f48642bc4635c45ab414cd33ef2de297830430b86eaaacc1",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/summary-operations.ts",
-      "exportedSha256": "cd311b6fb9fe75eb042186db957f218aa54a12b678dc969af53f6e65af22da76",
-      "sizeBytes": 48698,
-      "previousSourceExportSha256": "cd311b6fb9fe75eb042186db957f218aa54a12b678dc969af53f6e65af22da76",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/tool-results.ts",
-      "exportedSha256": "03c5813b1b0e9d8a008db3bcf680c58ee82b7c0637fee0fcd91cbc9530f79955",
-      "sizeBytes": 19895,
-      "previousSourceExportSha256": "03c5813b1b0e9d8a008db3bcf680c58ee82b7c0637fee0fcd91cbc9530f79955",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/transaction.ts",
-      "exportedSha256": "69f1a59e43af418dfce71c4ab20c09d26c9ffac8570429c9c3c1d21b936ba2b7",
-      "sizeBytes": 9877,
-      "previousSourceExportSha256": "69f1a59e43af418dfce71c4ab20c09d26c9ffac8570429c9c3c1d21b936ba2b7",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/typert.ts",
-      "exportedSha256": "a96bfda9165db4d1d24c985cb20a6c5215f9e7242ec6d0d0f3c21ca8d3d35538",
-      "sizeBytes": 647,
-      "previousSourceExportSha256": "a96bfda9165db4d1d24c985cb20a6c5215f9e7242ec6d0d0f3c21ca8d3d35538",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/version.ts",
-      "exportedSha256": "f08e314bfe550501b976f482571658aa6f9d8eeac59920fffe7ef9d084a503d1",
-      "sizeBytes": 120,
-      "previousSourceExportSha256": "f08e314bfe550501b976f482571658aa6f9d8eeac59920fffe7ef9d084a503d1",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "src/working-set.ts",
-      "exportedSha256": "5e3f4deddf2bad808779b17b250962403c33cd1422b0e20aba8eaee4f1bc3a86",
-      "sizeBytes": 15959,
-      "previousSourceExportSha256": "5e3f4deddf2bad808779b17b250962403c33cd1422b0e20aba8eaee4f1bc3a86",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/absolute-budget.test.mjs",
-      "exportedSha256": "9ff8650dbc3683376e0cb2d338568c3cf630bb8e4762ddb4c630df80e34bf7de",
-      "sizeBytes": 16097,
-      "previousSourceExportSha256": "9ff8650dbc3683376e0cb2d338568c3cf630bb8e4762ddb4c630df80e34bf7de",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/archive-ci-report.test.mjs",
-      "exportedSha256": "f7a3d8f33e652731b2af79bd564992cce638c244f2afe006e536f362cd0837d2",
-      "sizeBytes": 1088,
-      "previousSourceExportSha256": "f7a3d8f33e652731b2af79bd564992cce638c244f2afe006e536f362cd0837d2",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/archive-integration.test.mjs",
-      "exportedSha256": "8773cc5cca02214604843de37318e3c9d760a0675a1bb3faca94aba6602fff4c",
-      "sizeBytes": 10817,
-      "previousSourceExportSha256": "8773cc5cca02214604843de37318e3c9d760a0675a1bb3faca94aba6602fff4c",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/chart-data.test.mjs",
-      "exportedSha256": "b507d1d8e43b0f1189ea0e5d954b308348de270e5553ddd87cee175ccd33f228",
-      "sizeBytes": 9512,
-      "previousSourceExportSha256": "b507d1d8e43b0f1189ea0e5d954b308348de270e5553ddd87cee175ccd33f228",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/checkpoint-format-settings.test.mjs",
-      "exportedSha256": "11ccc25e75ba35a179335f4e3a9c780fd32fd2035041f5a14e081f1fe8f1e31d",
-      "sizeBytes": 1192,
-      "previousSourceExportSha256": "11ccc25e75ba35a179335f4e3a9c780fd32fd2035041f5a14e081f1fe8f1e31d",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/checkpoint-replay.test.mjs",
-      "exportedSha256": "4bf1da6b5277884cd9a4a8b5e748bd7c023ec4b02c1ae108ffba6f9b2764c1b0",
-      "sizeBytes": 4698,
-      "previousSourceExportSha256": "4bf1da6b5277884cd9a4a8b5e748bd7c023ec4b02c1ae108ffba6f9b2764c1b0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/checkpoint.test.mjs",
-      "exportedSha256": "caf13a69b1e1e4a5ccd7ac67bfe53de53602950a5ecbf8b06f5592dea37a27e6",
-      "sizeBytes": 12015,
-      "previousSourceExportSha256": "caf13a69b1e1e4a5ccd7ac67bfe53de53602950a5ecbf8b06f5592dea37a27e6",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/compaction-cycles.test.mjs",
-      "exportedSha256": "a47b371d44bc01841c544b82618ddd2c8f384f5591010b746b8a13ff677d1978",
-      "sizeBytes": 12812,
-      "previousSourceExportSha256": "a47b371d44bc01841c544b82618ddd2c8f384f5591010b746b8a13ff677d1978",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/compatibility.test.mjs",
-      "exportedSha256": "5be887e311fc5d4d9f5ce55acab30cccf15b524a4c49277fa5030284cadfd89f",
-      "sizeBytes": 9931,
-      "previousSourceExportSha256": "5be887e311fc5d4d9f5ce55acab30cccf15b524a4c49277fa5030284cadfd89f",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/deepseek-period.test.mjs",
-      "exportedSha256": "dd43d75653a986f3e2297e7be784d09a25f3e9b6b17d176c261128ead71d39df",
-      "sizeBytes": 4076,
-      "previousSourceExportSha256": "dd43d75653a986f3e2297e7be784d09a25f3e9b6b17d176c261128ead71d39df",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/diagnostics.test.mjs",
-      "exportedSha256": "d6fa7a20a8d56d0d0ea8f1722c93696bd3050a1fdbc92a2ac6361b0d1cceebc1",
-      "sizeBytes": 3694,
-      "previousSourceExportSha256": "d6fa7a20a8d56d0d0ea8f1722c93696bd3050a1fdbc92a2ac6361b0d1cceebc1",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/fixtures/agent-loop-dependencies.mjs",
-      "exportedSha256": "e6d76a8bddbafc7a67acd4245cfcca923cef739a80b69dc4452fab055d0507be",
-      "sizeBytes": 1087,
-      "previousSourceExportSha256": "e6d76a8bddbafc7a67acd4245cfcca923cef739a80b69dc4452fab055d0507be",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/fixtures/context-engine-class-entry.mjs",
-      "exportedSha256": "2a35bf99adeb7300057b21758d92dba36b0ff6300954444e337aa2308ff28103",
-      "sizeBytes": 233,
-      "previousSourceExportSha256": "2a35bf99adeb7300057b21758d92dba36b0ff6300954444e337aa2308ff28103",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/fixtures/context-local.5-cordis.patch.yml",
-      "exportedSha256": "dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69",
-      "sizeBytes": 21315,
-      "previousSourceExportSha256": "dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/fixtures/test-compaction-host.mjs",
-      "exportedSha256": "fc7399daa24caf1383583be35c69104b1ec315588183f1810369634c2628c2ef",
-      "sizeBytes": 2170,
-      "previousSourceExportSha256": "fc7399daa24caf1383583be35c69104b1ec315588183f1810369634c2628c2ef",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/history-tools.test.mjs",
-      "exportedSha256": "6638b841451ee7faaf1a606266cb006140d825e75ce792dada4c2ab70e386076",
-      "sizeBytes": 13468,
-      "previousSourceExportSha256": "6638b841451ee7faaf1a606266cb006140d825e75ce792dada4c2ab70e386076",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/idle-recovery.test.mjs",
-      "exportedSha256": "c02c34d67f8e98927f61e43622222d3d6afbb13ace67901195295b9af0703c5a",
-      "sizeBytes": 22010,
-      "previousSourceExportSha256": "c02c34d67f8e98927f61e43622222d3d6afbb13ace67901195295b9af0703c5a",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/idle-store.test.mjs",
-      "exportedSha256": "24caf1b0a21075fc1b79b161332a27a8311f1f7d641733aeaf44d01fd07a0d6c",
-      "sizeBytes": 18165,
-      "previousSourceExportSha256": "24caf1b0a21075fc1b79b161332a27a8311f1f7d641733aeaf44d01fd07a0d6c",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/inspector-admission.test.mjs",
-      "exportedSha256": "6e9440901ef5c6b2d16a9c9e82f97a0bf42457df745be025098f190cd73af499",
-      "sizeBytes": 6574,
-      "previousSourceExportSha256": "6e9440901ef5c6b2d16a9c9e82f97a0bf42457df745be025098f190cd73af499",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/inspector-wire.test.mjs",
-      "exportedSha256": "97b1c55f368f945211cee87ee16f0d8f40e05b4eb43e50edb6270e6247643b30",
-      "sizeBytes": 15028,
-      "previousSourceExportSha256": "97b1c55f368f945211cee87ee16f0d8f40e05b4eb43e50edb6270e6247643b30",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/inspector.test.mjs",
-      "exportedSha256": "2bb3f216767e001b320f25e87235ef5b3b57605dfa757de1ade0f5883d703cea",
-      "sizeBytes": 22184,
-      "previousSourceExportSha256": "2bb3f216767e001b320f25e87235ef5b3b57605dfa757de1ade0f5883d703cea",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/loop.test.mjs",
-      "exportedSha256": "292208539a1bb120d32e56e65725ddd934a9d4ff9f850056a5f82ad0517ca99c",
-      "sizeBytes": 142038,
-      "previousSourceExportSha256": "292208539a1bb120d32e56e65725ddd934a9d4ff9f850056a5f82ad0517ca99c",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/percent-policy.test.mjs",
-      "exportedSha256": "8ac73883544a666118fc66c88e20a566f595a57abf1c4b5c98b6121a6c11b94e",
-      "sizeBytes": 3590,
-      "previousSourceExportSha256": "8ac73883544a666118fc66c88e20a566f595a57abf1c4b5c98b6121a6c11b94e",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/portable-host.test.mjs",
-      "exportedSha256": "7b202e4dbfbe16b8092f050787b02ed6f73feff4ccb500226d0f4259a0a08baf",
-      "sizeBytes": 22503,
-      "previousSourceExportSha256": "7b202e4dbfbe16b8092f050787b02ed6f73feff4ccb500226d0f4259a0a08baf",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/preset-template.test.mjs",
-      "exportedSha256": "83ad4ff5d30aa5af68fd5ae5e5f6b38a60eec87d865979556c5b4aa8267fe67d",
-      "sizeBytes": 4972,
-      "previousSourceExportSha256": "83ad4ff5d30aa5af68fd5ae5e5f6b38a60eec87d865979556c5b4aa8267fe67d",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/recovery-journal.test.mjs",
-      "exportedSha256": "ccebad1e73e3524dca73c253fd74ca111a1eaecbb2cb3eee5678feb1c0e19bf3",
-      "sizeBytes": 22748,
-      "previousSourceExportSha256": "ccebad1e73e3524dca73c253fd74ca111a1eaecbb2cb3eee5678feb1c0e19bf3",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/repair-format.test.mjs",
-      "exportedSha256": "a7424e5ce63cbd71721d6fc7f0dd3f890c5f0b236d9ee052e4a19a07c93f057d",
-      "sizeBytes": 16067,
-      "previousSourceExportSha256": "a7424e5ce63cbd71721d6fc7f0dd3f890c5f0b236d9ee052e4a19a07c93f057d",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/run-diagnostics.test.mjs",
-      "exportedSha256": "71f462a86101424c45770ed5f6ad7977189e4be3201a440ab79d47d964a780ab",
-      "sizeBytes": 4643,
-      "previousSourceExportSha256": "71f462a86101424c45770ed5f6ad7977189e4be3201a440ab79d47d964a780ab",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/same-package-integration.test.mjs",
-      "exportedSha256": "0eb0b098086f86d81f938ad81c3434aaaab2c590b0c7c02a58170e4493db72f7",
-      "sizeBytes": 120399,
-      "previousSourceExportSha256": "0eb0b098086f86d81f938ad81c3434aaaab2c590b0c7c02a58170e4493db72f7",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/settings.test.mjs",
-      "exportedSha256": "36e413782e9c1604b49dcabbe548922e9c6a36860826d85c6e6cdf86fdea8692",
-      "sizeBytes": 105540,
-      "previousSourceExportSha256": "36e413782e9c1604b49dcabbe548922e9c6a36860826d85c6e6cdf86fdea8692",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/startup-guard.test.mjs",
-      "exportedSha256": "e21079ca760b1d7b93dd34a395504ebe2b998967186ddb1bc57fb79d712f2514",
-      "sizeBytes": 3833,
-      "previousSourceExportSha256": "e21079ca760b1d7b93dd34a395504ebe2b998967186ddb1bc57fb79d712f2514",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/summary-deadline.test.mjs",
-      "exportedSha256": "4d4145a677825dd681589b148346f7dcc63a0bd2f5c24023388a58787f1499da",
-      "sizeBytes": 3938,
-      "previousSourceExportSha256": "4d4145a677825dd681589b148346f7dcc63a0bd2f5c24023388a58787f1499da",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/summary-ledger.test.mjs",
-      "exportedSha256": "d09987aa6c27f636ab9e14b21ac59ca643a57900ac83d2463ce3140c8137ed16",
-      "sizeBytes": 21961,
-      "previousSourceExportSha256": "d09987aa6c27f636ab9e14b21ac59ca643a57900ac83d2463ce3140c8137ed16",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/summary-operations.test.mjs",
-      "exportedSha256": "aa31146819bc0e15c313761fd29a9e34b335e42f67b09d53f855b142a17f5fac",
-      "sizeBytes": 30741,
-      "previousSourceExportSha256": "aa31146819bc0e15c313761fd29a9e34b335e42f67b09d53f855b142a17f5fac",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/summary-recovery.test.mjs",
-      "exportedSha256": "784669aefe53d598f6228212108963c1eb8670e1dd328be0fef4d5a89e9e4e72",
-      "sizeBytes": 15653,
-      "previousSourceExportSha256": "784669aefe53d598f6228212108963c1eb8670e1dd328be0fef4d5a89e9e4e72",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/summary-source.test.mjs",
-      "exportedSha256": "3980b646d24102b8795461ded1953bb81c2c5f74ddadcd272fdd0e6846e1a961",
-      "sizeBytes": 28274,
-      "previousSourceExportSha256": "3980b646d24102b8795461ded1953bb81c2c5f74ddadcd272fdd0e6846e1a961",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/tool-results.test.mjs",
-      "exportedSha256": "7e6be9e3d2e4f5fde5df54d1163269b4327ca138450c60eca1b1d9c1b23be1cc",
-      "sizeBytes": 58168,
-      "previousSourceExportSha256": "7e6be9e3d2e4f5fde5df54d1163269b4327ca138450c60eca1b1d9c1b23be1cc",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tests/working-set.test.mjs",
-      "exportedSha256": "ffaac38fe16f806a952d433ed5362d13341f448f5277fec3113bd34083d6c2c0",
-      "sizeBytes": 26574,
-      "previousSourceExportSha256": "ffaac38fe16f806a952d433ed5362d13341f448f5277fec3113bd34083d6c2c0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tsconfig.client.json",
-      "exportedSha256": "1e526796e84a105d551a0b24e201f81435250b47c507cab83cb50959edcf6192",
-      "sizeBytes": 185,
-      "previousSourceExportSha256": "1e526796e84a105d551a0b24e201f81435250b47c507cab83cb50959edcf6192",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "tsconfig.json",
-      "exportedSha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
-      "sizeBytes": 662,
-      "previousSourceExportSha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/archive.js",
-      "exportedSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
-      "sizeBytes": 34621,
-      "previousSourceExportSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/chart-data.js",
-      "exportedSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
-      "sizeBytes": 12034,
-      "previousSourceExportSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/client.js",
-      "exportedSha256": "0cd76a94cb14e77cab2ef876f6e5757770f1c5d7774e03cc657b2221a4c94b67",
-      "sizeBytes": 822411,
-      "previousSourceExportSha256": "8031da850f70cbfef414974237aa7c3bf3140366b87fd1ad99c0aa266262a1b5",
-      "classification": "frozen-0.10.1"
-    },
-    {
-      "path": "lib/compaction-cycles.js",
-      "exportedSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
-      "sizeBytes": 6425,
-      "previousSourceExportSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/compatibility.js",
-      "exportedSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
-      "sizeBytes": 5915,
-      "previousSourceExportSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/diagnostics.js",
-      "exportedSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
-      "sizeBytes": 6598,
-      "previousSourceExportSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/efficiency.js",
-      "exportedSha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
-      "sizeBytes": 10195,
-      "previousSourceExportSha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/engine.js",
-      "exportedSha256": "b2b38e95fa8963a38e1681f00e4bd14839b95c07e9e1bac135036aa2326c6d05",
-      "sizeBytes": 168068,
-      "previousSourceExportSha256": "b2b38e95fa8963a38e1681f00e4bd14839b95c07e9e1bac135036aa2326c6d05",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/history-tools.js",
-      "exportedSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
-      "sizeBytes": 29674,
-      "previousSourceExportSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/index.js",
-      "exportedSha256": "b6c31622b61fd102af66c5aaaf178c16e68cae4e3069ca8176aadc484ba397ec",
-      "sizeBytes": 366947,
-      "previousSourceExportSha256": "b6c31622b61fd102af66c5aaaf178c16e68cae4e3069ca8176aadc484ba397ec",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/inspector-fold.js",
-      "exportedSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
-      "sizeBytes": 14513,
-      "previousSourceExportSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/inspector.js",
-      "exportedSha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
-      "sizeBytes": 58345,
-      "previousSourceExportSha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/policy.js",
-      "exportedSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
-      "sizeBytes": 10416,
-      "previousSourceExportSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/reducer.js",
-      "exportedSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
-      "sizeBytes": 2874,
-      "previousSourceExportSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/tool-results.js",
-      "exportedSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
-      "sizeBytes": 13377,
-      "previousSourceExportSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/typert.js",
-      "exportedSha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
-      "sizeBytes": 16456,
-      "previousSourceExportSha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
-      "classification": "unchanged-from-prior-0.10.1-source"
-    },
-    {
-      "path": "lib/working-set.js",
-      "exportedSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
-      "sizeBytes": 10259,
-      "previousSourceExportSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
-      "classification": "unchanged-from-prior-0.10.1-source"
+      "previousAcceptedSha256": "b116b94ffb4cb313bfec3d19c4d4353d172336fe89099cef46cede484928d16f",
+      "classification": "unchanged-from-0.10.1"
     },
     {
       "path": "examples/header-row-preview/index.html",
       "exportedSha256": "1f39519b493b1ec9e686354938721221f37e29dfcc31f1ae40f9ef1f97138099",
       "sizeBytes": 2843,
-      "previousSourceExportSha256": "1f39519b493b1ec9e686354938721221f37e29dfcc31f1ae40f9ef1f97138099",
-      "classification": "unchanged-from-prior-0.10.1-source",
-      "frozenSourcePath": "verification/header-row-preview/index.html"
+      "previousAcceptedSha256": "1f39519b493b1ec9e686354938721221f37e29dfcc31f1ae40f9ef1f97138099",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/archive.js",
+      "exportedSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
+      "sizeBytes": 34621,
+      "previousAcceptedSha256": "c854029847980f886de66a4285bbb47b4654f2f74f5740957c5fa8edb8a513a0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/chart-data.js",
+      "exportedSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
+      "sizeBytes": 12034,
+      "previousAcceptedSha256": "c79c412c44dfb3c3f22981391a7d6c2a97a6fff8c8ef2b1110908d68975f6b6a",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/client.js",
+      "exportedSha256": "4bd286c1f6dc02c8f0398fe1a24e7759b1cfab0ec096bec4cd46e9716a5626ae",
+      "sizeBytes": 830833,
+      "previousAcceptedSha256": "0cd76a94cb14e77cab2ef876f6e5757770f1c5d7774e03cc657b2221a4c94b67",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/compaction-cycles.js",
+      "exportedSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
+      "sizeBytes": 6425,
+      "previousAcceptedSha256": "d0484b861990d2c5f332cd908c052b2174d56877f694cdfffd6a74e0678c19c2",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/compatibility.js",
+      "exportedSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
+      "sizeBytes": 5915,
+      "previousAcceptedSha256": "ff945814ab5a041e3655d27dde4f7583bcdc92c02b303007f78d6398c3f30a48",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/diagnostics.js",
+      "exportedSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+      "sizeBytes": 6598,
+      "previousAcceptedSha256": "95895a91708ed050c095893972c6954507cf3339840611bdbd089c5c2e29da5f",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/efficiency.js",
+      "exportedSha256": "c26bb33e66b6c09e7d058c79a20c1df56c09f89a06da18ac81a483fd8f459f59",
+      "sizeBytes": 12409,
+      "previousAcceptedSha256": "d6682d5b4100b612b05539b2bc77a614a3000a2d985c9667bcbbb84f2fb92210",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/engine.js",
+      "exportedSha256": "3bb5f238a9e3d4609fc25fa073b5993de8a7e5fcf7b8887521cc06f10cbcdc58",
+      "sizeBytes": 168068,
+      "previousAcceptedSha256": "b2b38e95fa8963a38e1681f00e4bd14839b95c07e9e1bac135036aa2326c6d05",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/history-tools.js",
+      "exportedSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
+      "sizeBytes": 29674,
+      "previousAcceptedSha256": "48367f19a4b222decaf2569952632cc8f20e93c7be5ebab996df1703dc623e1b",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/index.js",
+      "exportedSha256": "a864f4e6429f7d34f23facd379a2c5fb1c1c560030aeeae47d4af7b7c3cb0b95",
+      "sizeBytes": 366947,
+      "previousAcceptedSha256": "b6c31622b61fd102af66c5aaaf178c16e68cae4e3069ca8176aadc484ba397ec",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/inspector-fold.js",
+      "exportedSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+      "sizeBytes": 14513,
+      "previousAcceptedSha256": "33f8508611914e40c3b7292f7cab65176c810bd2c971846f244a9bd9680a7466",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/inspector.js",
+      "exportedSha256": "0f3fd06dac96ecde4999462a154de80e682cff4b62bb83ae3f610e774fc578bd",
+      "sizeBytes": 66342,
+      "previousAcceptedSha256": "f9e3f3c54154077cd32e6e5c56fcd0c0b5424514b7badcc77d359294725221fb",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/policy.js",
+      "exportedSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
+      "sizeBytes": 10416,
+      "previousAcceptedSha256": "bc322607bd26e6c9a525b525cccc3c3c859e98937ca59844a59d9b7b1b302fc4",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/reducer.js",
+      "exportedSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
+      "sizeBytes": 2874,
+      "previousAcceptedSha256": "fce1b2a0d0ec01e53b751490cf3ff72bc1f3ae5a5bf93b625546b86a587bea5f",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/tool-results.js",
+      "exportedSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
+      "sizeBytes": 13377,
+      "previousAcceptedSha256": "f428c08f20853a9a85f7ce67378698ba4edc8fb28a7d7dda1573adc826d4d1dd",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "lib/typert.js",
+      "exportedSha256": "5df45e214e95342701c250de9263d12361fcd0b115787174d8f275e8829589c1",
+      "sizeBytes": 17943,
+      "previousAcceptedSha256": "310372bdfd2cd78032f1fd51712258cad8d5e56caa05ee956711f0c12e5bb120",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "lib/working-set.js",
+      "exportedSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
+      "sizeBytes": 10259,
+      "previousAcceptedSha256": "c06caa0493995e0d3b27054e2c107fb07aaffa7248d3751657d9766590f61581",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "package.json",
+      "exportedSha256": "e73718737a77d09e84e2652d6231978c8f9314dd6049937d52093f21a42da64f",
+      "sizeBytes": 5293,
+      "previousAcceptedSha256": "8e31ce47aa2072dbee2354aa05b2ae4264f34c051e61996da7121bca60bb507c",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "exportedSha256": "9d7d164b3ca005e6c073be7b7a36a0d04a70b1ca8206bbc377a594d1eaafb1df",
+      "sizeBytes": 32502,
+      "previousAcceptedSha256": "9d7d164b3ca005e6c073be7b7a36a0d04a70b1ca8206bbc377a594d1eaafb1df",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "exportedSha256": "154fb2443986859dfd9b66e8de78f4cf094ed052db638493e371283b9f8eb9d4",
+      "sizeBytes": 3388,
+      "previousAcceptedSha256": "154fb2443986859dfd9b66e8de78f4cf094ed052db638493e371283b9f8eb9d4",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/archive-faults.mjs",
+      "exportedSha256": "588552c50375a1332b50f63e5805a904b80f1bcbaf3fbbf79860769c4ed1b9b2",
+      "sizeBytes": 9741,
+      "previousAcceptedSha256": "588552c50375a1332b50f63e5805a904b80f1bcbaf3fbbf79860769c4ed1b9b2",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/archive-faults.upstream.json",
+      "exportedSha256": "ca6b6b328c33c2f280f1ac82ae5b950d983e790f77aca18e2e1ab393c4da41d1",
+      "sizeBytes": 509,
+      "previousAcceptedSha256": "ca6b6b328c33c2f280f1ac82ae5b950d983e790f77aca18e2e1ab393c4da41d1",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/build.mjs",
+      "exportedSha256": "514750df526797489042577c372b873ddb97c67481b2e1887cb4f77a7787eef9",
+      "sizeBytes": 3157,
+      "previousAcceptedSha256": "514750df526797489042577c372b873ddb97c67481b2e1887cb4f77a7787eef9",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/check-archive-platform.mjs",
+      "exportedSha256": "8c51beccd50e64e49cb685ba27dea15cb29ab1b2643f09771bf2f6fa1232dc2c",
+      "sizeBytes": 5820,
+      "previousAcceptedSha256": "8c51beccd50e64e49cb685ba27dea15cb29ab1b2643f09771bf2f6fa1232dc2c",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/check-recovery-platform.mjs",
+      "exportedSha256": "db2a8f9bff7c38fa1da6e688a11094f9a4a712ec130b0b2fe836030b54f24bc0",
+      "sizeBytes": 3592,
+      "previousAcceptedSha256": "db2a8f9bff7c38fa1da6e688a11094f9a4a712ec130b0b2fe836030b54f24bc0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/generate-overlay.mjs",
+      "exportedSha256": "1807054ddbec30bc699660544892125abc841e1083be87535f892adeb1fdf6ea",
+      "sizeBytes": 1692,
+      "previousAcceptedSha256": "1807054ddbec30bc699660544892125abc841e1083be87535f892adeb1fdf6ea",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/link-harness.mjs",
+      "exportedSha256": "51c04642ed1d9107d22700189e1bd2608649e2399db6e898dcd8e660b5836508",
+      "sizeBytes": 3760,
+      "previousAcceptedSha256": "51c04642ed1d9107d22700189e1bd2608649e2399db6e898dcd8e660b5836508",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/verify-package-boundary.mjs",
+      "exportedSha256": "5db9b40d0afca78bae381b8a21ad2ad579379c7ca300c6dd7240402484e84c59",
+      "sizeBytes": 5669,
+      "previousAcceptedSha256": "5db9b40d0afca78bae381b8a21ad2ad579379c7ca300c6dd7240402484e84c59",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "scripts/verify-profile.mjs",
+      "exportedSha256": "90052103c47e203d22d82538685f39eafd60d4a9163f2f4588beed551ca773c0",
+      "sizeBytes": 1132,
+      "previousAcceptedSha256": "90052103c47e203d22d82538685f39eafd60d4a9163f2f4588beed551ca773c0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/archive.ts",
+      "exportedSha256": "5f1e2fb95844021a62972a413c68554cc3632614fa54a10d4188c411b3aced3d",
+      "sizeBytes": 47189,
+      "previousAcceptedSha256": "5f1e2fb95844021a62972a413c68554cc3632614fa54a10d4188c411b3aced3d",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/chart-data.ts",
+      "exportedSha256": "8f04b5c44a3795985953db5a17ee71f2fa9e057070c7ebb78bf48c704329c615",
+      "sizeBytes": 5927,
+      "previousAcceptedSha256": "8f04b5c44a3795985953db5a17ee71f2fa9e057070c7ebb78bf48c704329c615",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/checkpoint.ts",
+      "exportedSha256": "f6b95e9ac8bbe044e5f2edf585ef050815fafb6ab1610d641ff1f90f90709708",
+      "sizeBytes": 21199,
+      "previousAcceptedSha256": "f6b95e9ac8bbe044e5f2edf585ef050815fafb6ab1610d641ff1f90f90709708",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/client.css",
+      "exportedSha256": "e9227dfaec100da8704f46fa8de4a34f6b4998f81592ca910b38a209d2bedee0",
+      "sizeBytes": 12181,
+      "previousAcceptedSha256": "e9227dfaec100da8704f46fa8de4a34f6b4998f81592ca910b38a209d2bedee0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/client.tsx",
+      "exportedSha256": "65e093937caf9baad9f57944024a5871afbe5220a03247a05892d40a9e4ccf3a",
+      "sizeBytes": 23296,
+      "previousAcceptedSha256": "d6c40994ea3023abcbe8d998ab6f9e0f311155543103b00a486690bdca5f3962",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/compaction-cycles.ts",
+      "exportedSha256": "5c3983730bb9667cf3de3bfa1e3c97c584f85342baee12a95d4bd14b8bae1237",
+      "sizeBytes": 7953,
+      "previousAcceptedSha256": "5c3983730bb9667cf3de3bfa1e3c97c584f85342baee12a95d4bd14b8bae1237",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/compatibility.ts",
+      "exportedSha256": "5c6b0b739659c295d24a28ab0c93329341d948c45371f95567511c8ea87ebf15",
+      "sizeBytes": 9491,
+      "previousAcceptedSha256": "5c6b0b739659c295d24a28ab0c93329341d948c45371f95567511c8ea87ebf15",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/deepseek-period.ts",
+      "exportedSha256": "9d6c0817fffbc37a2767d916c7ba2b41c3a17d32d6ea82fb1be07268a517dd0a",
+      "sizeBytes": 3934,
+      "previousAcceptedSha256": "9595514bbe9d8053bd769a91ca98c6deed6eaa14383aeba2a63164f0db4105e5",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/diagnostics-types.ts",
+      "exportedSha256": "2bdf8ede181dfc2d87dbc1d87c237f4eaafe5536e90712ef3efbcaf833b8a885",
+      "sizeBytes": 1001,
+      "previousAcceptedSha256": "2bdf8ede181dfc2d87dbc1d87c237f4eaafe5536e90712ef3efbcaf833b8a885",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/diagnostics.ts",
+      "exportedSha256": "3dd0dc4b33f1662090cc67f39d20f3d29258456b64bce78f80075a5f06f9d5df",
+      "sizeBytes": 7073,
+      "previousAcceptedSha256": "3dd0dc4b33f1662090cc67f39d20f3d29258456b64bce78f80075a5f06f9d5df",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/efficiency.ts",
+      "exportedSha256": "5fbb8eafc7c6fee22641054e0ba453c59582cb1af2cb51437542d0a45cd720d7",
+      "sizeBytes": 22053,
+      "previousAcceptedSha256": "c6c208ac3b082f2c8e4f3ca3cc60162af2a061e2a1959b10e923df2610560718",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/engine.ts",
+      "exportedSha256": "2858af166417d715209dc75559e98bedb434fa15352ea8198a0a4e6b0eb9395b",
+      "sizeBytes": 95478,
+      "previousAcceptedSha256": "2858af166417d715209dc75559e98bedb434fa15352ea8198a0a4e6b0eb9395b",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/history-tools.ts",
+      "exportedSha256": "5ad7baa9cb950170975619f6f4e247d3a0a2d54f8f1a1d65dd92b7403c56f4d0",
+      "sizeBytes": 37419,
+      "previousAcceptedSha256": "5ad7baa9cb950170975619f6f4e247d3a0a2d54f8f1a1d65dd92b7403c56f4d0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/idle-store.ts",
+      "exportedSha256": "9a36116b1a509d527ae6517dd898b6e91248b5da82a90b8a26a24bb120c60e6f",
+      "sizeBytes": 9717,
+      "previousAcceptedSha256": "9a36116b1a509d527ae6517dd898b6e91248b5da82a90b8a26a24bb120c60e6f",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/idle-types.ts",
+      "exportedSha256": "bcc1a605eb77b217cc5f81fd1ee697da2ce17aa9eb86381f46884c5c7bad9a44",
+      "sizeBytes": 2634,
+      "previousAcceptedSha256": "bcc1a605eb77b217cc5f81fd1ee697da2ce17aa9eb86381f46884c5c7bad9a44",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/idle.ts",
+      "exportedSha256": "b1c5a7e8efbc41e8e93e5e0d07c46ebe0f15c6116d15df98a1aad35b6dc74f12",
+      "sizeBytes": 20892,
+      "previousAcceptedSha256": "b1c5a7e8efbc41e8e93e5e0d07c46ebe0f15c6116d15df98a1aad35b6dc74f12",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/index.ts",
+      "exportedSha256": "650c26b773ded2bb079e3a1dc0a8d0e5ded12cd76b7aaa4bf6c7eebfca943a45",
+      "sizeBytes": 32123,
+      "previousAcceptedSha256": "650c26b773ded2bb079e3a1dc0a8d0e5ded12cd76b7aaa4bf6c7eebfca943a45",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector-charts.tsx",
+      "exportedSha256": "4981dbaf30de2ab1d325a02147a9b6993459e3bbb428d28d4f698f5b4da44145",
+      "sizeBytes": 29307,
+      "previousAcceptedSha256": "4981dbaf30de2ab1d325a02147a9b6993459e3bbb428d28d4f698f5b4da44145",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector-fold.ts",
+      "exportedSha256": "50c9c9a4414c8b7b737b40c6f45fd43fd74439d55af86dcb042c67fff29b1b4a",
+      "sizeBytes": 7688,
+      "previousAcceptedSha256": "50c9c9a4414c8b7b737b40c6f45fd43fd74439d55af86dcb042c67fff29b1b4a",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector-locales.ts",
+      "exportedSha256": "869107a922ba936d9c06943b4b8a7e6552c0eb96acf10fcb4206ab72f692b7f3",
+      "sizeBytes": 33292,
+      "previousAcceptedSha256": "869107a922ba936d9c06943b4b8a7e6552c0eb96acf10fcb4206ab72f692b7f3",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector-types.ts",
+      "exportedSha256": "29e12f4e4e35ef8583ed24792ca54c1c9cdfba2ab667ca1c4e40eb33c5203552",
+      "sizeBytes": 10126,
+      "previousAcceptedSha256": "471b824b52fbbbc90902bfc05d3599a4556596e21d42f35775db6d7b99d231fc",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/inspector-view.tsx",
+      "exportedSha256": "94ee57e2407dad9319c9b9c642009ade98a4b21b204da65723bcb3657e706075",
+      "sizeBytes": 40060,
+      "previousAcceptedSha256": "94ee57e2407dad9319c9b9c642009ade98a4b21b204da65723bcb3657e706075",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector-wire.ts",
+      "exportedSha256": "f6d931c52b8959fb55a8080e2849a7123cf7ee6e15517cb294f321783a329f4a",
+      "sizeBytes": 16439,
+      "previousAcceptedSha256": "bced48d601d9e9504f15dc3d00ddb4b9cdb2525e3a52af5e79cad043ef66f108",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/inspector.css",
+      "exportedSha256": "77108f0484c5cf3c1266d8caa35266e29bb9a0368c8a68ef202af7839b4671b6",
+      "sizeBytes": 20951,
+      "previousAcceptedSha256": "77108f0484c5cf3c1266d8caa35266e29bb9a0368c8a68ef202af7839b4671b6",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/inspector.ts",
+      "exportedSha256": "73f0e8e153de1f112d30915ff84df4f325b1c60b9bf9aaa17b098423734816a8",
+      "sizeBytes": 24068,
+      "previousAcceptedSha256": "937360207609eb095d6c2ea3f3a37251a18db6e0820902845bb8715fe92021ff",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/overview.tsx",
+      "exportedSha256": "f347c7ce49405a85fcde0de5e2f45f2162689d1149677d42ccf9ff0f1ee98d50",
+      "sizeBytes": 11248,
+      "previousAcceptedSha256": "f347c7ce49405a85fcde0de5e2f45f2162689d1149677d42ccf9ff0f1ee98d50",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/peak-indicator.css",
+      "exportedSha256": "02dea259e2ae4cbf55a74ee8db00e56bee7748707aa2245b1b41b29382825ccd",
+      "sizeBytes": 6164,
+      "previousAcceptedSha256": "927f111d229f5260091a835cce7c911b1fb587ddac3119b1f55b702c5e0d20e0",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/peak-indicator.tsx",
+      "exportedSha256": "0d1f451a1cc03304626555a41eba7eb0f3dc47df97d6aeba33cdebc6377f9faf",
+      "sizeBytes": 12095,
+      "previousAcceptedSha256": "2bc846e9bb9b82634df01caf19f79796c0ac6887f68f49cb5214385c18ae4354",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/policy.ts",
+      "exportedSha256": "35dff8b3d2df0951ff98f14ce084f2b78cf73d4de8b7b1fad34ec0f369ee55c3",
+      "sizeBytes": 16872,
+      "previousAcceptedSha256": "35dff8b3d2df0951ff98f14ce084f2b78cf73d4de8b7b1fad34ec0f369ee55c3",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/pressure-history.ts",
+      "exportedSha256": "15ebe3c814ec74a18c0c68f2d47006b3c69fc4fc1d01e7f6510b76df1fa9a65d",
+      "sizeBytes": 2019,
+      "previousAcceptedSha256": "15ebe3c814ec74a18c0c68f2d47006b3c69fc4fc1d01e7f6510b76df1fa9a65d",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/readonly-view.ts",
+      "exportedSha256": "46b5483bea24f3c7c91c9903c100fa092de8466dc5b02ca46b606fe46ba92d88",
+      "sizeBytes": 1654,
+      "previousAcceptedSha256": "46b5483bea24f3c7c91c9903c100fa092de8466dc5b02ca46b606fe46ba92d88",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/recovery-journal.ts",
+      "exportedSha256": "9f4de42742a14afc672c286c0f4c556f338d2181d9a3dcaff63721575daf73d6",
+      "sizeBytes": 17937,
+      "previousAcceptedSha256": "9f4de42742a14afc672c286c0f4c556f338d2181d9a3dcaff63721575daf73d6",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/reducer.ts",
+      "exportedSha256": "4734061bf9fc759e9875ef7d1059e483f33ec5bb540e5afc3b118dfcb397118b",
+      "sizeBytes": 5877,
+      "previousAcceptedSha256": "4734061bf9fc759e9875ef7d1059e483f33ec5bb540e5afc3b118dfcb397118b",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/registration.ts",
+      "exportedSha256": "23a10351602e0c44b4ca9b34b0147f4e9bf2300079c45844ec039fe7b76907b5",
+      "sizeBytes": 1796,
+      "previousAcceptedSha256": "23a10351602e0c44b4ca9b34b0147f4e9bf2300079c45844ec039fe7b76907b5",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/run-diagnostics.ts",
+      "exportedSha256": "c7ae491a2e1e720501a5c72683d13d1fb4c6ec8e978f4d314b7dfdada8de1966",
+      "sizeBytes": 3252,
+      "previousAcceptedSha256": "c7ae491a2e1e720501a5c72683d13d1fb4c6ec8e978f4d314b7dfdada8de1966",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/session-cost.ts",
+      "exportedSha256": "ece4cae3c48fc1d07e59d94000de18de3d39eb1c64122312fe9bda177e113cd6",
+      "sizeBytes": 4558,
+      "previousAcceptedSha256": null,
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/settings-locales.ts",
+      "exportedSha256": "c5569b670ff886d1d757976743287a38edc2fbde53bdaa8a4a72b05eac578ca7",
+      "sizeBytes": 12512,
+      "previousAcceptedSha256": "c5569b670ff886d1d757976743287a38edc2fbde53bdaa8a4a72b05eac578ca7",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/startup-guard.ts",
+      "exportedSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
+      "sizeBytes": 3608,
+      "previousAcceptedSha256": "9949bd083ef5439794dbd0b20b95f8088125736390a2a99172a9f93a2678c348",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/styles.d.ts",
+      "exportedSha256": "aaba130925aed4d5acbcc59b90dda1de7b21c3d2ec166aaeeca4b9456cc0c5f2",
+      "sizeBytes": 68,
+      "previousAcceptedSha256": "aaba130925aed4d5acbcc59b90dda1de7b21c3d2ec166aaeeca4b9456cc0c5f2",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/summary-deadline.ts",
+      "exportedSha256": "62d0700f811094166f7030fd345aaf33055626979416f535e243b19dce6c179b",
+      "sizeBytes": 6298,
+      "previousAcceptedSha256": "62d0700f811094166f7030fd345aaf33055626979416f535e243b19dce6c179b",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/summary-ledger.ts",
+      "exportedSha256": "292a8dbdee4e7922f48642bc4635c45ab414cd33ef2de297830430b86eaaacc1",
+      "sizeBytes": 11095,
+      "previousAcceptedSha256": "292a8dbdee4e7922f48642bc4635c45ab414cd33ef2de297830430b86eaaacc1",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/summary-operations.ts",
+      "exportedSha256": "cd311b6fb9fe75eb042186db957f218aa54a12b678dc969af53f6e65af22da76",
+      "sizeBytes": 48698,
+      "previousAcceptedSha256": "cd311b6fb9fe75eb042186db957f218aa54a12b678dc969af53f6e65af22da76",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/tool-results.ts",
+      "exportedSha256": "03c5813b1b0e9d8a008db3bcf680c58ee82b7c0637fee0fcd91cbc9530f79955",
+      "sizeBytes": 19895,
+      "previousAcceptedSha256": "03c5813b1b0e9d8a008db3bcf680c58ee82b7c0637fee0fcd91cbc9530f79955",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/transaction.ts",
+      "exportedSha256": "69f1a59e43af418dfce71c4ab20c09d26c9ffac8570429c9c3c1d21b936ba2b7",
+      "sizeBytes": 9877,
+      "previousAcceptedSha256": "69f1a59e43af418dfce71c4ab20c09d26c9ffac8570429c9c3c1d21b936ba2b7",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/typert.ts",
+      "exportedSha256": "a96bfda9165db4d1d24c985cb20a6c5215f9e7242ec6d0d0f3c21ca8d3d35538",
+      "sizeBytes": 647,
+      "previousAcceptedSha256": "a96bfda9165db4d1d24c985cb20a6c5215f9e7242ec6d0d0f3c21ca8d3d35538",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "src/version.ts",
+      "exportedSha256": "1549e457c422f069ee8dd68ccfd62ddee39697c3a503873c38fa1e7244487376",
+      "sizeBytes": 120,
+      "previousAcceptedSha256": "f08e314bfe550501b976f482571658aa6f9d8eeac59920fffe7ef9d084a503d1",
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "src/working-set.ts",
+      "exportedSha256": "5e3f4deddf2bad808779b17b250962403c33cd1422b0e20aba8eaee4f1bc3a86",
+      "sizeBytes": 15959,
+      "previousAcceptedSha256": "5e3f4deddf2bad808779b17b250962403c33cd1422b0e20aba8eaee4f1bc3a86",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/absolute-budget.test.mjs",
+      "exportedSha256": "9ff8650dbc3683376e0cb2d338568c3cf630bb8e4762ddb4c630df80e34bf7de",
+      "sizeBytes": 16097,
+      "previousAcceptedSha256": "9ff8650dbc3683376e0cb2d338568c3cf630bb8e4762ddb4c630df80e34bf7de",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/archive-ci-report.test.mjs",
+      "exportedSha256": "f7a3d8f33e652731b2af79bd564992cce638c244f2afe006e536f362cd0837d2",
+      "sizeBytes": 1088,
+      "previousAcceptedSha256": "f7a3d8f33e652731b2af79bd564992cce638c244f2afe006e536f362cd0837d2",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/archive-integration.test.mjs",
+      "exportedSha256": "8773cc5cca02214604843de37318e3c9d760a0675a1bb3faca94aba6602fff4c",
+      "sizeBytes": 10817,
+      "previousAcceptedSha256": "8773cc5cca02214604843de37318e3c9d760a0675a1bb3faca94aba6602fff4c",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/chart-data.test.mjs",
+      "exportedSha256": "b507d1d8e43b0f1189ea0e5d954b308348de270e5553ddd87cee175ccd33f228",
+      "sizeBytes": 9512,
+      "previousAcceptedSha256": "b507d1d8e43b0f1189ea0e5d954b308348de270e5553ddd87cee175ccd33f228",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/checkpoint-format-settings.test.mjs",
+      "exportedSha256": "11ccc25e75ba35a179335f4e3a9c780fd32fd2035041f5a14e081f1fe8f1e31d",
+      "sizeBytes": 1192,
+      "previousAcceptedSha256": "11ccc25e75ba35a179335f4e3a9c780fd32fd2035041f5a14e081f1fe8f1e31d",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/checkpoint-replay.test.mjs",
+      "exportedSha256": "4bf1da6b5277884cd9a4a8b5e748bd7c023ec4b02c1ae108ffba6f9b2764c1b0",
+      "sizeBytes": 4698,
+      "previousAcceptedSha256": "4bf1da6b5277884cd9a4a8b5e748bd7c023ec4b02c1ae108ffba6f9b2764c1b0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/checkpoint.test.mjs",
+      "exportedSha256": "caf13a69b1e1e4a5ccd7ac67bfe53de53602950a5ecbf8b06f5592dea37a27e6",
+      "sizeBytes": 12015,
+      "previousAcceptedSha256": "caf13a69b1e1e4a5ccd7ac67bfe53de53602950a5ecbf8b06f5592dea37a27e6",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/compaction-cycles.test.mjs",
+      "exportedSha256": "a47b371d44bc01841c544b82618ddd2c8f384f5591010b746b8a13ff677d1978",
+      "sizeBytes": 12812,
+      "previousAcceptedSha256": "a47b371d44bc01841c544b82618ddd2c8f384f5591010b746b8a13ff677d1978",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/compatibility.test.mjs",
+      "exportedSha256": "5be887e311fc5d4d9f5ce55acab30cccf15b524a4c49277fa5030284cadfd89f",
+      "sizeBytes": 9931,
+      "previousAcceptedSha256": "5be887e311fc5d4d9f5ce55acab30cccf15b524a4c49277fa5030284cadfd89f",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/deepseek-period.test.mjs",
+      "exportedSha256": "dd43d75653a986f3e2297e7be784d09a25f3e9b6b17d176c261128ead71d39df",
+      "sizeBytes": 4076,
+      "previousAcceptedSha256": "dd43d75653a986f3e2297e7be784d09a25f3e9b6b17d176c261128ead71d39df",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/diagnostics.test.mjs",
+      "exportedSha256": "d6fa7a20a8d56d0d0ea8f1722c93696bd3050a1fdbc92a2ac6361b0d1cceebc1",
+      "sizeBytes": 3694,
+      "previousAcceptedSha256": "d6fa7a20a8d56d0d0ea8f1722c93696bd3050a1fdbc92a2ac6361b0d1cceebc1",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/fixtures/agent-loop-dependencies.mjs",
+      "exportedSha256": "e6d76a8bddbafc7a67acd4245cfcca923cef739a80b69dc4452fab055d0507be",
+      "sizeBytes": 1087,
+      "previousAcceptedSha256": "e6d76a8bddbafc7a67acd4245cfcca923cef739a80b69dc4452fab055d0507be",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/fixtures/context-engine-class-entry.mjs",
+      "exportedSha256": "2a35bf99adeb7300057b21758d92dba36b0ff6300954444e337aa2308ff28103",
+      "sizeBytes": 233,
+      "previousAcceptedSha256": "2a35bf99adeb7300057b21758d92dba36b0ff6300954444e337aa2308ff28103",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/fixtures/context-local.5-cordis.patch.yml",
+      "exportedSha256": "dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69",
+      "sizeBytes": 21315,
+      "previousAcceptedSha256": "dee6b8134e94c7a136e5a9e2b02efe71c8ba7657337c95aafb1d1c90351dfd69",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/fixtures/test-compaction-host.mjs",
+      "exportedSha256": "fc7399daa24caf1383583be35c69104b1ec315588183f1810369634c2628c2ef",
+      "sizeBytes": 2170,
+      "previousAcceptedSha256": "fc7399daa24caf1383583be35c69104b1ec315588183f1810369634c2628c2ef",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/history-tools.test.mjs",
+      "exportedSha256": "6638b841451ee7faaf1a606266cb006140d825e75ce792dada4c2ab70e386076",
+      "sizeBytes": 13468,
+      "previousAcceptedSha256": "6638b841451ee7faaf1a606266cb006140d825e75ce792dada4c2ab70e386076",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/idle-recovery.test.mjs",
+      "exportedSha256": "c02c34d67f8e98927f61e43622222d3d6afbb13ace67901195295b9af0703c5a",
+      "sizeBytes": 22010,
+      "previousAcceptedSha256": "c02c34d67f8e98927f61e43622222d3d6afbb13ace67901195295b9af0703c5a",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/idle-store.test.mjs",
+      "exportedSha256": "24caf1b0a21075fc1b79b161332a27a8311f1f7d641733aeaf44d01fd07a0d6c",
+      "sizeBytes": 18165,
+      "previousAcceptedSha256": "24caf1b0a21075fc1b79b161332a27a8311f1f7d641733aeaf44d01fd07a0d6c",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/inspector-admission.test.mjs",
+      "exportedSha256": "6e9440901ef5c6b2d16a9c9e82f97a0bf42457df745be025098f190cd73af499",
+      "sizeBytes": 6574,
+      "previousAcceptedSha256": "6e9440901ef5c6b2d16a9c9e82f97a0bf42457df745be025098f190cd73af499",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/inspector-wire.test.mjs",
+      "exportedSha256": "97b1c55f368f945211cee87ee16f0d8f40e05b4eb43e50edb6270e6247643b30",
+      "sizeBytes": 15028,
+      "previousAcceptedSha256": "97b1c55f368f945211cee87ee16f0d8f40e05b4eb43e50edb6270e6247643b30",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/inspector.test.mjs",
+      "exportedSha256": "2bb3f216767e001b320f25e87235ef5b3b57605dfa757de1ade0f5883d703cea",
+      "sizeBytes": 22184,
+      "previousAcceptedSha256": "2bb3f216767e001b320f25e87235ef5b3b57605dfa757de1ade0f5883d703cea",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/loop.test.mjs",
+      "exportedSha256": "292208539a1bb120d32e56e65725ddd934a9d4ff9f850056a5f82ad0517ca99c",
+      "sizeBytes": 142038,
+      "previousAcceptedSha256": "292208539a1bb120d32e56e65725ddd934a9d4ff9f850056a5f82ad0517ca99c",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/percent-policy.test.mjs",
+      "exportedSha256": "8ac73883544a666118fc66c88e20a566f595a57abf1c4b5c98b6121a6c11b94e",
+      "sizeBytes": 3590,
+      "previousAcceptedSha256": "8ac73883544a666118fc66c88e20a566f595a57abf1c4b5c98b6121a6c11b94e",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/portable-host.test.mjs",
+      "exportedSha256": "7b202e4dbfbe16b8092f050787b02ed6f73feff4ccb500226d0f4259a0a08baf",
+      "sizeBytes": 22503,
+      "previousAcceptedSha256": "7b202e4dbfbe16b8092f050787b02ed6f73feff4ccb500226d0f4259a0a08baf",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/preset-template.test.mjs",
+      "exportedSha256": "83ad4ff5d30aa5af68fd5ae5e5f6b38a60eec87d865979556c5b4aa8267fe67d",
+      "sizeBytes": 4972,
+      "previousAcceptedSha256": "83ad4ff5d30aa5af68fd5ae5e5f6b38a60eec87d865979556c5b4aa8267fe67d",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/recovery-journal.test.mjs",
+      "exportedSha256": "ccebad1e73e3524dca73c253fd74ca111a1eaecbb2cb3eee5678feb1c0e19bf3",
+      "sizeBytes": 22748,
+      "previousAcceptedSha256": "ccebad1e73e3524dca73c253fd74ca111a1eaecbb2cb3eee5678feb1c0e19bf3",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/repair-format.test.mjs",
+      "exportedSha256": "a7424e5ce63cbd71721d6fc7f0dd3f890c5f0b236d9ee052e4a19a07c93f057d",
+      "sizeBytes": 16067,
+      "previousAcceptedSha256": "a7424e5ce63cbd71721d6fc7f0dd3f890c5f0b236d9ee052e4a19a07c93f057d",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/run-diagnostics.test.mjs",
+      "exportedSha256": "71f462a86101424c45770ed5f6ad7977189e4be3201a440ab79d47d964a780ab",
+      "sizeBytes": 4643,
+      "previousAcceptedSha256": "71f462a86101424c45770ed5f6ad7977189e4be3201a440ab79d47d964a780ab",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/same-package-integration.test.mjs",
+      "exportedSha256": "0eb0b098086f86d81f938ad81c3434aaaab2c590b0c7c02a58170e4493db72f7",
+      "sizeBytes": 120399,
+      "previousAcceptedSha256": "0eb0b098086f86d81f938ad81c3434aaaab2c590b0c7c02a58170e4493db72f7",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/session-cost.test.mjs",
+      "exportedSha256": "9b1ad10a8cf0bef1af02397c5721a232b1bf48435a2472f6b1ada19ed1e343f9",
+      "sizeBytes": 9867,
+      "previousAcceptedSha256": null,
+      "classification": "frozen-0.10.2"
+    },
+    {
+      "path": "tests/settings.test.mjs",
+      "exportedSha256": "36e413782e9c1604b49dcabbe548922e9c6a36860826d85c6e6cdf86fdea8692",
+      "sizeBytes": 105540,
+      "previousAcceptedSha256": "36e413782e9c1604b49dcabbe548922e9c6a36860826d85c6e6cdf86fdea8692",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/startup-guard.test.mjs",
+      "exportedSha256": "e21079ca760b1d7b93dd34a395504ebe2b998967186ddb1bc57fb79d712f2514",
+      "sizeBytes": 3833,
+      "previousAcceptedSha256": "e21079ca760b1d7b93dd34a395504ebe2b998967186ddb1bc57fb79d712f2514",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/summary-deadline.test.mjs",
+      "exportedSha256": "4d4145a677825dd681589b148346f7dcc63a0bd2f5c24023388a58787f1499da",
+      "sizeBytes": 3938,
+      "previousAcceptedSha256": "4d4145a677825dd681589b148346f7dcc63a0bd2f5c24023388a58787f1499da",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/summary-ledger.test.mjs",
+      "exportedSha256": "d09987aa6c27f636ab9e14b21ac59ca643a57900ac83d2463ce3140c8137ed16",
+      "sizeBytes": 21961,
+      "previousAcceptedSha256": "d09987aa6c27f636ab9e14b21ac59ca643a57900ac83d2463ce3140c8137ed16",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/summary-operations.test.mjs",
+      "exportedSha256": "aa31146819bc0e15c313761fd29a9e34b335e42f67b09d53f855b142a17f5fac",
+      "sizeBytes": 30741,
+      "previousAcceptedSha256": "aa31146819bc0e15c313761fd29a9e34b335e42f67b09d53f855b142a17f5fac",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/summary-recovery.test.mjs",
+      "exportedSha256": "784669aefe53d598f6228212108963c1eb8670e1dd328be0fef4d5a89e9e4e72",
+      "sizeBytes": 15653,
+      "previousAcceptedSha256": "784669aefe53d598f6228212108963c1eb8670e1dd328be0fef4d5a89e9e4e72",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/summary-source.test.mjs",
+      "exportedSha256": "3980b646d24102b8795461ded1953bb81c2c5f74ddadcd272fdd0e6846e1a961",
+      "sizeBytes": 28274,
+      "previousAcceptedSha256": "3980b646d24102b8795461ded1953bb81c2c5f74ddadcd272fdd0e6846e1a961",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/tool-results.test.mjs",
+      "exportedSha256": "7e6be9e3d2e4f5fde5df54d1163269b4327ca138450c60eca1b1d9c1b23be1cc",
+      "sizeBytes": 58168,
+      "previousAcceptedSha256": "7e6be9e3d2e4f5fde5df54d1163269b4327ca138450c60eca1b1d9c1b23be1cc",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tests/working-set.test.mjs",
+      "exportedSha256": "ffaac38fe16f806a952d433ed5362d13341f448f5277fec3113bd34083d6c2c0",
+      "sizeBytes": 26574,
+      "previousAcceptedSha256": "ffaac38fe16f806a952d433ed5362d13341f448f5277fec3113bd34083d6c2c0",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tsconfig.client.json",
+      "exportedSha256": "1e526796e84a105d551a0b24e201f81435250b47c507cab83cb50959edcf6192",
+      "sizeBytes": 185,
+      "previousAcceptedSha256": "1e526796e84a105d551a0b24e201f81435250b47c507cab83cb50959edcf6192",
+      "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "tsconfig.json",
+      "exportedSha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
+      "sizeBytes": 662,
+      "previousAcceptedSha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
+      "classification": "unchanged-from-0.10.1"
     }
-  ],
-  "documentationUpdatedAt": "2026-10-19T18:48:43.775074+00:00",
-  "frozenSourceTag": "v0.10.1"
+  ]
 }

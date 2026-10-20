@@ -1,6 +1,7 @@
 import type { CompactionEntry } from './diagnostics-types.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type { CompactionReadout, ContextCooperationReadout, HostCapabilityReadout } from './compatibility.ts'
+import type { SessionCostReadout } from './session-cost.ts'
 
 export const categories = [
   { id: 'summary', label: '压缩摘要' }, { id: 'system', label: '系统指令' }, { id: 'tools', label: '工具定义' },
@@ -142,6 +143,8 @@ export interface Inspection {
   requests: RequestRow[]; requestCount: number; compactions: InspectedCompaction[]
 }
 export interface ContentQuery { sessionId: string; cutSeq: number; id: string; offset: number; sourceOffset?: number }
+export interface SessionUsageQuery { sessionId: string }
+export type SessionUsageReadout = SessionCostReadout & { sessionId: string; sampledAt: number; status: 'ready' | 'analysis-limit' }
 /** Direct, recorded inputs; a source may itself be an earlier summary. */
 export interface ContentSources { rows: ContentRow[]; offset: number; total: number; nextOffset: number | null }
 export interface ContentPage { sessionId: string; cutSeq: number; id: string; text: string; offset: number; totalChars: number; nextOffset: number | null; sources?: ContentSources }
@@ -152,6 +155,7 @@ export interface InspectorApi {
   authorizeOnce?(query: { sessionId: string; authorizationToken: string }, signal: AbortSignal): Promise<{ granted: true }>
   idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus>
   inspect(query: InspectQuery, signal: AbortSignal): Promise<Inspection>
+  sessionUsage(query: SessionUsageQuery, signal: AbortSignal): Promise<SessionUsageReadout>
   content(query: ContentQuery, signal: AbortSignal): Promise<ContentPage>
 }
 export const defaultQuery = { atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false } as const

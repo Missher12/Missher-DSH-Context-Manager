@@ -37,6 +37,7 @@ import { createHash } from 'node:crypto'
 import { canonicalHeader, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type {} from '@deepseek-ai/dsh-llm-retry'
+import { periodAt, type Period } from './deepseek-period.ts'
 
 /** The Host's cumulative projection, accepted as the authoritative total. */
 export interface HostUsageReference {
@@ -84,6 +85,21 @@ export interface UsageTotals {
   readonly complete: boolean
 }
 
+/** Complete route/time aggregates used for cost estimates; unlike request details, never truncated. */
+export interface CostUsageGroup {
+  readonly period: Period
+  readonly provider: string
+  readonly model: string
+  readonly routeKnown: boolean
+  readonly maintenanceSuspect: boolean
+  readonly settledAttempts: number
+  readonly withoutUsage: number
+  readonly uncachedInput: FieldTotal
+  readonly cacheRead: FieldTotal
+  readonly cacheWrite: FieldTotal
+  readonly output: FieldTotal
+}
+
 export interface BucketDifference {
   readonly field: 'uncachedInputTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'outputTokens'
   readonly host: number
@@ -118,6 +134,8 @@ export interface Attribution {
   readonly summaryAndRepair?: SummaryReference & { readonly purposeSplit: false, readonly note: string }
   /** Settlements overlapping a numbered compaction transaction; purpose never guessed. */
   readonly maintenanceSuspects: number
+  /** Per-route and per-record-time totals across every settled slot. */
+  readonly costUsage: readonly CostUsageGroup[]
   /** Cache read share of measured input; null when nothing measurable was reported. */
   readonly cacheHitRatio: number | null
   readonly requests: readonly RequestRow[]
@@ -246,6 +264,36 @@ function totalsOf(slots: readonly Slot[], retries: number): UsageTotals {
     cacheInclusiveInput: { sum: inclusiveSum, reported: inclusiveReported, missing: inclusiveMissing }, complete }
 }
 
+function costUsageOf(slots: readonly Slot[]): CostUsageGroup[] {
+  type MutableGroup = {
+    period: Period; provider: string; model: string; routeKnown: boolean; maintenanceSuspect: boolean
+    settledAttempts: number; withoutUsage: number
+    uncachedInput: FieldTotal; cacheRead: FieldTotal; cacheWrite: FieldTotal; output: FieldTotal
+  }
+  const groups = new Map<string, MutableGroup>()
+  for (const slot of slots) {
+    const period = periodAt(Number.isFinite(slot.time) ? slot.time : Number.NaN)
+    const key = JSON.stringify([period, slot.provider, slot.model, slot.routeKnown, slot.suspect])
+    let group = groups.get(key)
+    if (!group) {
+      group = { period, provider: slot.provider, model: slot.model, routeKnown: slot.routeKnown, maintenanceSuspect: slot.suspect,
+        settledAttempts: 0, withoutUsage: 0, uncachedInput: emptyField(), cacheRead: emptyField(), cacheWrite: emptyField(), output: emptyField() }
+      groups.set(key, group)
+    }
+    group.settledAttempts++
+    if (isEmptySample(slot.sample)) { group.withoutUsage++; continue }
+    for (const field of FIELD_ORDER) {
+      const value = slot.sample[field]
+      const held = group[field]
+      group[field] = value === null
+        ? { ...held, missing: held.missing + 1 }
+        : { sum: held.sum + value, reported: held.reported + 1, missing: held.missing }
+    }
+  }
+  return [...groups.values()].sort((a, b) => a.period.localeCompare(b.period) || a.provider.localeCompare(b.provider)
+    || a.model.localeCompare(b.model) || Number(a.maintenanceSuspect) - Number(b.maintenanceSuspect))
+}
+
 /**
  * Fold one session log into a read-only attribution view.
  * @param events - the session events, in log order.
@@ -307,7 +355,7 @@ export function attributeSession(events: readonly SessionEvent[], options: {
       if (previous !== undefined) open.delete(key)
       continue
     }
-    if (event.type === 'system/message' && event.surfaceOp === 'append') {
+    if (fingerprintEnabled && event.type === 'system/message' && event.surfaceOp === 'append') {
       const text = systemPromptText(event)
       if (text !== undefined && text.length > 0) lastSystem = text
       continue
@@ -396,6 +444,7 @@ export function attributeSession(events: readonly SessionEvent[], options: {
     ...(summary === undefined ? {} : { summaryAndRepair: { ...summary, purposeSplit: false as const,
       note: '现有摘要总账的累计值，含失败与取消尝试；账本没有持久用途字段，摘要与修复合计显示、历史用途未细分，也不与合并后的 compaction/summary 重复相加' } }),
     maintenanceSuspects,
+    costUsage: costUsageOf(slots),
     cacheHitRatio: measuredInput > 0 ? measuredRead / measuredInput : null,
     requests: rows,
     fingerprint: fingerprint ?? null,

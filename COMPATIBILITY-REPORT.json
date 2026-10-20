@@ -1,28 +1,24 @@
 {
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
-  "version": "0.10.1",
-  "status": "formal-release-and-ubuntu-native-installation-verified",
-  "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
+  "version": "0.10.2",
+  "status": "source-reviewed-native-delivery-pending",
   "validation": {
-    "build": "Bounded final build and24-member package boundary check passed.",
-    "scope": "Numeric field CSS and content-width responsive layout only; no backend behavior or Host changes.",
-    "syntheticUI": "Final112px geometry verified with312px form at600px viewport and564px form in Chinese/English. Earlier edit/empty/reset sequence used identical JS. Content-width layout prevents vertical labels.",
-    "nativeUI": "Final installed package accepted through actual desktop narrow-layout and numeric-editing/discard checks; earlier empty/reset sequence uses identical JS. Settings and other plugins preserved; no native DOM coordinate claim.",
+    "focusedSyntheticTests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "serverClientTypecheck": "passed",
+    "buildAndPackageBoundary": "passed; 24 exact members independently verified",
+    "syntheticUI": "1280x900 and390x844; automatic totals, model switch, new-settlement refresh, failure/retry, empty/zero and analysis limit",
+    "nativeUI": "pending Desktop owner",
     "modelRequests": 0,
-    "notRerun": "Unchanged backend suites were not rerun.",
-    "storageCI": {
-      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39304043931",
-      "commit": "f6236dde4dfd70fc3a267e6ba4732e140a71228e",
-      "jobsPassed": 12,
-      "totalJobs": 12
-    }
+    "scope": "Current-session token-cost estimates in the composer period panel; Host, compaction policy and version ranges unchanged."
   },
-  "compatibility": "Existing capability detection and host ranges unchanged. Tested hosts are evidence baselines, not exact-version requirements.",
+  "compatibility": "Existing capability gates and broad host ranges are unchanged; tested baselines do not prove untested hosts.",
   "previousVersionEvidence": {
-    "version": "0.10.0",
-    "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/b5c289726194202e13afbcc69f3d59706efbd743/COMPATIBILITY-REPORT.json",
-    "reportSha256": "51dd2447d430fc9333c26a5068ed1420be20758f4a8a127bb9e5c4fc4470b5e6"
-  },
-  "verifiedAt": "2026-10-19T18:48:43.775074+00:00"
+    "version": "0.10.1",
+    "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/095abf9c1cf4af9b0862016432e874b9f0144dab/COMPATIBILITY-REPORT.json",
+    "reportSha256": "0d42ee8ed110b7f97865359e7dc2e58c9d008041e2c96d856c21571615bf2b49"
+  }
 }

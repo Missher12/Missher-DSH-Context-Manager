@@ -37,6 +37,14 @@ export function idleStatusSchema() { return z.object({
     resumeHeadroomLimit: count(), recentGrowth: count(), protectedTokens: count(), totalTokens: count(), incomingTokens: count() }).strict().optional(),
 }) }
 export function inspectQuerySchema() { return z.object({ sessionId: sessionId(), atSeq: seq().nullable(), offset: count(), category: z.union([category(), z.literal('all')]), group: z.enum(['summary', 'tool', 'message', 'instruction']).optional(), search: z.string().max(200), sort: z.enum(['size', 'position']), archived: z.boolean() }).strict() }
+export function sessionUsageQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
+export function sessionUsageReadoutSchema() { return z.object({
+  sessionId: sessionId(), sampledAt: count(), status: z.enum(['ready', 'analysis-limit']), hasRecords: z.boolean(), settledAttempts: count(), retries: count(),
+  requestTokens: count(), requestTokensPartial: z.boolean(),
+  summary: z.object({ tokens: count(), attempts: count(), unknownAttempts: count() }).strict().nullable(),
+  peak: z.number().finite().nonnegative().nullable(), offpeak: z.number().finite().nonnegative().nullable(), total: z.number().finite().nonnegative().nullable(),
+  partial: z.boolean(), issues: z.array(z.enum(['missing-usage', 'unknown-route', 'unknown-period', 'cache-write', 'maintenance-overlap', 'summary-unpriced', 'host-difference'])).max(7),
+}).strict() }
 export function contentQuerySchema() { return z.object({ sessionId: sessionId(), cutSeq: seq(), id: z.string().min(1).max(100), offset: count(), sourceOffset: count().optional() }).strict() }
 const contentRowSchema = () => z.object({ id: z.string(), seq: seq(), title: z.string().max(160), source: z.string().max(200), category: category(), tokens: count(), current: z.boolean(), images: count() }).strict()
 const contextDeltaSchema = () => z.object({ fromSeq: count(), toSeq: count(), beforeTokens: count(), afterTokens: count(), deltaTokens: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER) }).strict()
@@ -134,6 +142,9 @@ export const TYPERT_REMOTE = {
     { id: '@missher/dsh-context-manager#contextInspector/inspect', service: 'contextInspector', namespace: 'contextInspector', method: 'inspect', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#InspectQuery', create: inspectQuerySchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#Inspection', create: inspectionSchema } },
+    { id: '@missher/dsh-context-manager#contextInspector/sessionUsage', service: 'contextInspector', namespace: 'contextInspector', method: 'sessionUsage', invocation: { kind: 'direct' },
+      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#SessionUsageQuery', create: sessionUsageQuerySchema } }],
+      cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#SessionUsageReadout', create: sessionUsageReadoutSchema } },
     { id: '@missher/dsh-context-manager#contextInspector/content', service: 'contextInspector', namespace: 'contextInspector', method: 'content', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#ContentQuery', create: contentQuerySchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#ContentPage', create: contentPageSchema } },
