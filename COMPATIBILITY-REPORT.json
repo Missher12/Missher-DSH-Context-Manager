@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "product": "@missher/dsh-context-manager",
   "version": "0.10.2",
-  "status": "source-reviewed-native-delivery-pending",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
   "validation": {
     "focusedSyntheticTests": {
       "passed": 9,
@@ -11,14 +11,21 @@
     "serverClientTypecheck": "passed",
     "buildAndPackageBoundary": "passed; 24 exact members independently verified",
     "syntheticUI": "1280x900 and390x844; automatic totals, model switch, new-settlement refresh, failure/retry, empty/zero and analysis limit",
-    "nativeUI": "pending Desktop owner",
+    "nativeUI": "Ubuntu RC.2 installed package: current-session usage metadata matches actual popup; manual inputs absent; opaque background and close/reopen passed. Empty-session RPC passed; settings/sessions/queues and other plugins preserved.",
     "modelRequests": 0,
-    "scope": "Current-session token-cost estimates in the composer period panel; Host, compaction policy and version ranges unchanged."
+    "scope": "Current-session token-cost estimates in the composer period panel; Host, compaction policy and version ranges unchanged.",
+    "storageCI": {
+      "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39360243897",
+      "commit": "a36f324c6d67cb7391a1b22f6220eb6481f169aa",
+      "jobsPassed": 12,
+      "totalJobs": 12
+    }
   },
   "compatibility": "Existing capability gates and broad host ranges are unchanged; tested baselines do not prove untested hosts.",
   "previousVersionEvidence": {
     "version": "0.10.1",
     "reportUrl": "https://github.com/Missher12/Missher-DSH-Context-Manager/blob/095abf9c1cf4af9b0862016432e874b9f0144dab/COMPATIBILITY-REPORT.json",
     "reportSha256": "0d42ee8ed110b7f97865359e7dc2e58c9d008041e2c96d856c21571615bf2b49"
-  }
+  },
+  "verifiedAt": "2026-10-20T02:51:24.294165+00:00"
 }

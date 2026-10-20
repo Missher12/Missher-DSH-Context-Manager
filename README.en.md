@@ -1,14 +1,22 @@
-# 2026-10-20 Context 0.10.2 candidate: automatic current-session cost
+# Context Manager 0.10.2
 
-Local candidate: `@missher/dsh-context-manager` **0.10.2**, based on the accepted 0.10.1 narrow-r2 source. Opening the input-adjacent period panel loads usage recorded for the current session and estimates each settlement using its own official route, model and recorded-time period. Summary/repair ledger usage stays separate when its per-call model and time cannot be priced. Missing fields, unsupported routes or years, cache writes, maintenance overlap and ledger mismatches remain partial or unknown, never zero. The recent-request detail list remains capped at 200 while cost aggregation covers every settlement. This candidate does not modify Host source, read conversation bodies, call a model, or install or release itself.
+`@missher/dsh-context-manager` **0.10.2** is [formally released](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.2). Click the Peak / Off-peak badge beside the conversation input to see this session's recorded tokens, peak/off-peak estimated charges and total. No manual token entry is needed. Each settlement keeps its own model, route and recorded time; totals include all readable settlements, even when the detail list shows only the latest 200.
 
 This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
 
 Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
 
-The accepted 0.10.1 narrow-r2 source is this candidate's baseline; its 112px numeric-input geometry and narrow settings layout remain. Version 0.10.2 adds current-session usage and cost estimates beside the input without changing settings, Host source or daily installation. See `COMPATIBILITY.json` for package boundaries.
+Estimates use the official reference tariff checked on 2026-10-20; they are not historical provider bills. Missing usage, unknown prices/times and unpriced maintenance or summary usage are explicitly marked as partial or excluded. An empty session is distinct from reported zero usage. Host capability checks, broad version ranges and the existing numeric-settings layout are preserved.
 
-The 0.10.2 synthetic preview and package checks do not establish Host-native acceptance. Independent review, formal Release and installation remain with their assigned owners.
+Validation: 9 targeted synthetic tests, server/client type checks, plugin build and exact 24-file package checks passed. Desktop and narrow synthetic previews passed; separate Ubuntu RC.2 native checks confirmed the session-usage RPC, automatic totals, no manual inputs, opaque popup, close/reopen and preserved settings/sessions. [Storage CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39360243897) passed all 12 Windows/Ubuntu/macOS jobs on Node 22/24. No model calls were made. The archive keeps its freeze-time documentation; this page and [PUBLICATION.md](PUBLICATION.md) record the final delivery.
+
+## Session-cost preview
+
+Synthetic data only; this illustrates layout and is not a screenshot of private usage. Native acceptance is recorded separately.
+
+![Automatic current-session usage and cost](docs/images/context-session-cost-narrow.png)
+
+[Desktop-width preview](docs/images/context-session-cost-desktop.png)
 
 ## Inherited local.9 scope
 
@@ -18,10 +26,6 @@ The 0.10.2 synthetic preview and package checks do not establish Host-native acc
 - **D Versioned checkpoint:** sections use `context-manager/3` and require explicit opt-in; JSON remains the default. Structural validity does not establish semantic fidelity.
 - **E Tool-result de-load:** a constrained path is implemented for successful foreground Bash output only: nonempty cwd, exit code 0, not cancelled or timed out, no signal, complete stdout/stderr, and empty stderr. A deterministic repeated-line rule makes no model call; the original is stored in the read-only archive first, and publication is counted only if the final Host result still carries the reference. `toolResultsMode` defaults to `observe`; the UI must be explicitly set to **Safe reduce** (`reduce`) before content changes. Other tools and failed or incomplete results pass through unchanged. There is no vector database or promise of actual Token or cost savings.
 - **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural Host runtime, real-model quality and native UI remain pending.
-
-## Public interface gallery
-
-This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
 
 ## Historical note: local.8 (2026-10-13)
 

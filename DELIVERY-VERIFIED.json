@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "version": "0.10.2",
-  "status": "source-reviewed-native-delivery-pending",
-  "verifiedAt": "2026-10-20T02:39:55.879638+00:00",
+  "status": "formal-release-and-ubuntu-native-installation-verified",
+  "verifiedAt": "2026-10-20T02:51:24.294165+00:00",
   "archive": {
     "fileName": "missher-dsh-context-manager-0.10.2.tgz",
     "relativePath": "dist/missher-dsh-context-manager-0.10.2.tgz",
@@ -13,15 +13,62 @@
   "archiveMembersVerified": 24,
   "frozenPathsVerified": 95,
   "boundaries": {
-    "installed": false,
-    "released": false,
-    "nativeRc2UiAccepted": false,
+    "installed": true,
+    "released": true,
+    "nativeRc2UiAccepted": true,
     "modelRequests": false,
     "hostChanged": false
   },
-  "pending": [
-    "Native current-session RPC/UI and safe installation",
-    "Git source/tag and existing CI",
-    "Formal Release and anonymous asset verification"
+  "pending": [],
+  "release": {
+    "at": "2026-10-20T02:50:08.059855+00:00",
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.2",
+    "id": 417949917,
+    "tag": "v0.10.2",
+    "commit": "a36f324c6d67cb7391a1b22f6220eb6481f169aa",
+    "draft": false,
+    "prerelease": false,
+    "latest": true,
+    "anonymousDownloadsMatched": true,
+    "assets": [
+      {
+        "name": "missher-dsh-context-manager-0.10.2.tgz",
+        "bytes": 357905,
+        "sha256": "a151f8f88e2361a3a95da17e72a6014e5fdda4115157ba954dfb65861d5b73f0",
+        "id": 658081652,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.2/missher-dsh-context-manager-0.10.2.tgz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 105,
+        "sha256": "c94b5cb33afddf6243865949ed33d1f1caa9a0024c98ddff1c7c595212f7909c",
+        "id": 658082073,
+        "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/releases/download/v0.10.2/SHA256SUMS"
+      }
+    ]
+  },
+  "sourceCommit": "a36f324c6d67cb7391a1b22f6220eb6481f169aa",
+  "sourceTag": "v0.10.2",
+  "storageCI": {
+    "url": "https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39360243897",
+    "commit": "a36f324c6d67cb7391a1b22f6220eb6481f169aa",
+    "jobsPassed": 12,
+    "totalJobs": 12
+  },
+  "nativeAcceptance": {
+    "bundleAndInspectorActive": true,
+    "currentDisplayedSessionUsageRpcReady": true,
+    "automaticRecordedTokenPeakOffpeakTotalShown": true,
+    "displayMatchesPrivateRpcMetadata": true,
+    "manualCalculatorFieldsAbsent": true,
+    "opaquePanelNoUnderlyingTextBleed": true,
+    "escapeCloseAndReopenPassed": true,
+    "closeButtonUsed": true,
+    "noSettingsSaved": true
+  },
+  "limits": [
+    "Reference-price estimate, not actual historical bill",
+    "Multi-model/251-record/dedup/missing cases use frozen synthetic evidence, not repeated native model calls",
+    "No new full-platform or other-plugin regression suite"
   ]
 }

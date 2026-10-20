@@ -21,17 +21,21 @@
     },
     {
       "path": "README.en.md",
-      "exportedSha256": "7631fd576ee243faba7dbaa56b5c194f4445d56604d95a02c8a84468e74977b2",
-      "sizeBytes": 35622,
+      "exportedSha256": "5f93a7f5aa0fc1711137bb1c342fe6e4d033c9681ae75030d6d9acb99ff6a381",
+      "sizeBytes": 35872,
       "previousAcceptedSha256": "c018ad55061e0fd233fe1cedba46c82d9826d19a5859c1d55ac731d16a75b36a",
-      "classification": "frozen-0.10.2"
+      "classification": "post-delivery-documentation-only",
+      "frozenExportedSha256": "7631fd576ee243faba7dbaa56b5c194f4445d56604d95a02c8a84468e74977b2",
+      "frozenSizeBytes": 35622
     },
     {
       "path": "README.md",
-      "exportedSha256": "bec30186bede5fe596b69d69eab2267338eb2e2fbf8ea6eb0bb6e3f7b66140cb",
-      "sizeBytes": 30133,
+      "exportedSha256": "9115cfd8e915bf05e63f64871635b731ddc52a2f293663c958f3267ed45bb203",
+      "sizeBytes": 30422,
       "previousAcceptedSha256": "4401d57aec07e456b2713cbed87f792a0a5cfdf272371fe582282a22f503f808",
-      "classification": "frozen-0.10.2"
+      "classification": "post-delivery-documentation-only",
+      "frozenExportedSha256": "bec30186bede5fe596b69d69eab2267338eb2e2fbf8ea6eb0bb6e3f7b66140cb",
+      "frozenSizeBytes": 30133
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -872,6 +876,20 @@
       "sizeBytes": 662,
       "previousAcceptedSha256": "b61752397f4d69f95fe422efffc040d73eca664fd5e042f50859f1366d4e40f9",
       "classification": "unchanged-from-0.10.1"
+    },
+    {
+      "path": "docs/images/context-session-cost-desktop.png",
+      "exportedSha256": "6226b8b5659691e02adc4f6405b14bb0d30a2c858d88d2da056ae550f83c6275",
+      "sizeBytes": 100871,
+      "classification": "reviewed-synthetic-preview-no-private-data"
+    },
+    {
+      "path": "docs/images/context-session-cost-narrow.png",
+      "exportedSha256": "744825f6977f42e041475afdf706027f88033c86ba31267f256614d7d0c62fee",
+      "sizeBytes": 84152,
+      "classification": "reviewed-synthetic-preview-no-private-data"
     }
-  ]
+  ],
+  "documentationUpdatedAt": "2026-10-20T02:51:24.294165+00:00",
+  "frozenSourceTag": "v0.10.2"
 }
