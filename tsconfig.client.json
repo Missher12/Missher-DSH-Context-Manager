@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "include": [
+    "src/dsh-app-boot.d.ts",
     "src/client.tsx",
     "src/overview.tsx",
     "src/diagnostics-types.ts",

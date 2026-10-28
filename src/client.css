@@ -34,6 +34,8 @@
 .dsh-context-settings .cm-facts { margin: 4px 0; display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr); gap: 8px 16px; font-size: 12px; line-height: 20px; }
 .dsh-context-settings .cm-facts dt { color: var(--dsw-alias-label-tertiary); }
 .dsh-context-settings .cm-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.dsh-context-settings .cm-facts dd.cm-detail-interfaces { text-align: left; }
+.dsh-context-settings .cm-interface { display: block; overflow-wrap: anywhere; }
 .dsh-context-settings .cm-breakdown { display: grid; gap: 12px; font-size: 12px; }
 .dsh-context-settings .cm-detail summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
 .dsh-context-settings .cm-detail[open] > summary { margin-bottom: 10px; }
@@ -173,7 +175,10 @@
 .dsh-context-settings .cm-native-unit { flex: none; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-context-settings .cm-native-overridden { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-context-settings .cm-native-toggle { grid-template-columns: minmax(0,1fr) auto; }
-.dsh-context-settings .cm-native-select-row select { width: 100%; min-width: 0; max-width: 240px; justify-self: end; padding: 6px 9px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
+.dsh-context-settings .cm-native-select-row select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 240px; height: 32px; justify-self: end; padding: 0 8px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-module-platform); border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); font: inherit; }
+.dsh-context-settings .cm-native-value-control:has(> textarea) { flex-wrap: wrap; }
+.dsh-context-settings .cm-native-value-control:has(> textarea) > textarea { flex: 0 0 100%; }
+.dsh-context-settings .cm-native-value-control:has(> textarea) > .cm-native-overridden { flex: none; white-space: nowrap; }
 .dsh-context-settings .cm-native-note { margin: 8px 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 17px; }
 .dsh-context-settings .cm-native-cost-note { margin: 1px 0 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 17px; }
 .dsh-context-settings .cm-native-legacy { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 10px 0; font-size: 12px; }

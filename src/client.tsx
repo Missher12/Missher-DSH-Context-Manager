@@ -119,18 +119,100 @@ export function ContextPage({ form, compatibility, t = settingsText() }: { form:
       integration: { state: 'unknown', reason: '无法读取 Context provider 注册状态' } }))
     return () => controller.abort()
   }, [compatibility])
-  const status = !host ? 'statusChecking'
-    : host.state === 'unsupported' ? 'statusUnsupported'
-      : host.state === 'unknown' ? 'statusUnknown'
-        : host.integration.state === 'registered' ? 'statusAvailable'
-          : host.integration.state === 'pending' ? 'statusPending'
-            : host.integration.state === 'failed' ? 'statusFailed'
-              : host.integration.state === 'inactive' ? 'statusInactive' : 'statusUnknown'
+  const requestPath = host?.requestPath
+  const missingInterfaces = host?.missingInterfaces ?? []
+  const sidecarState = requestPath?.path === 'request-gate-sidecar' ? requestPath.state : undefined
+  const status: SettingsLocaleKey = !host ? 'statusChecking'
+    : sidecarState === 'ready' ? 'statusSidecarReady'
+      : sidecarState === 'pending' ? 'statusSidecarPending'
+        : sidecarState === 'blocked' ? 'statusSidecarBlocked'
+        : sidecarState === 'failed' ? 'statusSidecarFailed'
+          : host.state === 'unsupported' ? 'statusUnsupported'
+            : host.state === 'unknown' ? 'statusUnknown'
+              : host.integration.state === 'registered' ? 'statusAvailable'
+                : host.integration.state === 'pending' ? 'statusPending'
+                  : host.integration.state === 'failed' ? 'statusFailed'
+                    : host.integration.state === 'inactive' ? 'statusInactive' : 'statusUnknown'
+  const statusFailed = status === 'statusFailed' || status === 'statusSidecarFailed' || status === 'statusSidecarBlocked'
   return <section aria-label="上下文管理" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">{t('title')}</h2>
-    {status !== 'statusAvailable' && <p className="cm-intro" role={status === 'statusFailed' ? 'alert' : 'status'}>{t(status)}</p>}
+    {status !== 'statusAvailable' && <p className="cm-intro" role={statusFailed ? 'alert' : 'status'}>{t(status)}</p>}
+    {host && <details className="cm-detail">
+      <summary>{t('technicalDetails')}</summary>
+      <dl className="cm-facts">
+        <dt>{t('hostVersion')}</dt><dd>{host.hostRuntime?.state === 'available' && host.hostRuntime.version ? host.hostRuntime.version : t('hostVersionUnknown')}</dd>
+        <dt>{t('hostCapability')}</dt><dd>{t(host.state === 'supported' ? 'capabilitySupported' : host.state === 'unsupported' ? 'capabilityUnsupported' : 'capabilityUnknown')}</dd>
+        {host.version !== undefined && <><dt>{t('hostApiVersion')}</dt><dd>{host.version}</dd></>}
+        <dt>{t('requestPath')}</dt><dd>{t(requestPath ? requestPathLabel(requestPath.path) : 'requestPathUnknown')} · {t(requestPath ? requestPathStateLabel(requestPath.state) : 'requestPathUnknownState')}</dd>
+        <dt>{t('runtimeRegistration')}</dt><dd>{t(registrationStateLabel(host.integration.state))}</dd>
+        <dt>{t('missingInterfaces')}</dt><dd className="cm-detail-interfaces">{host.state === 'unknown'
+          ? t('interfacesNotChecked')
+          : missingInterfaces.length
+            ? missingInterfaces.map(name => <code className="cm-interface" key={name}>{name}</code>)
+            : t('noMissingInterfaces')}</dd>
+      </dl>
+      <p className="cm-intro">{t(hostReasonLabel(host.reasonCode))}: {host.reason}</p>
+      {requestPath && <p className="cm-intro">{t('detailReason')}: {t(pathReasonLabel(requestPath.reasonCode))}
+        {requestPath.reason && <> · <code>{requestPath.reason}</code></>}</p>}
+      {host.integration.reason && <p className="cm-intro">{t('detailReason')}: {host.integration.reason}</p>}
+    </details>}
     <ContextSettings form={form} t={t} />
   </section>
+}
+
+function requestPathLabel(path: NonNullable<HostCapabilityReadout['requestPath']>['path']): SettingsLocaleKey {
+  switch (path) {
+    case 'host-registration': return 'requestPathHostRegistration'
+    case 'request-gate-sidecar': return 'requestPathSidecar'
+    case 'host-provider-unchanged': return 'requestPathHostUnchanged'
+    default: return 'requestPathUnknown'
+  }
+}
+function requestPathStateLabel(state: NonNullable<HostCapabilityReadout['requestPath']>['state']): SettingsLocaleKey {
+  switch (state) {
+    case 'ready': return 'requestPathReady'
+    case 'pending': return 'requestPathPending'
+    case 'blocked': return 'requestPathBlocked'
+    case 'failed': return 'requestPathFailed'
+    case 'inactive': return 'requestPathInactive'
+    default: return 'requestPathUnknownState'
+  }
+}
+function registrationStateLabel(state: HostCapabilityReadout['integration']['state']): SettingsLocaleKey {
+  switch (state) {
+    case 'registered': return 'registrationRegistered'
+    case 'pending': return 'registrationPending'
+    case 'failed': return 'registrationFailed'
+    case 'inactive': return 'registrationInactive'
+    default: return 'registrationUnknown'
+  }
+}
+function hostReasonLabel(code: HostCapabilityReadout['reasonCode']): SettingsLocaleKey {
+  switch (code) {
+    case 'registry-unavailable': return 'apiReasonRegistryUnavailable'
+    case 'registry-unreadable': return 'apiReasonRegistryUnreadable'
+    case 'compaction-host-unreadable': return 'apiReasonHostUnreadable'
+    case 'compaction-host-missing': return 'apiReasonHostMissing'
+    case 'version-mismatch': return 'apiReasonVersionMismatch'
+    case 'methods-missing': return 'apiReasonMethodsMissing'
+    case 'supported': return 'apiReasonSupported'
+    default: return 'apiReasonUnavailable'
+  }
+}
+function pathReasonLabel(code: NonNullable<HostCapabilityReadout['requestPath']>['reasonCode']): SettingsLocaleKey {
+  switch (code) {
+    case 'host-provider-ready': return 'pathReasonHostReady'
+    case 'host-provider-pending': return 'pathReasonHostPending'
+    case 'host-provider-failed': return 'pathReasonHostFailed'
+    case 'host-provider-inactive': return 'pathReasonHostInactive'
+    case 'host-provider-unknown': return 'pathReasonHostUnknown'
+    case 'sidecar-ready': return 'pathReasonSidecarReady'
+    case 'sidecar-pending': return 'pathReasonSidecarPending'
+    case 'sidecar-blocked': return 'pathReasonSidecarBlocked'
+    case 'sidecar-failed': return 'pathReasonSidecarFailed'
+    case 'sidecar-inactive': return 'pathReasonSidecarInactive'
+    default: return 'pathReasonUnknown'
+  }
 }
 
 const numericKeys = ['recentPercent', 'summaryPercent', 'repairPercent', 'triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const

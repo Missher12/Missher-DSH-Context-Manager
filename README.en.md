@@ -1,22 +1,10 @@
-# Context Manager 0.10.2
+# 2026-10-28 Context 0.10.4 source candidate: compaction capability diagnostics
 
-`@missher/dsh-context-manager` **0.10.2** is [formally released](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v0.10.2). Click the Peak / Off-peak badge beside the conversation input to see this session's recorded tokens, peak/off-peak estimated charges and total. No manual token entry is needed. Each settlement keeps its own model, route and recorded time; totals include all readable settlements, even when the detail list shows only the latest 200.
+Local source candidate: `@missher/dsh-context-manager` **0.10.4**. The existing 0.10.3 tarball and delivery materials remain preserved and are not overwritten. This settings diagnostic separates the Host `compactionHost.v1` provider-registration capability from the plugin-owned request-gate sidecar; it displays the public app-boot Host version when available and lists exact missing interfaces. The sidecar handles only sessions actually bound to official Basic, which remains Host-owned.
 
-This project ships a Cordis Bundle plugin. It does not modify DeepSeek Harness Host source or add a compatibility plugin. The Bundle inserts Context Manager and the read-only Inspector without snapshotting or rewriting Host presets. Host provider-registration API v1 affects enhanced provider registration only; when absent, the plugin does not replace or disable Host Basic. Offline integration with the frozen RC.2 Loader and a synthetic adapter verified that default Basic remains, Context request/idle sidecars cooperate, and Basic performs its own overflow recovery. Basic keeps its own thresholds, costs and accounting; Context's two-main-summary/four-call limits do not cover Basic, and the plugin does not promise that every window needs only one compaction.
+This version is at source-preparation stage. Typecheck, tests, build, package, Host runtime, native settings UI, release, and installation have not been run for this candidate. The 0.10.3 synthetic component-UI evidence is historical and does not cover this candidate.
 
-Budget arithmetic covered 32K, 64K, 100K, 200K and 1M Token windows. The 100K multi-round semantic oracle uses fixed facts and synthetic summaries to check corrections, constraints, pending work, failure evidence, source pairing, reload and single side effects. It does not establish the quality of arbitrary real-model summaries. The final checkpoint total in that replay was at most 4K Tokens; this does not mean every intermediate snapshot or tokenizer was tested.
-
-Estimates use the official reference tariff checked on 2026-10-20; they are not historical provider bills. Missing usage, unknown prices/times and unpriced maintenance or summary usage are explicitly marked as partial or excluded. An empty session is distinct from reported zero usage. Host capability checks, broad version ranges and the existing numeric-settings layout are preserved.
-
-Validation: 9 targeted synthetic tests, server/client type checks, plugin build and exact 24-file package checks passed. Desktop and narrow synthetic previews passed; separate Ubuntu RC.2 native checks confirmed the session-usage RPC, automatic totals, no manual inputs, opaque popup, close/reopen and preserved settings/sessions. [Storage CI](https://github.com/Missher12/Missher-DSH-Context-Manager/actions/runs/39360243897) passed all 12 Windows/Ubuntu/macOS jobs on Node 22/24. No model calls were made. The archive keeps its freeze-time documentation; this page and [PUBLICATION.md](PUBLICATION.md) record the final delivery.
-
-## Session-cost preview
-
-Synthetic data only; this illustrates layout and is not a screenshot of private usage. Native acceptance is recorded separately.
-
-![Automatic current-session usage and cost](docs/images/context-session-cost-narrow.png)
-
-[Desktop-width preview](docs/images/context-session-cost-desktop.png)
+The 0.10.3 candidate's geometry notes and acceptance records remain in the history below and in `COMPATIBILITY.json`.
 
 ## Inherited local.9 scope
 
@@ -26,6 +14,10 @@ Synthetic data only; this illustrates layout and is not a screenshot of private 
 - **D Versioned checkpoint:** sections use `context-manager/3` and require explicit opt-in; JSON remains the default. Structural validity does not establish semantic fidelity.
 - **E Tool-result de-load:** a constrained path is implemented for successful foreground Bash output only: nonempty cwd, exit code 0, not cancelled or timed out, no signal, complete stdout/stderr, and empty stderr. A deterministic repeated-line rule makes no model call; the original is stored in the read-only archive first, and publication is counted only if the final Host result still carries the reference. `toolResultsMode` defaults to `observe`; the UI must be explicitly set to **Safe reduce** (`reduce`) before content changes. Other tools and failed or incomplete results pass through unchanged. There is no vector database or promise of actual Token or cost savings.
 - **F Preset integration:** local.13 keeps the Host-declared provider and uses an optional Context sidecar when the actual Agent is bound to Basic. The frozen RC.2 Loader checks include native Basic preservation and overflow recovery with a synthetic adapter; natural Host runtime, real-model quality and native UI remain pending.
+
+## Public interface gallery
+
+This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
 
 ## Historical note: local.8 (2026-10-13)
 
@@ -63,7 +55,7 @@ Historical local.5 recovery note: this candidate was recovered from published co
 
 Inspect per-session context composition, usage, compaction records and summary sources in DeepSeek Harness, and compact history before model requests when the configured threshold is reached. Optional idle compaction starts after a task completes normally and requires the host capability described below.
 
-Package: `@missher/dsh-context-manager`. Candidate version: **0.10.2**. This is a Cordis Bundle, not a Codex or Claude Code implementation. Version 0.10.2 is not published and cannot be installed from a Release asset.
+Package: `@missher/dsh-context-manager`. Source candidate version: **0.10.4**. This is a Cordis Bundle, not a Codex or Claude Code implementation. The 0.10.4 package has not been built, released, or installed.
 
 The plugin now owns the final cancellation check and synchronous Session transaction. It no longer requires the added Basic capability marker or storage drain API. A private `.context-manager-recovery` directory under the active profile durably records pending usage/idle metadata before Host writes; restart reconciles the same attempt IDs without issuing model calls. It contains no conversation bodies. Conflicts or uncertain ownership fail closed. Usage never delivered before process exit stays unknown. Install the frozen tarball linked in [PUBLICATION.md](./PUBLICATION.md); this public repository includes its matching runtime files. This change does not alter Goal limits or MSE quotas.
 

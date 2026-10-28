@@ -46,6 +46,28 @@ export interface CompactionHostV1 {
 export type HostCapabilityState = 'supported' | 'unsupported' | 'unknown'
 export type AgentCompactionMode = 'enhanced' | 'native' | 'other' | 'unconfigured' | 'unknown' | 'unavailable'
 export type ContextProviderRegistrationState = 'inactive' | 'pending' | 'registered' | 'failed' | 'unknown'
+export type HostCapabilityReasonCode = 'registry-unavailable' | 'registry-unreadable' | 'compaction-host-missing'
+  | 'compaction-host-unreadable' | 'version-mismatch' | 'methods-missing' | 'supported'
+
+export type ContextCompactionPath = 'host-registration' | 'request-gate-sidecar' | 'host-provider-unchanged' | 'unknown'
+export type ContextCompactionPathState = 'ready' | 'pending' | 'blocked' | 'failed' | 'inactive' | 'unknown'
+export type ContextCompactionPathReasonCode = 'host-provider-ready' | 'host-provider-pending' | 'host-provider-failed'
+  | 'host-provider-inactive' | 'host-provider-unknown' | 'sidecar-ready' | 'sidecar-pending' | 'sidecar-blocked' | 'sidecar-failed'
+  | 'sidecar-inactive' | 'host-capability-unknown'
+
+export interface HostRuntimeReadout {
+  state: 'available' | 'unavailable'
+  version?: string
+  source: '@deepseek-ai/dsh-app-boot' | 'unavailable'
+}
+
+export interface ContextCompactionPathReadout {
+  path: ContextCompactionPath
+  state: ContextCompactionPathState
+  reasonCode: ContextCompactionPathReasonCode
+  /** Exact startup or activation failure, kept in folded technical details. */
+  reason?: string
+}
 
 export interface ContextCooperationReadout {
   toolResults: { state: 'off' | 'observe' | 'active' | 'waiting' | 'unsupported'; finalResultSeen: boolean }
@@ -74,20 +96,89 @@ export interface CompactionReadout {
 export interface HostCapabilityReadout {
   state: HostCapabilityState
   reason: string
+  reasonCode?: HostCapabilityReasonCode
   version?: number
+  /** Exact public interfaces the Host did not expose for Context provider binding. */
+  missingInterfaces?: readonly string[]
+  /** Optional host release from the public app-boot runtime version API. */
+  hostRuntime?: HostRuntimeReadout
+  /** Active Context path, separate from whether the Host can bind a replacement provider. */
+  requestPath?: ContextCompactionPathReadout
   /** Registration is selection status only; each session's active binding is reported separately. */
   integration: ContextProviderRegistrationReadout
 }
 
 export type HostCapabilityProbe =
-  | { state: 'supported'; capability: CompactionHostV1 }
-  | { state: 'unsupported'; reason: string; version?: number }
-  | { state: 'unknown'; reason: string }
+  | { state: 'supported'; capability: CompactionHostV1; reasonCode: 'supported'; missingInterfaces: readonly [] }
+  | { state: 'unsupported'; reason: string; reasonCode: Exclude<HostCapabilityReasonCode, 'registry-unavailable' | 'registry-unreadable' | 'supported'>; missingInterfaces: readonly string[]; version?: number }
+  | { state: 'unknown'; reason: string; reasonCode: 'registry-unavailable' | 'registry-unreadable'; missingInterfaces: readonly [] }
+
+const COMPACTION_HOST_V1_INTERFACES = Object.freeze([
+  'agentPresets.compactionHost.version = 1',
+  'agentPresets.compactionHost.register(owner, registration)',
+  'agentPresets.compactionHost.bindingFor(agentContext)',
+  'agentPresets.compactionHost.retained()',
+])
+
+/** Read the official runtime's public version helper without making it a load-time requirement on older Hosts. */
+let hostRuntimeReadout: Promise<HostRuntimeReadout> | undefined
+export function readHostRuntimeVersion(): Promise<HostRuntimeReadout> {
+  return hostRuntimeReadout ??= (async () => {
+    try {
+      const appBoot = await import('@deepseek-ai/dsh-app-boot') as unknown as { getDshRuntimeVersion?: () => unknown }
+      const version = appBoot.getDshRuntimeVersion?.()
+      if (typeof version === 'string' && version.trim()) {
+        return { state: 'available', version: version.trim(), source: '@deepseek-ai/dsh-app-boot' }
+      }
+    } catch { /* Older or community Hosts may not expose the official helper. */ }
+    return { state: 'unavailable', source: 'unavailable' }
+  })()
+}
+
+/** Report which safe Context path is active; this never changes the selected Host provider. */
+export function resolveContextCompactionPath(probe: HostCapabilityProbe,
+  integration: ContextProviderRegistrationReadout,
+  sidecar: 'inactive' | 'pending' | 'active' | 'blocked' | 'failed', sidecarReason?: string): ContextCompactionPathReadout {
+  if (probe.state === 'supported') {
+    if (integration.state === 'registered') return { path: 'host-registration', state: 'ready', reasonCode: 'host-provider-ready' }
+    if (integration.state === 'pending') return { path: 'host-registration', state: 'pending', reasonCode: 'host-provider-pending' }
+    if (integration.state === 'failed') return { path: 'host-registration', state: 'failed', reasonCode: 'host-provider-failed' }
+    if (integration.state === 'inactive') return { path: 'host-registration', state: 'inactive', reasonCode: 'host-provider-inactive' }
+    return { path: 'host-registration', state: 'unknown', reasonCode: 'host-provider-unknown' }
+  }
+  if (sidecar === 'active') return { path: 'request-gate-sidecar', state: 'ready', reasonCode: 'sidecar-ready' }
+  if (sidecar === 'pending') return { path: 'request-gate-sidecar', state: 'pending', reasonCode: 'sidecar-pending' }
+  if (sidecar === 'blocked') return { path: 'request-gate-sidecar', state: 'blocked', reasonCode: 'sidecar-blocked',
+    ...(sidecarReason ? { reason: sidecarReason } : {}) }
+  if (sidecar === 'failed') return { path: 'request-gate-sidecar', state: 'failed', reasonCode: 'sidecar-failed',
+    ...(sidecarReason ? { reason: sidecarReason } : {}) }
+  if (probe.state === 'unsupported') return { path: 'host-provider-unchanged', state: 'inactive', reasonCode: 'sidecar-inactive' }
+  return { path: 'unknown', state: 'unknown', reasonCode: 'host-capability-unknown' }
+}
+
+export type ContextEngineStartupState = { state: 'ready' } | { state: 'blocked'; reason: string }
+
+/** Fail closed when the isolated engine does not expose a valid startup proof. */
+export function readContextEngineStartupState(engine: unknown): ContextEngineStartupState {
+  try {
+    const read = (engine as { startupReadiness?: () => unknown } | null)?.startupReadiness
+    if (typeof read !== 'function') return { state: 'blocked', reason: '隔离引擎未公开启动核验状态' }
+    const proof = read.call(engine)
+    if (proof && typeof proof === 'object' && (proof as { ready?: unknown }).ready === true) return { state: 'ready' }
+    const reason = proof && typeof proof === 'object' && typeof (proof as { reason?: unknown }).reason === 'string'
+      ? (proof as { reason: string }).reason.trim() : ''
+    return { state: 'blocked', reason: reason || '隔离引擎启动核验未通过' }
+  } catch (error) {
+    return { state: 'blocked', reason: `读取隔离引擎启动核验失败：${error instanceof Error ? error.message : String(error)}` }
+  }
+}
 
 export function hostCapabilityReadout(probe: HostCapabilityProbe,
   integration: ContextProviderRegistrationReadout = { state: 'inactive', reason: 'Context Manager service is not active' }): HostCapabilityReadout {
   return { state: probe.state,
     reason: probe.state === 'supported' ? 'Host compaction API v1 is available' : probe.reason,
+    reasonCode: probe.reasonCode,
+    missingInterfaces: [...probe.missingInterfaces],
     ...(probe.state === 'unsupported' && probe.version !== undefined ? { version: probe.version } : {}),
     integration: { ...integration } }
 }
@@ -95,25 +186,54 @@ export function hostCapabilityReadout(probe: HostCapabilityProbe,
 /** Read only the versioned public surface. This function never loads an Agent or registers behavior. */
 export function resolveCompactionHost(ctx: Context): HostCapabilityProbe {
   let registry: unknown
-  try { registry = ctx.get('agentPresets') } catch { registry = undefined }
+  try { registry = ctx.get('agentPresets') } catch {
+    return { state: 'unknown', reason: 'Agent preset registry could not be read', reasonCode: 'registry-unreadable', missingInterfaces: [] }
+  }
   if (registry === undefined || registry === null) {
-    return { state: 'unknown', reason: 'Agent preset registry is not available yet' }
+    return { state: 'unknown', reason: 'Agent preset registry is not available yet', reasonCode: 'registry-unavailable', missingInterfaces: [] }
   }
   let value: unknown
   try { value = (registry as { compactionHost?: unknown }).compactionHost } catch {
-    return { state: 'unsupported', reason: 'Host compaction capability could not be read' }
+    return { state: 'unsupported', reason: 'Host compaction capability could not be read', reasonCode: 'compaction-host-unreadable',
+      missingInterfaces: ['agentPresets.compactionHost'] }
   }
   if (value === undefined || value === null || typeof value !== 'object') {
-    return { state: 'unsupported', reason: 'Host cannot register or select an enhanced Context compaction provider; per-session Basic and sidecar status is reported separately' }
+    return { state: 'unsupported', reason: 'Host cannot register or select an enhanced Context compaction provider; per-session Basic and sidecar status is reported separately',
+      reasonCode: 'compaction-host-missing', missingInterfaces: COMPACTION_HOST_V1_INTERFACES }
   }
   const candidate = value as Partial<CompactionHostV1>
-  if (candidate.version !== COMPACTION_HOST_VERSION) {
-    return { state: 'unsupported', version: candidate.version, reason: `Host compaction API v${String(candidate.version ?? 'unknown')} is unsupported; expected v${COMPACTION_HOST_VERSION}` }
+  let version: number | undefined
+  try {
+    version = candidate.version
+  } catch {
+    return { state: 'unsupported', reason: 'Host compaction API members could not be read', reasonCode: 'compaction-host-unreadable',
+      missingInterfaces: ['agentPresets.compactionHost.version'] }
   }
-  if (typeof candidate.register !== 'function' || typeof candidate.bindingFor !== 'function' || typeof candidate.retained !== 'function') {
-    return { state: 'unsupported', version: candidate.version, reason: 'Host compaction API v1 is incomplete; per-session Basic and sidecar status is reported separately' }
+  if (version !== COMPACTION_HOST_VERSION) {
+    return { state: 'unsupported', version, reason: `Host compaction API v${String(version ?? 'unknown')} is unsupported; expected v${COMPACTION_HOST_VERSION}`,
+      reasonCode: 'version-mismatch', missingInterfaces: ['agentPresets.compactionHost.version = 1'] }
   }
-  return { state: 'supported', capability: candidate as CompactionHostV1 }
+  let register: unknown
+  let bindingFor: unknown
+  let retained: unknown
+  try {
+    register = candidate.register
+    bindingFor = candidate.bindingFor
+    retained = candidate.retained
+  } catch {
+    return { state: 'unsupported', version, reason: 'Host compaction API methods could not be read', reasonCode: 'compaction-host-unreadable',
+      missingInterfaces: ['agentPresets.compactionHost methods'] }
+  }
+  const missingInterfaces = [
+    ...(typeof register !== 'function' ? ['agentPresets.compactionHost.register(owner, registration)'] : []),
+    ...(typeof bindingFor !== 'function' ? ['agentPresets.compactionHost.bindingFor(agentContext)'] : []),
+    ...(typeof retained !== 'function' ? ['agentPresets.compactionHost.retained()'] : []),
+  ]
+  if (missingInterfaces.length > 0) {
+    return { state: 'unsupported', version, reason: 'Host compaction API v1 is incomplete; per-session Basic and sidecar status is reported separately',
+      reasonCode: 'methods-missing', missingInterfaces }
+  }
+  return { state: 'supported', capability: candidate as CompactionHostV1, reasonCode: 'supported', missingInterfaces: [] }
 }
 
 function activeCompactionService(ctx: Context, agentContext?: Context, agent?: unknown): unknown {

@@ -21,7 +21,7 @@ import type ContextManager from './index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContextEngine } from './engine.ts'
 import { compatibilityQuerySchema, idleQuerySchema, recoveryGrantSchema, emergencyConfirmSchema } from './inspector-wire.ts'
-import { hostCapabilityReadout, readAgentCompaction, resolveCompactionHost } from './compatibility.ts'
+import { hostCapabilityReadout, readAgentCompaction, readHostRuntimeVersion, resolveCompactionHost } from './compatibility.ts'
 
 declare module '@deepseek-ai/cordis' { interface Context { contextInspector: ContextInspector; contextRecovery: ContextRecovery } }
 
@@ -89,11 +89,20 @@ export class ContextInspector extends TypertRemoteService {
     return this.managerRef ?? this.ctx.get('contextManager')
   }
   @Remote('compatibility')
-  compatibility(input: {}, signal: AbortSignal) {
+  async compatibility(input: {}, signal: AbortSignal) {
     signal.throwIfAborted()
     compatibilityQuerySchema().parse(input)
     const manager = this.getManager()
-    return manager?.capabilityReadout() ?? hostCapabilityReadout(resolveCompactionHost(this.ctx))
+    if (manager) {
+      const readout = await manager.capabilityReadoutForSettings()
+      signal.throwIfAborted()
+      return readout
+    }
+    const [readout, hostRuntime] = await Promise.all([
+      Promise.resolve(hostCapabilityReadout(resolveCompactionHost(this.ctx))), readHostRuntimeVersion(),
+    ])
+    signal.throwIfAborted()
+    return { ...readout, hostRuntime }
   }
   @Remote('idleStatus')
   async idleStatus(input: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus> {

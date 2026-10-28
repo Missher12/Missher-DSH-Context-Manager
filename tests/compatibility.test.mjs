@@ -21,7 +21,9 @@ import {
   CONTEXT_MANAGER_ORIGIN,
   isNativeBasicCompaction,
   readAgentCompaction,
+  readContextEngineStartupState,
   resolveCompactionHost,
+  resolveContextCompactionPath,
 } from '../lib/compatibility.js'
 
 const packageRoot = resolve(process.env.DSH_CONTEXT_PACKAGE_ROOT?.trim() || fileURLToPath(new URL('..', import.meta.url)))
@@ -45,6 +47,10 @@ test('the shipped overlay is neutral and leaves preset declarations to the Host'
   assert.equal(compatibility.overlayContract.presetSnapshots, false)
   assert.equal(compatibility.overlayContract.disablesBasicProvider, false)
   assert.equal(compatibility.overlayContract.insertsEngineAtRoot, false)
+  assert.deepEqual(compatibility.compatibilityRanges, manifest.peerDependencies)
+  assert.equal(manifest.peerDependenciesMeta?.['@deepseek-ai/dsh-app-boot']?.optional, true)
+  assert.equal(compatibility.hostVersionDiagnostic?.publicFunction, 'getDshRuntimeVersion')
+  assert.equal(compatibility.hostVersionDiagnostic?.peerDependencyOptional, true)
   assert.equal(compatibility.priorRollback.artifactVersion, '0.10.0-local.9')
   assert.equal(compatibility.priorRollback.artifactSha256, '670e07978d98ceb0800bee021150487d1ce4c4776f3819de84e24a7d87d9c840')
 })
@@ -106,9 +112,48 @@ test('capability probing fails closed without loading or registering provider be
 
   assert.equal(resolveCompactionHost(context(undefined)).state, 'unknown')
   assert.equal(resolveCompactionHost(context({ compactionHost: { ...valid, version: 2 } })).state, 'unsupported')
-  assert.equal(resolveCompactionHost(context({ compactionHost: { version: 1 } })).state, 'unsupported')
+  const incomplete = resolveCompactionHost(context({ compactionHost: { version: 1 } }))
+  assert.equal(incomplete.state, 'unsupported')
+  assert.deepEqual(incomplete.missingInterfaces, [
+    'agentPresets.compactionHost.register(owner, registration)',
+    'agentPresets.compactionHost.bindingFor(agentContext)',
+    'agentPresets.compactionHost.retained()',
+  ])
   assert.equal(resolveCompactionHost(context({ compactionHost: valid })).state, 'supported')
+  assert.equal(resolveCompactionHost({ get() { throw new Error('registry read failed') } }).reasonCode, 'registry-unreadable')
+  const unreadable = { version: 1 }
+  Object.defineProperty(unreadable, 'register', { get() { throw new Error('member read failed') } })
+  assert.equal(resolveCompactionHost(context({ compactionHost: unreadable })).reasonCode, 'compaction-host-unreadable')
   assert.deepEqual(calls, { register: 0, bindingFor: 0, retained: 0 })
+})
+
+test('sidecar startup readiness fails closed for false, missing, malformed, and throwing proofs', () => {
+  const exactReason = '隔离引擎启动文件校验未通过：候选路径与启动快照不一致'
+  assert.deepEqual(readContextEngineStartupState({ startupReadiness: () => ({ ready: true }) }), { state: 'ready' })
+  assert.deepEqual(readContextEngineStartupState({ startupReadiness: () => ({ ready: false, reason: exactReason }) }), {
+    state: 'blocked', reason: exactReason,
+  })
+  assert.deepEqual(readContextEngineStartupState({ startupReadiness: () => undefined }), {
+    state: 'blocked', reason: '隔离引擎启动核验未通过',
+  })
+  assert.deepEqual(readContextEngineStartupState({}), {
+    state: 'blocked', reason: '隔离引擎未公开启动核验状态',
+  })
+  assert.deepEqual(readContextEngineStartupState({ startupReadiness() { throw new Error('proof unavailable') } }), {
+    state: 'blocked', reason: '读取隔离引擎启动核验失败：proof unavailable',
+  })
+})
+
+test('request-path readout distinguishes Host registration from the plugin-owned Basic sidecar', () => {
+  const unsupported = resolveCompactionHost({ get: name => name === 'agentPresets' ? { compactionHost: { version: 2 } } : undefined })
+  const sidecar = resolveContextCompactionPath(unsupported, { state: 'inactive' }, 'active')
+  assert.deepEqual(sidecar, { path: 'request-gate-sidecar', state: 'ready', reasonCode: 'sidecar-ready' })
+  assert.deepEqual(resolveContextCompactionPath(unsupported, { state: 'inactive' }, 'pending'), {
+    path: 'request-gate-sidecar', state: 'pending', reasonCode: 'sidecar-pending',
+  })
+  assert.deepEqual(resolveContextCompactionPath(unsupported, { state: 'inactive' }, 'inactive'), {
+    path: 'host-provider-unchanged', state: 'inactive', reasonCode: 'sidecar-inactive',
+  })
 })
 
 test('a Host without API v1 opens plugin-owned stores but leaves Basic provider registration alone', async t => {

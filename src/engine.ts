@@ -51,6 +51,36 @@ interface Admission {
   /** Request-only prompt material that is not represented by the public Session surface. */
   requestOverhead?: number
 }
+type RequestRoute = { provider: string; model: string }
+type RequestContextSession = {
+  requestContext?: () => unknown
+  requestHeader?: () => unknown
+}
+
+/**
+ * Prefer the RC.4 context window captured by AgentLoop for this request. A
+ * later model-info lookup can observe a route registration change after
+ * prepareCall, so only use the captured value when both public route snapshots
+ * still identify the request entering llm/stream. Older Hosts fall back to the
+ * just-resolved model metadata.
+ */
+export function requestBoundContextWindow(session: RequestContextSession, route: RequestRoute,
+  fallback: number | undefined): number | undefined {
+  try {
+    const requestContext = session.requestContext?.()
+    const requestHeader = session.requestHeader?.() as { config?: unknown } | undefined
+    const headerConfig = requestHeader?.config
+    if (!requestContext || typeof requestContext !== 'object' || !headerConfig || typeof headerConfig !== 'object') return fallback
+    const bound = requestContext as { provider?: unknown; model?: unknown; contextWindow?: unknown }
+    const header = headerConfig as { provider?: unknown; model?: unknown }
+    if (bound.provider !== route.provider || bound.model !== route.model
+      || header.provider !== route.provider || header.model !== route.model) return fallback
+    return Number.isSafeInteger(bound.contextWindow) && Number(bound.contextWindow) > 0
+      ? Number(bound.contextWindow) : fallback
+  } catch {
+    return fallback
+  }
+}
 // RC.2 declares this on BasicCompactionEngine's protected hook but does not
 // export the source-only SummarizationInput type from its published package.
 type SummaryInput = { readonly tools?: readonly ToolSchema[]; readonly messages: readonly Message[] }
@@ -153,6 +183,8 @@ export class ContextEngine extends BasicCompactionEngine {
     if(!this.startupReady.ready)throw new Error(this.startupReady.reason)
     if(unfinishedTransports.get(this.transportId(agent))?.size) throw new Error('本进程仍有未结束的摘要传输，不能派发并发摘要或业务请求；逻辑取消不代表供应商已结束')
   }
+  /** Read-only startup guard evidence for diagnostics; does not relax the guard. */
+  startupReadiness(): ReturnType<typeof startupProof> { return { ...this.startupReady } }
   private hasQueuedInput(agent: Agent): boolean { return agent.inbox.nextTurn.length + agent.inbox.nextStep.length > 0 }
   async prepareEmergency(agent: Agent, signal: AbortSignal): Promise<EmergencyPlan> {
     this.assertTransportIdle(agent)
@@ -258,7 +290,7 @@ export class ContextEngine extends BasicCompactionEngine {
       try {
         const policy = ctx.contextManager.snapshot()
         const model = await ctx.llm.resolveModelInfo(options.provider, options.model, options.signal)
-        const window = model.context?.contextWindow
+        const window = requestBoundContextWindow(agent.session, options, model.context?.contextWindow)
         if (window === undefined) throw new Error('当前模型未提供上下文窗口，无法安全计算压缩阈值')
         const limits = budget(policy, window, options.maxTokens ?? model.defaultMaxTokens ?? 0)
         if (limits.hard <= 0) throw new Error(`最大输出预留与安全空间已占满 ${window} Token 窗口；请降低最大输出设置。任务原文保留，未调用摘要模型。`)

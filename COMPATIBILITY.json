@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.2",
-  "runtimeDiagnosticVersion": "0.10.2",
+  "candidatePackageVersion": "0.10.4",
+  "runtimeDiagnosticVersion": "0.10.4",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.2 is a local candidate based on the accepted 0.10.1 narrow-r2 source. The input-adjacent DeepSeek period panel now reads recorded usage for the current session, estimates supported request costs using each settlement's own official provider, model and recorded-time period, and shows summary/repair ledger tokens separately when those costs cannot be priced. Missing usage, unknown routes or periods, unpriced cache writes, maintenance overlap, summary-ledger amounts and Host/event differences remain explicitly partial or unknown. The request cost aggregation covers all settled slots, while the existing request detail list stays bounded to 200. No Host source, conversation body, pricing ledger, model call or installation is added. This synthetic candidate still requires independent review and its own Host-native acceptance, formal Release and installation.",
+  "candidateStatus": "0.10.4 source preparation builds on the preserved 0.10.3 candidate. This line adds a settings diagnostic that separates Host compaction-provider registration from the plugin-owned request-gate sidecar, reports the official Host runtime version when the optional public app-boot helper is available, and lists exact missing compactionHost v1 interfaces. Native Basic remains Host-owned. The current source has not been built, tested, packaged, run in the Host, released, or installed; historical 0.10.3 evidence remains historical and does not cover this candidate.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
@@ -103,12 +103,6 @@
         "note": "Older local.11 candidate baseline."
       }
     },
-    "pending": [
-      "Natural Host runtime and upgrade flow",
-      "Host-native settings persistence and native Electron UI",
-      "Real provider/model quality and billing",
-      "Formal Release, anonymous download and installation"
-    ],
     "local14UiPreview": {
       "status": "synthetic-preview-only",
       "settings": [
@@ -118,9 +112,43 @@
       "usage": "non-empty cumulative bar, 18,000 total, 25% cache hit",
       "tooltip": "narrow viewport after scrollY=140; within viewport",
       "hostNativeAcceptance": false
-    }
+    },
+    "contextInputSizingR3": {
+      "status": "accepted-component-ui-evidence",
+      "receiptSha256": "2df8df440a94b89f59f2a63dacb68b4b4373fa3dbf2a980c9d1bcf46ceca4219",
+      "acceptedCssSha256": "f6620832fcb289359358e2f00f8ec025dc078f781edd9b4591c2db23f957a1f0",
+      "geometryStages": 16,
+      "matrixCombinations": 4,
+      "screenshots": 16,
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "externalPageRequests": 0,
+      "previewBuilds": 0,
+      "browserRuns": 1,
+      "note": "Bounded synthetic component-UI evidence only; not natural Host-native UI, package, release, or installation acceptance.",
+      "evidenceRef": "context-input-sizing-20261023-r3",
+      "evidenceScope": "Synthetic component UI only; not natural Host runtime/UI, settings persistence, product-package behavior, release availability, or installation."
+    },
+    "currentCandidate": {
+      "source": "prepared",
+      "typecheck": "not-run",
+      "tests": "not-run",
+      "build": "not-run",
+      "package": "not-built",
+      "hostRuntime": "not-run",
+      "nativeSettingsUI": "not-run",
+      "release": "not-run",
+      "installation": "not-run"
+    },
+    "acceptanceBoundaries": [
+      "Natural Host runtime and upgrade behavior require a separate Host-level validation record; synthetic Loader checks do not substitute.",
+      "Host-native settings persistence and native Electron UI are separate from synthetic component previews.",
+      "Real-provider/model quality and billing are not established by synthetic evidence.",
+      "Public release/download and installation state is tracked by the public Releases page and independent delivery receipt; source metadata does not imply either."
+    ]
   },
   "compatibilityRanges": {
+    "@deepseek-ai/dsh-app-boot": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
     "@deepseek-ai/cordis": "^4.0.0 || 4.0.5-alpha.1",
     "@deepseek-ai/dsh-agent": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
     "@deepseek-ai/dsh-compaction": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-alpha.2 <0.3.0-0",
@@ -153,6 +181,13 @@
     "providerOwnership": "Host Basic remains selected; Context reports and applies only its separate sidecar path.",
     "overflowOwnership": "Provider CONTEXT_WINDOW_EXCEEDED is passed to Host/Basic; Context request-error handling is limited to its own REBUILD code.",
     "accounting": "Context call limits and ledger exclude Basic-owned calls. No real billing was exercised."
+  },
+  "hostVersionDiagnostic": {
+    "module": "@deepseek-ai/dsh-app-boot",
+    "publicFunction": "getDshRuntimeVersion",
+    "peerDependencyOptional": true,
+    "fallback": "Host version unavailable through public API",
+    "scope": "Diagnostic only; does not select, replace, or register a compaction provider."
   },
   "semanticTestScope": {
     "budgetWindows": [

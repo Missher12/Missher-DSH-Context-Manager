@@ -19,7 +19,8 @@ import { registerHistoryTools } from './history-tools.ts'
 import { TextArchive, type ArchiveSummary } from './archive.ts'
 import type { ReductionReadout } from './inspector-types.ts'
 import { registerToolResultReduction, type ReductionStats } from './tool-results.ts'
-import { CONTEXT_ENGINE_MODULE, CONTEXT_MANAGER_ORIGIN, hostCapabilityReadout, isEnhancedBinding, readAgentCompaction, resolveCompactionHost,
+import { CONTEXT_ENGINE_MODULE, CONTEXT_MANAGER_ORIGIN, hostCapabilityReadout, isEnhancedBinding, readAgentCompaction, readHostRuntimeVersion,
+  readContextEngineStartupState, resolveCompactionHost, resolveContextCompactionPath,
   CONTEXT_BASIC_IDLE_SIDECAR, isNativeBasicCompaction, type CompactionReadout, type ContextCooperationReadout,
   type ContextProviderRegistrationReadout, type HostCapabilityProbe } from './compatibility.ts'
 import { registerContextCompaction } from './registration.ts'
@@ -81,7 +82,8 @@ export default class ContextManager extends Service {
   private readonly stops = new Map<string, { reasonCode: string; message: string }>()
   private readonly recoveries = new Map<string, (signal: AbortSignal) => Promise<void>>()
   private readonly drains = new Set<() => Promise<void>>()
-  private basicIdleSidecarState: 'inactive' | 'pending' | 'active' | 'failed' = 'inactive'
+  private basicIdleSidecarState: 'inactive' | 'pending' | 'active' | 'blocked' | 'failed' = 'inactive'
+  private basicIdleSidecarReason?: string
   static Config = z.object({
     policy: z.object({
       capacityMode: z.union([z.const('legacy'), z.const('percent')]).default('legacy'),
@@ -222,18 +224,32 @@ export default class ContextManager extends Service {
         return
       }
       this.basicIdleSidecarState = 'pending'
+      this.basicIdleSidecarReason = undefined
       let active = true
       child.effect(() => () => {
         active = false
         this.basicIdleSidecarState = 'inactive'
+        this.basicIdleSidecarReason = undefined
       })
       const sidecar = child.isolate('compaction').extend({ [CONTEXT_BASIC_IDLE_SIDECAR]: true })
       void Promise.resolve(sidecar.plugin(ContextEngine)).then(() => {
-        if (active) this.basicIdleSidecarState = 'active'
+        if (!active) return
+        let startup: ReturnType<typeof readContextEngineStartupState>
+        try { startup = readContextEngineStartupState(sidecar.get('compaction')) }
+        catch (error) { startup = { state: 'blocked' as const,
+          reason: `读取隔离引擎启动核验失败：${error instanceof Error ? error.message : String(error)}` } }
+        if (startup.state === 'ready') {
+          this.basicIdleSidecarState = 'active'
+          this.basicIdleSidecarReason = undefined
+        } else {
+          this.basicIdleSidecarState = 'blocked'
+          this.basicIdleSidecarReason = startup.reason
+        }
       }).catch(error => {
         if (!active) return
         this.basicIdleSidecarState = 'failed'
         const reason = error instanceof Error ? error.message : String(error)
+        this.basicIdleSidecarReason = reason
         this.ctx.logger.warn('context-manager: isolated Basic idle sidecar could not start: %s', reason)
       })
     })
@@ -275,7 +291,8 @@ export default class ContextManager extends Service {
     const binding = readAgentCompaction(this.ctx, agent?.ctx, agent)
     const requestPressure: ContextCooperationReadout['requestPressure'] = enhanced ? policy.enabled ? 'context' : 'off'
       : basic ? !policy.enabled ? 'off' : this.basicIdleSidecarState === 'active' ? 'context'
-        : this.basicIdleSidecarState === 'pending' ? 'waiting' : this.basicIdleSidecarState === 'failed' ? 'unsupported' : 'native'
+        : this.basicIdleSidecarState === 'pending' ? 'waiting'
+          : this.basicIdleSidecarState === 'blocked' || this.basicIdleSidecarState === 'failed' ? 'unsupported' : 'native'
         : binding.mode === 'other' || binding.mode === 'unconfigured' || binding.mode === 'unavailable' ? 'unsupported' : 'unknown'
     return { toolResults, originals, idleMaintenance, requestPressure }
   }
@@ -293,7 +310,15 @@ export default class ContextManager extends Service {
         integration = { state: 'unknown', reason: 'Host provider selection could not be read' }
       }
     }
-    return hostCapabilityReadout(this.hostCapability, integration)
+    return { ...hostCapabilityReadout(this.hostCapability, integration),
+      requestPath: resolveContextCompactionPath(this.hostCapability, integration, this.basicIdleSidecarState, this.basicIdleSidecarReason) }
+  }
+
+  /** Settings-only readout includes the public runtime version helper when the Host exports it. */
+  async capabilityReadoutForSettings() {
+    const readout = this.capabilityReadout()
+    const hostRuntime = await readHostRuntimeVersion()
+    return { ...readout, hostRuntime }
   }
 
   /**

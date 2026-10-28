@@ -13,7 +13,17 @@ export function recoveryResultSchema() { return z.object({ granted: z.literal(tr
 export function idleQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
 export function compatibilityQuerySchema() { return z.object({}).strict() }
 export function hostCapabilityReadoutSchema() { return z.object({ state: z.enum(['supported', 'unsupported', 'unknown']),
-  reason: z.string().max(300), version: count().optional(), integration: z.object({
+  reason: z.string().max(300), reasonCode: z.enum(['registry-unavailable', 'registry-unreadable', 'compaction-host-missing',
+    'compaction-host-unreadable', 'version-mismatch', 'methods-missing', 'supported']).optional(),
+  missingInterfaces: z.array(z.string().max(300)).max(32).optional(), version: count().optional(),
+  hostRuntime: z.object({ state: z.enum(['available', 'unavailable']), version: z.string().max(100).optional(),
+    source: z.enum(['@deepseek-ai/dsh-app-boot', 'unavailable']) }).strict().optional(),
+  requestPath: z.object({ path: z.enum(['host-registration', 'request-gate-sidecar', 'host-provider-unchanged', 'unknown']),
+    state: z.enum(['ready', 'pending', 'blocked', 'failed', 'inactive', 'unknown']),
+    reasonCode: z.enum(['host-provider-ready', 'host-provider-pending', 'host-provider-failed', 'host-provider-inactive',
+      'host-provider-unknown', 'sidecar-ready', 'sidecar-pending', 'sidecar-blocked', 'sidecar-failed', 'sidecar-inactive',
+      'host-capability-unknown']), reason: z.string().max(1500).optional() }).strict().optional(),
+  integration: z.object({
     state: z.enum(['inactive', 'pending', 'registered', 'failed', 'unknown']), reason: z.string().max(300).optional(),
   }).strict() }).strict() }
 export function compactionReadoutSchema() { return z.object({

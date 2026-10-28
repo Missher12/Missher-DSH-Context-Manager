@@ -28,6 +28,21 @@ function setDomInput(input, value) {
   Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, value)
   input.dispatchEvent(new window.Event('input', { bubbles: true }))
 }
+function setDomSelect(select, value) {
+  const window = select.ownerDocument.defaultView
+  Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(select, value)
+  select.dispatchEvent(new window.Event('change', { bubbles: true }))
+}
+function runFact(label) {
+  const dt = [...document.querySelectorAll('.cmv-run-facts dt')].find(node => node.textContent === label)
+  assert.ok(dt, `visible run fact exists: ${label}`)
+  assert.equal(dt.nextElementSibling?.tagName, 'DD', `${label} has a visible value`)
+  return dt.nextElementSibling.textContent ?? ''
+}
+function emptySessionUsage(sessionId) {
+  return { sessionId, sampledAt: 0, status: 'ready', hasRecords: false, settledAttempts: 0, retries: 0,
+    requestTokens: 0, requestTokensPartial: false, summary: null, peak: null, offpeak: null, total: null, partial: false, issues: [] }
+}
 // Render the host's actual published RC.1 control implementations. Theme
 // acceptance runs separately in the isolated browser preview.
 const primitivesBuild = buildSync({
@@ -58,25 +73,33 @@ test('settings section contains only policy controls and does not read any sessi
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
   const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
-  const compatibility = async () => ({ state: 'unsupported', reason: 'RC.2 does not expose compactionHost v1',
+  const compatibility = async () => ({ state: 'unsupported', reason: 'Host compaction API v1 is incomplete', reasonCode: 'methods-missing',
+    missingInterfaces: ['agentPresets.compactionHost.register(owner, registration)'],
+    hostRuntime: { state: 'available', version: '0.2.1-rc.4', source: '@deepseek-ai/dsh-app-boot' },
+    requestPath: { path: 'request-gate-sidecar', state: 'ready', reasonCode: 'sidecar-ready' },
     integration: { state: 'inactive', reason: 'no enhanced provider registration API' } })
   const root = createRoot(document.getElementById('root'))
-  const click = async text => act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === text).click())
   try {
     await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
     const capabilityStatus = document.querySelector('[role="status"]')?.textContent ?? ''
-    assert.match(capabilityStatus, /当前版本不支持切换增强压缩/)
-    assert.match(document.querySelector('[role="note"]')?.textContent ?? '', /保存设置不代表所有会话均已启用/)
-    assert.doesNotMatch(capabilityStatus, /官方 Basic|宿主压缩 API 不可用/,
-      'an unavailable enhanced switch must not be presented as a globally inactive plugin or Basic-only host')
+    assert.match(capabilityStatus, /自动压缩已就绪/)
+    assert.doesNotMatch(capabilityStatus, /官方 Basic/, 'the concise readiness line does not imply Basic was replaced')
+    const capabilityDetails = document.querySelector('details.cm-detail')?.textContent ?? ''
+    assert.match(capabilityDetails, /0\.2\.1-rc\.4/)
+    assert.match(capabilityDetails, /agentPresets\.compactionHost\.register\(owner, registration\)/)
+    assert.match(capabilityDetails, /Context 请求前门侧车/)
+    assert.match(document.querySelector('.cm-native-help[aria-label^="开始压缩: "]')?.getAttribute('aria-label') ?? '', /新消息和预留空间可能让检查提前/)
     assert.equal(document.querySelectorAll('style').length, 2)
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0,
       'page and nested settings styles must not be claimed by another plugin')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
-    assert.equal(document.querySelectorAll('select').length, 0)
-    await click('提前 · 70%')
-    assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
+    assert.equal(document.querySelector('#context-manager-historyMode').value, 'automatic')
+    assert.equal(document.querySelector('#context-manager-toolResultsMode').value, 'observe')
+    const trigger = document.querySelector('#context-manager-triggerPercent')
+    assert.ok(trigger, 'the current numeric threshold input is present')
+    await act(async () => setDomInput(trigger, '70'))
+    assert.equal(trigger.value, '70', 'the actual input stages the same threshold change without a removed preset button')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 const primitivesScope = { module: { exports: {} }, require: name => name === 'katex/dist/katex.min.css' ? {} : require(name), setTimeout, clearTimeout }
@@ -94,10 +117,14 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'u
 
 test('client registers the native conversation tab after trajectory and binds its actual Session', async () => {
   const slots = []
-  const bindings = []; const directories = []; const pulse = {}; const directory = {}; const disposers = []
+  const bindings = []; const directories = []; const projectionFaces = []; const pulse = {}; const usagePulse = {}; const directory = {}; const disposers = []
   const ctx = { locale: { register: () => () => {}, bind: () => key => key === 'title' ? '上下文' : key, getLocale: () => ({ active: 'zh' }) }, configForms: { get: () => ({}), whileServed: (_ns, callback) => callback() },
     remote: { $mount: async () => () => {}, contextInspector: {} },
-    sessions: { binding: id => { bindings.push(id); return { session: { projections: { faceOf: key => { assert.equal(key, 'contextPressure'); return pulse } } } } } },
+    sessions: { binding: id => { bindings.push(id); return { session: { projections: { faceOf: key => {
+      projectionFaces.push(key)
+      assert.ok(key === 'contextPressure' || key === 'tokenUsage', `unexpected projection ${key}`)
+      return key === 'contextPressure' ? pulse : usagePulse
+    } } } } } },
     modelDirectories: { directoryFor: id => { directories.push(id); return { store: directory } } },
     slots: { inject: (_slot, callback) => callback(), register: options => { slots.push(options); return () => {} } },
     effect: callback => { disposers.push(callback()) }, inject: (_keys, callback) => callback(ctx) }
@@ -109,6 +136,7 @@ test('client registers the native conversation tab after trajectory and binds it
   assert.deepEqual(bindings, ['visible-session'])
   assert.equal(slots[0].inject('visible-session').directory, directory)
   assert.deepEqual(directories, ['visible-session'])
+  assert.deepEqual([...new Set(projectionFaces)].sort(), ['contextPressure', 'tokenUsage'])
   for (const dispose of disposers) dispose?.()
 })
 
@@ -118,11 +146,13 @@ test('tariff indicator shares the picker default without history or usage and fo
   const listeners = new Set()
   let snapshot = { current: { provider: 'deepseek-official', model: 'deepseek-flash' }, pending: null }
   const directory = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot }
+  const sessionId = 'tariff-session'
+  const usagePulse = { subscribe: () => () => {}, getSnapshot: () => 0 }
   const root = createRoot(document.getElementById('root'))
   const publish = async patch => act(async () => { snapshot = { ...snapshot, ...patch }; listeners.forEach(cb => cb()) })
   const select = current => publish({ current, pending: null })
   try {
-    await act(async () => root.render(React.createElement(client.PeakIndicator, { directory })))
+    await act(async () => root.render(React.createElement(client.PeakIndicator, { sessionId, directory, usagePulse, readUsage: async () => emptySessionUsage(sessionId) })))
     assert.ok(document.querySelector('[aria-label^="DeepSeek 官方计费"]'), 'fresh default official model displays before first request or usage reading')
     assert.equal(document.querySelector('.cmi-peak a'), null, 'indicator opens a local panel without navigation')
     assert.equal(document.querySelector('.cmi-peak style').dataset.plugin, 'dsh-context-manager')
@@ -288,7 +318,7 @@ test('read-only view hides only its own composer, restores drafts and reads only
     assert.equal(reads, 1, 'explicit expansion fetches only the selected body')
     assert.equal(document.querySelectorAll('.cmv-legend > button').length, 4)
     assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
-    assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 50.00%/)
+    assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 10 Token · 50.00%/)
     await click('全部记录'); assert.equal(document.querySelectorAll('.cmv-events > li').length, 4)
     assert.match(document.querySelector('.cmi-body').textContent, /read-only content/)
     await click('收起当前有效内容'); assert.equal(document.querySelector('#cmi-content-panel'), null)
@@ -360,7 +390,7 @@ test('compact previews reset per target, stay collapsed on refresh, and cancel s
     assert.equal(content(), null); assert.ok(!document.body.textContent.includes('late body from b'))
     const readsBeforeRefresh = bodies.length
     const inspectionsBeforeRefresh = inspections.length
-    await click('刷新数据'); await settle()
+    await click('刷新'); await settle()
     assert.equal(inspections.length, inspectionsBeforeRefresh + 1)
     assert.equal(content(), null); assert.equal(bodies.length, readsBeforeRefresh)
     await act(async () => { revision++; listeners.forEach(cb => cb()) }); await settle()
@@ -401,18 +431,18 @@ test('settings UI stages edits, validates them and saves the complete policy wit
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     assert.equal(document.querySelector('style').dataset.plugin, 'dsh-context-manager')
-    assert.match(document.body.textContent, /新消息和预留空间可能让检查提前/)
+    assert.match(document.querySelector('.cm-native-help[aria-label^="开始压缩: "]')?.getAttribute('aria-label') ?? '', /新消息和预留空间可能让检查提前/)
     assert.equal(document.querySelector('#context-manager-idleMinutes').value, '15')
     assert.equal(document.querySelector('#context-manager-idleMinPercent').value, '65')
     const buttons = () => [...document.querySelectorAll('button')]
-    await act(async () => buttons().find(b => b.textContent === '提前 · 70%').click())
+    await act(async () => setDomInput(document.querySelector('#context-manager-triggerPercent'), '70'))
     assert.equal(writes.length, 0)
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
     await act(async () => setDomInput(document.querySelector('#context-manager-idleMinPercent'), '70'))
     await act(async () => buttons().find(b => b.textContent === '保存设置').click())
     assert.equal(writes.length, 1); assert.equal(writes[0].revision, 4)
     assert.equal(writes[0].ops[0].value.triggerPercent, 70)
-    assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'trigger presets preserve the saved custom cap')
+    assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'editing the trigger preserves the saved custom cap')
     assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
     assert.equal(writes[0].ops[0].value.recentTokens, 20000)
     assert.equal(writes[0].ops[0].value.idleMinPercent, 70, 'a real input event is included in the save')
@@ -487,39 +517,117 @@ test('idle status refreshes after task completion even without a pressure change
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
-test('native price popover stays local, calculates entered usage, dismisses, and handles unpriced official models', async () => {
+test('native price popover lazily reads real session usage, refreshes and isolates retries and session changes', async () => {
   const dom = new JSDOM('<div id="root"></div><button id="outside">Outside</button>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const listeners = new Set()
   let snapshot = { current: { provider: 'deepseek-official', model: 'deepseek-flash' } }
   const directory = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot }
+  let usageRevision = 0
+  const usageListeners = new Set()
+  const usagePulse = { subscribe: cb => { usageListeners.add(cb); return () => usageListeners.delete(cb) }, getSnapshot: () => usageRevision }
+  const reads = []
+  const readUsage = sessionId => signal => new Promise((resolve, reject) => reads.push({ sessionId, signal, resolve, reject }))
+  const props = sessionId => ({ sessionId, directory, usagePulse, readUsage: readUsage(sessionId) })
+  const usage = (sessionId, patch = {}) => ({ sessionId, sampledAt: 1000, status: 'ready', hasRecords: true,
+    settledAttempts: 3, retries: 1, requestTokens: 3_000_000, requestTokensPartial: true,
+    summary: { tokens: 120_000, attempts: 2, unknownAttempts: 1 }, peak: 10.04, offpeak: 5.02,
+    total: 15.06, partial: true, issues: ['missing-usage', 'unknown-route'], ...patch })
+  const flush = async () => act(async () => new Promise(resolve => setTimeout(resolve, 0)))
   const root = createRoot(document.getElementById('root'))
   const trigger = () => document.querySelector('.cmi-peak button')
   try {
-    await act(async () => root.render(React.createElement(client.PeakIndicator, { directory })))
+    await act(async () => root.render(React.createElement(client.PeakIndicator, props('price-session'))))
+    assert.equal(reads.length, 0, 'session usage is lazy until the user opens the local panel')
     await act(async () => trigger().click())
+    await flush()
     const dialog = document.querySelector('[role="dialog"]')
     assert.ok(dialog); assert.equal(dialog.parentNode, document.body, 'escapes clipping ancestors')
     assert.ok(dialog.classList.contains('cmi-price-panel'), 'the actual price panel class identifies the rendered local dialog')
     assert.equal(window.location.href, 'http://localhost/')
-    assert.deepEqual([...dialog.querySelectorAll('input')].map(input => input.value), ['', '', ''])
-    assert.equal(dialog.querySelector('.cmi-price-totals').textContent, '高峰预估—低谷预估—')
-    for (const input of dialog.querySelectorAll('input')) await act(async () => setDomInput(input, '1000000'))
-    assert.match(dialog.querySelector('.cmi-price-totals').textContent, /¥10.04.*¥5.02/)
-    assert.match(dialog.textContent, /不是实际账单/)
-    await act(async () => setDomInput(dialog.querySelector('input'), '-2'))
-    assert.equal(dialog.querySelector('input').getAttribute('aria-invalid'), 'true')
-    assert.match(dialog.querySelector('[role="alert"]').textContent, /非负整数/)
+    assert.equal(reads.length, 1)
+    assert.equal(reads[0].sessionId, 'price-session')
+    assert.equal(dialog.querySelectorAll('input').length, 0, 'the popover reads recorded session usage instead of asking for hand-entered tokens')
+    assert.match(dialog.querySelector('.cmi-usage-state')?.textContent ?? '', /正在读取本会话记录/)
+    await act(async () => reads[0].reject(new Error('offline')))
+    await flush()
+    assert.match(dialog.querySelector('[role="alert"]')?.textContent ?? '', /暂时无法读取用量/)
+    await act(async () => [...dialog.querySelectorAll('button')].find(button => button.textContent === '重试').click())
+    await flush()
+    assert.equal(reads.length, 2, 'the visible retry starts a fresh session usage read')
+    await act(async () => reads[1].resolve(usage('price-session')))
+    await flush()
+    assert.match(dialog.querySelector('.cmi-usage-total')?.textContent ?? '', /3,000,000 Token · 部分字段未知/)
+    assert.match(dialog.querySelector('.cmi-price-totals').textContent, /¥10\.04.*¥5\.02.*¥15\.06/)
+    assert.match(dialog.querySelector('.cmi-price-badge')?.textContent ?? '', /部分估算/)
+    assert.match(dialog.querySelector('.cmi-usage-summary')?.textContent ?? '', /120,000 Token · 另有用量未知/)
+    assert.match(dialog.querySelector('.cmi-usage-issues')?.textContent ?? '', /缺少 Token 数据/)
+
+    await act(async () => { usageRevision++; usageListeners.forEach(callback => callback()) })
+    await flush()
+    assert.equal(reads.length, 3, 'usagePulse refreshes the open panel from the session projection')
+    assert.equal(reads[1].signal.aborted, true, 'a newer usage read cancels the previous read')
+    await act(async () => reads[2].resolve(usage('price-session', { requestTokens: 4_000_000, peak: null, offpeak: null, total: null, issues: ['unknown-route'] })))
+    await flush()
+    assert.match(dialog.querySelector('.cmi-usage-total')?.textContent ?? '', /4,000,000 Token/)
+    assert.match(dialog.querySelector('.cmi-price-totals').textContent, /高峰已估算—低谷已估算—已估算部分—/)
+    assert.match(dialog.querySelector('.cmi-usage-issues')?.textContent ?? '', /没有可用的官方模型价格/)
+
+    await act(async () => { usageRevision++; usageListeners.forEach(callback => callback()) })
+    await flush()
+    assert.equal(reads.length, 4)
+    await act(async () => root.render(React.createElement(client.PeakIndicator, props('next-session'))))
+    assert.equal(reads[3].signal.aborted, true, 'changing sessions cancels the in-flight read and remounts a closed panel')
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    await act(async () => reads[3].resolve(usage('price-session', { requestTokens: 99_000_000 })))
+    await flush()
+    assert.ok(!document.body.textContent.includes('99,000,000'), 'a late prior-session response cannot leak into the next session')
+
+    await act(async () => trigger().click())
+    await flush()
+    assert.equal(reads[4].sessionId, 'next-session')
+    await act(async () => reads[4].resolve(usage('next-session', { requestTokens: 420, requestTokensPartial: false,
+      settledAttempts: 1, retries: 0, summary: null, peak: 0.12, offpeak: 0.03, total: 0.15, partial: false, issues: [] })))
+    await flush()
+    assert.match(document.querySelector('.cmi-usage-total')?.textContent ?? '', /420 Token/)
+
+    await act(async () => { usageRevision++; usageListeners.forEach(callback => callback()) })
+    await flush()
+    assert.equal(reads.length, 6, 'an open same-session panel refreshes on the first usage pulse')
+    assert.match(document.querySelector('.cmi-usage-total')?.textContent ?? '', /420 Token/, 'the last same-session result stays visible while refreshing')
+    await act(async () => { usageRevision++; usageListeners.forEach(callback => callback()) })
+    await flush()
+    assert.equal(reads.length, 7, 'a second pulse starts a newer same-session read')
+    assert.equal(reads[5].signal.aborted, true, 'the newer pulse cancels the earlier same-session read')
+    await act(async () => reads[6].resolve(usage('next-session', { requestTokens: 0, requestTokensPartial: false,
+      settledAttempts: 1, retries: 0, summary: null, peak: 0, offpeak: 0, total: 0, partial: false, issues: [] })))
+    await flush()
+    assert.equal(document.querySelector('.cmi-usage-total strong')?.textContent, '0 Token', 'a known zero total is distinct from any nonzero token count')
+    assert.match(document.querySelector('.cmi-price-totals').textContent, /¥0.*¥0.*¥0/, 'known zero fees remain distinct from unknown fees')
+    await act(async () => reads[5].reject(new Error('late cancelled read')))
+    await flush()
+    assert.equal(document.querySelector('.cmi-usage-state[role="alert"]'), null, 'a late cancelled failure cannot replace the newer success')
+    assert.match(document.querySelector('.cmi-price-totals').textContent, /¥0.*¥0.*¥0/)
+
     await act(async () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
     assert.equal(document.querySelector('[role="dialog"]'), null); assert.equal(document.activeElement, trigger())
+    const readsWhenClosed = reads.length
+    await act(async () => { usageRevision++; usageListeners.forEach(callback => callback()) })
+    await flush()
+    assert.equal(reads.length, readsWhenClosed, 'a usage pulse does not read session data while the panel is closed')
     await act(async () => trigger().click())
+    await flush()
+    assert.equal(reads.length, readsWhenClosed + 1, 'reopening starts a fresh read for the same Session')
     await act(async () => document.getElementById('outside').dispatchEvent(new window.Event('pointerdown', { bubbles: true })))
     assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.equal(reads[readsWhenClosed].signal.aborted, true, 'outside dismissal cancels its in-flight read')
     await act(async () => { snapshot = { current: { provider: 'deepseek-account', model: 'future-model' } }; listeners.forEach(cb => cb()) })
     await act(async () => trigger().click())
+    await flush()
     assert.match(document.querySelector('[role="dialog"]').textContent, /价格尚未收录/)
-    assert.equal(document.querySelector('[role="dialog"] input'), null)
+    assert.equal(document.querySelector('[role="dialog"] input'), null, 'an unpriced official model never enables a calculator')
     assert.equal(document.querySelector('[role="dialog"] a').href, 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/')
+    assert.equal(reads.at(-1).sessionId, 'next-session', 'the unpriced official route still displays only actual session data')
     await act(async () => { snapshot = { current: { provider: 'other', model: 'deepseek-flash' } }; listeners.forEach(cb => cb()) })
     assert.equal(document.querySelector('[role="dialog"]'), null); assert.equal(trigger(), null)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
@@ -574,8 +682,9 @@ test('current context shows full-window percentages and keeps all original bucke
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'capacity', form, api, pulse })))
     await act(async () => ready)
     const card = document.querySelector('.cmv-composition')
-    assert.equal(card.querySelector('.cmv-number strong').textContent,'≈ 32.00%')
-    assert.equal(card.querySelector('.cmv-number span').textContent,'/ 100%')
+    assert.equal(card.querySelector('.cmv-number strong').textContent,'≈ 320.0K Token')
+    assert.equal(card.querySelector('.cmv-number span').textContent,'/ 1M Token')
+    assert.equal(card.querySelector('.cmv-number b').textContent,'32.00%', 'the main readout stays Token-first with its real full-window share alongside')
     assert.ok(card.querySelector('.cmv-context-title .cmv-model'))
     assert.equal(card.querySelector('.cmv-capacity-stack').dataset.capacity,'1000000')
     assert.equal(card.querySelector('[data-color="free"]').style.width,'47%')
@@ -584,7 +693,17 @@ test('current context shows full-window percentages and keeps all original bucke
     assert.equal(card.querySelector('[data-color="other"]').style.width,'2%')
     assert.equal(card.querySelectorAll('.cmv-capacity-stack').length,1)
     assert.equal(card.querySelectorAll('[aria-pressed]').length,0,'no hidden full-window toggle')
-    assert.deepEqual([...card.querySelectorAll('.cmv-key')].map(node=>node.textContent),['记忆摘要3.00%','工具结果20.00%','对话消息5.00%','指令与定义2.00%','其他占用2.00%','未占用47.00%','压缩预留21.00%'])
+    assert.deepEqual([...card.querySelectorAll('.cmv-key')].map(node=>[
+      node.dataset.slice, node.querySelector('span')?.textContent, node.querySelector('strong')?.textContent,
+    ]),[
+      ['summary','记忆摘要','30.0K Token · 3.00%'],
+      ['tool','工具结果','200.0K Token · 20.00%'],
+      ['message','对话消息','50.0K Token · 5.00%'],
+      ['instruction','指令与定义','20.0K Token · 2.00%'],
+      ['other','其他占用','20.0K Token · 2.00%'],
+      ['free','未占用','470.0K Token · 47.00%'],
+      ['reserve','压缩预留','210.0K Token · 21.00%'],
+    ])
     assert.equal(card.querySelector('[data-color="summary"]').style.width,'3%','retained memory keeps its actual share of the window')
     assert.match(card.querySelector('[data-slice="summary"]').title,/属于已用内容/)
     assert.match(card.querySelector('[data-slice="reserve"]').title,/检查线 79\.00%/)
@@ -622,6 +741,8 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
   }
   const status = () => document.querySelector('.cmv-quick')
   const binding = () => document.querySelector('.cmv-binding-status')
+  const recentInput = () => status().querySelector('.cmv-request-values strong')
+  const recentDetail = () => status().querySelector('.cmv-request-detail')
   try {
     await render({ ...base, admission: reading })
     assert.equal(binding().dataset.mode, 'enhanced')
@@ -632,8 +753,12 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /50\.00%/)
     assert.equal(document.querySelector('.cmv-run-details').open, false)
     await act(async () => document.querySelector('.cmv-run-details summary').click())
-    assert.match(document.querySelector('.cmv-run-details').textContent, /自动工作集/)
-    assert.match(document.querySelector('.cmv-run-details').textContent, /目标 55%/)
+    const automaticPolicy = runFact('已保存策略')
+    assert.match(automaticPolicy, /自动工作集/)
+    assert.match(automaticPolicy, /近期原文预算 10% · 20,000 Token/)
+    assert.match(automaticPolicy, /摘要输出预算 4% · 8,000 Token/)
+    assert.match(automaticPolicy, /压缩后目标由实际工作集规划/)
+    assert.doesNotMatch(automaticPolicy, /目标 55%/, 'automatic mode never presents the inactive saved custom percentage as its result')
     await render({ ...base, pressure: { ...base.pressure, projected: 190000 }, admission: { ...reading, tokens: 50000 } })
     assert.match(status().textContent, /预计可继续执行/)
     for (const snapshot of [base, { ...base, admission: { ...reading, outputReserve: null } },
@@ -642,7 +767,15 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.match(status().textContent, /等待完整参数/)
       assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
       assert.match(status().textContent, /检查线 —/)
-      if(snapshot.admission?.window===null)assert.equal(document.querySelector('.cmv-composition .cmv-number strong').textContent,'≈ —','current unknown route cannot borrow old pressure window')
+      if(snapshot.admission?.window===null){
+        const number = document.querySelector('.cmv-composition .cmv-number')
+        assert.equal(number.querySelector('strong').textContent,'≈ 100.0K Token','known occupancy remains a Token readout when the route window is unknown')
+        assert.equal(number.querySelector('span').textContent,'/ — Token','current unknown route cannot borrow an old pressure window')
+        assert.equal(number.querySelector('b').textContent,'—','an unknown denominator has no derived percentage')
+        const policy = runFact('已保存策略')
+        assert.match(policy, /尚无窗口容量/)
+        assert.doesNotMatch(policy, /20,000 Token|8,000 Token/, 'unknown capacity never uses a default denominator to invent token budgets')
+      }
     }
     for (const mode of ['native', 'other', 'unconfigured', 'unavailable', 'unknown']) {
       await render({ ...base, compression: { mode, hostCapability: 'supported', reason: `Inspection ${mode}` }, admission: reading })
@@ -651,21 +784,22 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.equal(binding().dataset.mode, mode)
       if (mode === 'native') {
         assert.equal(binding().textContent, '由系统整理', 'the first screen uses a concise native status')
-        assert.match(document.querySelector('.cmv-run-details').textContent, /策略未用于此会话/)
+        assert.match(runFact('压缩方式'), /由系统整理/)
+        assert.match(runFact('压缩方式'), /说明 Inspection native/)
       }
     }
     await render({ ...base, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' }, admission: reading }, 'native')
     assert.equal(binding().dataset.mode, 'unknown', 'conflicting current reads fail closed')
     assert.equal(binding().textContent, '状态不一致，待确认')
-    assert.match(document.querySelector('.cmv-run-details').textContent, /读数不一致/)
+    assert.match(runFact('压缩方式'), /状态不一致，待确认/)
     assert.doesNotMatch(status().textContent, /预计可继续|预计先压缩/)
     const latestRequest = { seq: 3, time: 1001, turn: 1, step: 2, provider: 'offline', model: '200k', input: 43210, output: 800, cacheRead: null }
     await render({ ...base, requests: [latestRequest] })
-    assert.match(status().textContent, /窗口比例未知/)
-    assert.match(status().querySelector('.cmv-request-detail').textContent, /43,210 Token/)
-    assert.doesNotMatch(status().querySelector('.cmv-request-detail').textContent, /99,000/)
+    assert.match(recentInput().textContent, /43\.2K Token/)
+    assert.equal(recentDetail().textContent, '请求输入用量 · —')
+    assert.doesNotMatch(recentInput().textContent, /99,000/)
     await render({ ...base, requests: [latestRequest], pressureHistory: [{ seq: 3, time: 1001, kind: 'current', tokens: 80000, window: 100000 }] })
-    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a current point cannot supply a request denominator even at the same seq')
+    assert.equal(recentDetail().textContent, '请求输入用量 · —', 'a current point cannot supply a request denominator even at the same seq')
     const requestWindowHistory = [
       { seq: 2, time: 1000, kind: 'reply', tokens: 120000, window: 200000 },
       { seq: 3, time: 1001, kind: 'reply', tokens: 80000, window: 100000 },
@@ -673,11 +807,12 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     ]
     await render({ ...base, model: { provider: 'offline', model: 'switched-model', maxTokens: 4096, effort: null },
       requests: [{ ...latestRequest, seq: 2, time: 1000 }, latestRequest], pressureHistory: requestWindowHistory })
-    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /43\.21%/,'same-model requests use their own windows after the current model changes')
+    assert.match(recentInput().textContent, /43\.2K Token/)
+    assert.match(recentDetail().textContent, /43\.21%/,'same-model requests use their own windows after the current model changes')
     await render({ ...base, requests: [latestRequest], pressureHistory: requestWindowHistory.map(point => point.seq === 3 ? { ...point, time: 9999 } : point) })
-    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a mismatched event time is not treated as this request denominator')
+    assert.equal(recentDetail().textContent, '请求输入用量 · —', 'a mismatched event time is not treated as this request denominator')
     await render({ ...base, requests: [latestRequest], pressureHistory: requestWindowHistory.map(point => point.seq === 3 ? { ...point, window: null } : point) })
-    assert.match(status().querySelectorAll('.cmv-request-values strong')[0].textContent, /窗口比例未知/,'a reply without a recorded window stays unknown')
+    assert.equal(recentDetail().textContent, '请求输入用量 · —', 'a reply without a recorded window stays unknown')
     await render({ ...base, admission: reading }, null, { windowTokens: 200000, admission: 150000, upper: 130000, resumeHeadroom: 20000,
       requiredResumeHeadroom: 10000, resumeHeadroomLimit: 30000, recentGrowth: 9000, protectedTokens: 25000, totalTokens: 160000, incomingTokens: 5000 })
     const capacityDetails = document.querySelector('[data-compact-capacity]').textContent
@@ -698,13 +833,31 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.equal(status().querySelector('[data-admission-tokens]'), null)
     assert.equal(binding().dataset.mode, 'enhanced')
     assert.equal(binding().textContent, '历史截面')
-    assert.match(document.querySelector('.cmv-run-details').textContent, /历史截面（不代表当前）/)
+    assert.match(runFact('压缩方式'), /历史截面/)
     assert.doesNotMatch(binding().textContent, /当前会话/)
     assert.equal(document.querySelector('.cmv-meta').textContent, '', 'historical data removes current idle and emergency controls')
     assert.ok(![...document.querySelectorAll('button')].some(button => button.textContent === '确认未知费用风险并额外调用一次'),
       'a pending emergency plan is discarded when the current view becomes historical')
     assert.doesNotMatch(document.body.textContent, /synthetic preview only|synthetic-only/)
     assert.equal(document.querySelector('[data-compact-capacity]'), null, 'historical cuts do not reuse current idle-plan capacity')
+
+    const customPolicy = { ...defaults, historyMode: 'custom', targetPercent: 61 }
+    formValue.value = { policy: customPolicy }
+    await render({ ...base, admission: reading })
+    const customDetails = runFact('已保存策略')
+    assert.match(customDetails, /自定义占用上限/)
+    assert.match(customDetails, /目标 61%/, 'custom mode shows the saved custom cap')
+    assert.doesNotMatch(customDetails, /目标 55%|压缩后目标由实际工作集规划/)
+
+    const legacyAutomatic = { ...defaults, capacityMode: 'legacy', recentTokens: 12_345, summaryMaxTokens: 4_321 }
+    formValue.value = { policy: legacyAutomatic }
+    await render({ ...base, admission: reading })
+    const legacyDetails = runFact('已保存策略')
+    assert.match(legacyDetails, /旧版 Token 设置仍生效/)
+    assert.match(legacyDetails, /近期原文预算 12,345 Token/)
+    assert.match(legacyDetails, /摘要输出预算 4,321 Token/)
+    assert.match(legacyDetails, /压缩后目标由实际工作集规划/)
+    assert.doesNotMatch(legacyDetails, /目标 55%|近期原文预算 10%|摘要输出预算 4%/)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
@@ -750,7 +903,7 @@ test('binding badge does not present retained enhancement as current while refre
     await refreshPulse(); await wait(230)
     assert.equal(binding().dataset.mode, 'unknown', 'an idle polling failure cannot fall back to a retained Inspection binding')
     assert.equal(binding().textContent, '状态刷新失败')
-    assert.match(document.querySelector('.cmv-run-details').textContent, /刷新失败，当前绑定未知/)
+    assert.match(document.querySelector('.cmv-run-details').textContent, /状态刷新失败/)
     assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /预计可继续执行|预计先压缩/)
     idleBehavior = 'success'
     await refreshPulse(); await wait(230)
@@ -772,9 +925,9 @@ test('binding badge does not present retained enhancement as current while refre
     await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
     assert.equal(binding().dataset.mode, 'unknown')
     assert.equal(binding().textContent, '状态刷新失败')
-    assert.match(document.querySelector('.cmv-run-details').textContent, /刷新失败，当前绑定未知/)
+    assert.match(document.querySelector('.cmv-run-details').textContent, /状态刷新失败/)
     assert.equal(document.querySelector('.cmv-run-details').open, true, 'real failures remain visible without resetting the user-opened details')
-    assert.match(document.querySelector('[data-context-cooperation] h4')?.textContent ?? '', /上次读数/,
+    assert.match(runFact('功能状态'), /上次读数/,
       'retained cooperation capabilities are labeled as the last read after inspection fails')
     behavior = 'pending'
     idleBehavior = 'failure'
@@ -794,7 +947,8 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
   const pulse = { subscribe: callback => { pulseListeners.add(callback); return () => pulseListeners.delete(callback) }, getSnapshot: () => pulseRevision }
   const baseCooperation = { toolResults: { state: 'off', finalResultSeen: false }, originals: { state: 'empty', count: 0 }, idleMaintenance: 'off', requestPressure: 'context' }
   let snapshot = { sessionId: 'basic-context-sidecar', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false,
-    compression: { mode: 'native', hostCapability: 'unsupported', reason: 'Official Basic remains active' },
+    compression: { mode: 'native', hostCapability: 'unsupported', reason: 'Official Basic remains active',
+      agentPreset: 'official-basic', generation: 4, provider: 'deepseek-official', source: 'registration' },
     cooperation: baseCooperation,
     admission: { tokens: 170000, logRevision: 3, baseline: 'usage', window: 200000, outputReserve: 8192 },
     pressure: { projected: 100000, input: 99000, window: 200000 }, official: null, usage: null,
@@ -808,7 +962,7 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
   const root = createRoot(document.getElementById('root'))
   const read = () => document.querySelector('.cmv-quick')
   const refresh = async () => {
-    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '刷新数据')?.click())
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '刷新')?.click())
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
   }
   const pulseRead = async () => act(async () => { pulseRevision++; pulseListeners.forEach(callback => callback()) })
@@ -822,15 +976,23 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
       'the first-screen binding label stays concise')
     assert.equal(document.querySelector('.cmv-run-details').open, false)
     await act(async () => document.querySelector('.cmv-run-details summary').click())
-    assert.match(document.querySelector('.cmv-run-details').textContent, /官方 Basic provider · Context 插件侧路已接入/,
-      'provider and sidecar diagnostics remain available in the collapsed run details')
+    const bindingDetails = runFact('压缩方式')
+    assert.match(bindingDetails, /Agent 预设 official-basic/)
+    assert.match(bindingDetails, /绑定代次 4/)
+    assert.match(bindingDetails, /Provider deepseek-official/)
+    assert.match(bindingDetails, /绑定来源 注册/)
+    assert.match(bindingDetails, /说明 Official Basic remains active/)
+    assert.match(runFact('功能状态'), /完整请求压力整理: 由 Context 插件侧路执行；官方 provider 保持原绑定/,
+      'the visible sidecar state is separate from the native provider binding')
+    assert.match(runFact('已保存策略'), /自动工作集/)
     assert.match(read().textContent, /预计先压缩，再执行/)
     assert.match(read().textContent, /检查线 79\.00%/)
     assert.equal(read().querySelector('[data-context-request-gate]').dataset.contextRequestGate, 'active')
     await act(async () => read().querySelector('[data-context-request-gate]').focus())
     assert.match(document.querySelector('[role="tooltip"]')?.textContent ?? '', /这是 Context 完整请求准入检查线。官方 Basic 仍按自身策略提前自动整理；Context 设置不会更改 Basic 原生策略。/)
     assert.ok(document.querySelector('[data-color="reserve"]'), 'the current sidecar gate separates output reserve from free capacity')
-    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'enabled')
+    assert.match(runFact('已保存策略'), /已启用/)
+    assert.doesNotMatch(runFact('已保存策略'), /目标 55%/)
 
     pending = true
     await refresh()
@@ -855,9 +1017,8 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
     snapshot = { ...snapshot, pressure: { projected: 100000, input: 99000, window: 200000 },
       cooperation: { ...baseCooperation, requestPressure: 'unknown' } }
     await refresh()
-    assert.match(document.querySelector('[data-context-cooperation]').textContent, /完整请求压力整理 · 状态未知/)
-    assert.match(document.querySelector('[data-saved-context-policy]').textContent, /保存的请求策略 · 未知/)
-    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'unknown')
+    assert.match(runFact('功能状态'), /完整请求压力整理: 状态未知/)
+    assert.equal(runFact('已保存策略'), '未知')
     assert.equal(read().querySelector('[data-context-request-gate]'), null, 'unknown cooperation cannot claim a live Context gate')
     assert.equal(document.querySelector('[data-color="reserve"]'), null, 'unknown cooperation cannot present a Context reserve')
 
@@ -865,8 +1026,8 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
     snapshot = { ...snapshot, cooperation: { ...baseCooperation, requestPressure: 'off' } }
     await refresh()
     assert.match(read().textContent, /Context 请求检查未启用/)
-    assert.match(document.querySelector('[data-context-cooperation]').textContent, /完整请求压力整理 · 未启用/)
-    assert.equal(document.querySelector('[data-saved-context-policy]').dataset.savedContextPolicy, 'disabled')
+    assert.match(runFact('功能状态'), /完整请求压力整理: 未启用/)
+    assert.match(runFact('已保存策略'), /已关闭/)
     assert.equal(read().querySelector('[data-context-request-gate]'), null)
     assert.equal(document.querySelector('[data-color="reserve"]'), null)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
@@ -883,15 +1044,19 @@ test('percentage settings require explicit legacy migration, preserve old fields
  const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
  const click=async label=>act(async()=>button(label).click())
  const edit=async(key,value)=>act(async()=>setDomInput(document.getElementById(`context-manager-${key}`),value))
- try{
+  try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
-  assert.match(document.body.textContent,/旧配置仍按原 Token 值执行/)
-  assert.equal(document.getElementById('context-manager-recentPercent').disabled,true)
+  assert.match(document.body.textContent,/旧 Token 上限仍生效/)
+  assert.equal(document.getElementById('context-manager-recentPercent'),null,'legacy capacity mode does not render percentage-only controls')
   assert.equal(document.getElementById('context-manager-example'),null,'no guessed model denominator')
-  await click('提前 · 70%');await click('保存设置')
+  await act(async()=>setDomInput(document.getElementById('context-manager-triggerPercent'),'70'))
+  await click('保存设置')
+  assert.equal(writes[0].revision,12)
+  assert.equal(writes[0].ops[0].value.triggerPercent,70,'the real numeric control stages and saves the trigger')
   assert.equal(writes[0].ops[0].value.capacityMode,'legacy','ordinary save never migrates')
   assert.equal(writes[0].ops[0].value.absoluteTriggerTokens,200000)
-  await click('切换到下方百分比并解除旧绝对上限')
+  assert.equal(writes.length,1,'ordinary save does not implicitly migrate old quota fields')
+  await click('改用百分比策略')
   assert.equal(writes.length,1,'explicit switch still requires native save')
   assert.equal(document.getElementById('context-manager-recentPercent').disabled,false)
   for(const value of ['', '0', '51']){await edit('recentPercent',value);assert.equal(button('保存设置').disabled,true)}
@@ -901,6 +1066,9 @@ test('percentage settings require explicit legacy migration, preserve old fields
   assert.equal(writes[1].ops[0].value.summaryPercent,3.5)
   assert.equal(writes[1].ops[0].value.absoluteTriggerTokens,200000,'old fields retained but explicitly deactivated')
   assert.equal(writes[1].ops[0].value.absoluteTargetTokens,120000)
+  assert.equal(writes[1].ops[0].value.triggerPercent,70,'explicit migration preserves the saved trigger')
+  assert.equal(form.getSnapshot().revision,14,'the acknowledged policy is read back at its new revision')
+  assert.equal(document.getElementById('context-manager-recentPercent').value,'12.5')
  }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
 })
 
@@ -913,14 +1081,16 @@ test('settings: checkpoint protocol selector keeps JSON default and saves sectio
  const form={subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)},getSnapshot:()=>snapshot,async mutate(ops,revision){writes.push({ops,revision});snapshot={...snapshot,revision:snapshot.revision+1,value:{policy:ops[0].value}};listeners.forEach(cb=>cb());return true}}
  const root=createRoot(document.getElementById('root'))
  const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
- const click=async label=>act(async()=>button(label).click())
+  const click=async label=>act(async()=>button(label).click())
  try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
-  assert.equal(button('JSON 七字段').getAttribute('aria-pressed'),'true','legacy config reads as JSON default without migration')
+  await act(async()=>document.querySelector('.cm-native-advanced summary').click())
+  const format=document.getElementById('context-manager-checkpointFormat')
+  assert.equal(format.value,'json','legacy config reads as JSON default without migration')
   assert.equal(document.getElementById('context-manager-repairPercent'),null,'obsolete repair quota is hidden from settings')
   assert.equal(document.getElementById('context-manager-formatRepairMaxTokens'),null,'obsolete repair Token cap is hidden from settings')
   assert.equal(writes.length,0)
-  await click('Markdown 段落');await click('保存设置')
+  await act(async()=>setDomSelect(format,'sections'));await click('保存设置')
   assert.equal(writes[0].ops[0].value.checkpointFormat,'sections','the explicit UI choice is written to the policy')
   assert.equal(writes[0].ops[0].value.repairPercent,legacy.repairPercent,'legacy repair fields stay readable, not deleted')
   assert.equal(writes[0].ops[0].value.formatRepairMaxTokens,legacy.formatRepairMaxTokens)
@@ -949,10 +1119,10 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(document.querySelector('#context-manager-toolResultsMinSavings').value, '400')
     assert.equal(document.querySelector('#context-manager-archiveReadBudget').value, '6000')
     assert.equal(document.querySelector('#context-manager-archiveSearchLimit').value, '3')
-    assert.equal(button('观察').getAttribute('aria-pressed'), 'true')
-    assert.equal(button('安全精简').getAttribute('aria-pressed'), 'false')
-    assert.match(document.body.textContent, /原文保存在本机，卸载不会删除/)
-    assert.match(document.querySelector('.cm-native-advanced')?.textContent ?? '', /按可见文本字符比较/)
+    const toolMode = document.querySelector('#context-manager-toolResultsMode')
+    assert.equal(toolMode.value, 'observe')
+    assert.match(document.querySelector('.cm-native-help[aria-label^="工具结果处理: "]')?.getAttribute('aria-label') ?? '', /原文保留在本机/)
+    assert.match(document.querySelector('.cm-native-help[aria-label^="单次原文回读: "]')?.getAttribute('aria-label') ?? '', /单个搜索或读取结果的字符上限/)
     // An unimplemented retention switch must not be offered.
     assert.equal(document.body.textContent.includes('archiveRetention'), false)
     // Empty is invalid, never zero.
@@ -961,7 +1131,7 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(save().disabled, true)
     await edit('toolResultsMaxChars', '1999')
     assert.equal(save().disabled, true, 'a value below the documented minimum stays invalid')
-    await act(async () => button('安全精简').click())
+    await act(async () => setDomSelect(toolMode, 'reduce'))
     await edit('toolResultsMaxChars', '120000'); await edit('archiveSearchLimit', '8')
     assert.equal(save().disabled, false)
     await act(async () => save().click())
@@ -974,8 +1144,7 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(writes[0].ops[0].value.prefixDiagnosticsEnabled, true)
     assert.match(document.body.textContent, /已保存/)
     // Re-read after the accepted write keeps the saved mode selected.
-    assert.equal(button('安全精简').getAttribute('aria-pressed'), 'true')
-    assert.equal(button('观察').getAttribute('aria-pressed'), 'false')
+    assert.equal(toolMode.value, 'reduce')
     // Empty input never becomes a saved zero, even together with a valid mode.
     await edit('archiveReadBudget', '')
     assert.equal(save().disabled, true)
@@ -1213,16 +1382,18 @@ test('settings: legacy timeout remains fixed and unchanged; adaptive is explicit
   const click=async label=>act(async()=>button(label).click())
   try {
     await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
-    assert.equal(button('固定总时限').getAttribute('aria-pressed'),'true')
+    await act(async()=>document.querySelector('.cm-native-advanced summary').click())
+    const timeoutMode = document.getElementById('context-manager-summaryTimeoutMode')
+    assert.equal(timeoutMode.value,'fixed')
     assert.equal(document.getElementById('context-manager-timeoutMs').value,'135000')
     assert.equal(writes.length,0)
-    await click('切换为按进展等待')
+    await act(async()=>setDomSelect(timeoutMode,'adaptive'))
     assert.equal(writes.length,0,'switch is a draft until native save succeeds')
     assert.equal(document.getElementById('context-manager-timeoutMs').disabled,true)
     assert.equal(document.getElementById('context-manager-summaryTotalMs').value,'600000')
     await click('保存设置')
     assert.equal(writes[0].timeoutMs,135000);assert.equal(writes[0].summaryTimeoutMode,'adaptive')
-    await click('固定总时限');await click('保存设置')
+    await act(async()=>setDomSelect(timeoutMode,'fixed'));await click('保存设置')
     assert.equal(writes[1].timeoutMs,135000);assert.equal(writes[1].summaryTimeoutMode,'fixed')
   } finally {await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
 })
@@ -1249,8 +1420,8 @@ test('compact panel keeps long model, failures and exact content selection reach
     assert.equal(document.querySelector('.cmv-context-title .cmv-model').textContent, `synthetic / ${model}`)
     assert.equal(document.querySelectorAll('.cmv-model').length, 1)
     assert.equal(document.querySelector('.cmv-quick .cmv-donut'), null)
-    assert.match(document.querySelector('.cmv-quick').textContent, /窗口比例未知/)
-    assert.match(document.querySelector('.cmv-quick').textContent, /8,000,000 Token/)
+    assert.match(document.querySelector('.cmv-quick').textContent, /本次请求占用 未知 \/ 检查线 —/)
+    assert.match(document.querySelector('.cmv-quick').textContent, /8\.00M Token/)
     assert.doesNotMatch(document.querySelector('.cmv-quick').textContent, /9 轮/)
     assert.match(document.querySelector('.cmv-data-basis').textContent, /9 轮 · 28 步/)
     assert.equal(document.querySelector('.cmv-record-detail .cmv-error').textContent, reason)
@@ -1278,7 +1449,7 @@ test('manual emergency UI requires separate preview and explicit unknown-cost co
   assert.deepEqual(calls,[])
   assert.match(document.querySelector('.cmv-compactions').textContent,/未调用模型/)
   assert.doesNotMatch(document.querySelector('.cmv-compactions').textContent,/用量未知/)
-  await click('预检一次人工急救（不调用模型）');assert.deepEqual(calls,['prepare'])
+  await click('检查一次人工恢复（不调用模型）');assert.deepEqual(calls,['prepare'])
   assert.match(document.body.textContent,/mock\/large.*600s.*8,?000|mock\/large.*600s.*8000/)
   await click('确认未知费用风险并额外调用一次');assert.deepEqual(calls,['prepare','execute'])
  }finally{await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}

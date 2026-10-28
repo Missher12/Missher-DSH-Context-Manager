@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile, readdir, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile, readdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -11,25 +11,156 @@ import { isNativeBasicCompaction, readAgentCompaction } from '../lib/compatibili
 const enabled = process.env.DSH_CONTEXT_HOST_INTEGRATION === '1'
 const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const hostRoot = process.env.DSH_CONTEXT_HOST_SOURCE?.trim()
-const skip = enabled && hostRoot ? false : 'requires the isolated frozen Host integration stage'
-const registrySource = await readFile(join(packageRoot, 'node_modules/@deepseek-ai/dsh-agent-preset-registry/lib/index.js'), 'utf8').catch(() => '')
-const skipV1 = skip || (registrySource.includes('compactionHost') ? false : 'the frozen RC.2 registry does not expose Host compaction capability v1')
+const HOST_PARENT_RESOLVE_FLAG = '--experimental-import-meta-resolve'
+const hostModules = [
+  '@deepseek-ai/cordis', '@deepseek-ai/cordis-plugin-include', '@deepseek-ai/cordis-plugin-group',
+  '@deepseek-ai/cordis-plugin-loader', '@deepseek-ai/dsh-session-projection', '@deepseek-ai/dsh-agent-preset',
+  '@deepseek-ai/dsh-agent-preset-registry', '@deepseek-ai/dsh-agent', '@deepseek-ai/dsh-agent-loop',
+  '@deepseek-ai/dsh-llm', '@deepseek-ai/dsh-session', '@deepseek-ai/dsh-settings', '@deepseek-ai/dsh-storage',
+  '@deepseek-ai/dsh-storage-json', '@deepseek-ai/dsh-storage-domain', '@deepseek-ai/dsh-token-meter',
+  '@deepseek-ai/dsh-tools', '@deepseek-ai/dsh-system-prompt', '@deepseek-ai/dsh-session-query-sqlite',
+  '@deepseek-ai/dsh-typert-registry', '@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh-compaction-basic',
+  '@deepseek-ai/dsh-tool-bash',
+]
+const hostDependencyNames = [...new Set([...hostModules,
+  '@deepseek-ai/cosmokit', '@deepseek-ai/dsh-commands', '@deepseek-ai/dsh-command-compact',
+  '@deepseek-ai/dsh-compaction-tool-result-pruner',
+])]
+const rc4Versions = {
+  '@deepseek-ai/cordis': '4.0.5',
+  '@deepseek-ai/dsh-agent': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-agent-loop': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-llm': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-session': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-compaction-basic': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-agent-preset-registry': '0.2.1-rc.4',
+  '@deepseek-ai/dsh-app-boot': '0.2.1-rc.4',
+}
+const requireRc4 = process.env.DSH_CONTEXT_HOST_REQUIRE_RC4 === '1'
+
+function hostPreflightRequirement({ integrationEnabled, sourceRoot, execArgv }) {
+  if (!integrationEnabled) return { ok: false, reason: 'Host integration was not requested' }
+  if (!execArgv.includes(HOST_PARENT_RESOLVE_FLAG)) {
+    return { ok: false, reason: `Node must be started with ${HOST_PARENT_RESOLVE_FLAG}; without it, import.meta.resolve ignores the Host parent URL` }
+  }
+  if (!sourceRoot) return { ok: false, reason: 'DSH_CONTEXT_HOST_SOURCE is required when Host integration is enabled' }
+  return { ok: true }
+}
+
+function inheritedHostResolverFlags(execArgv = process.execArgv) {
+  return execArgv.includes(HOST_PARENT_RESOLVE_FLAG) ? [HOST_PARENT_RESOLVE_FLAG] : []
+}
+
+async function packageDetails(modulePath, expectedName) {
+  let directory = dirname(modulePath)
+  for (;;) {
+    let manifest
+    let manifestPath
+    try {
+      manifestPath = join(directory, 'package.json')
+      manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    } catch { /* Continue walking toward the package root. */ }
+    if (manifest?.name === expectedName) {
+      if (typeof manifest.version !== 'string' || manifest.version.length === 0) {
+        throw new Error(`${expectedName}/package.json has no usable version`)
+      }
+      return { root: await realpath(directory), manifestPath: await realpath(manifestPath), version: manifest.version }
+    }
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
+  }
+  throw new Error(`cannot locate ${expectedName}/package.json above ${modulePath}`)
+}
+
+async function inspectHostDependencies() {
+  const errors = []
+  const modules = []
+  const requirement = hostPreflightRequirement({ integrationEnabled: enabled, sourceRoot: hostRoot, execArgv: process.execArgv })
+  if (!requirement.ok) return { ok: false, errors: [requirement.reason], modules }
+  try {
+    const sourceRoot = await realpath(hostRoot)
+    if (!(await stat(sourceRoot)).isDirectory()) throw new Error('DSH_CONTEXT_HOST_SOURCE is not a directory')
+    const sourceManifest = JSON.parse(await readFile(join(sourceRoot, 'package.json'), 'utf8'))
+    if (typeof sourceManifest.name !== 'string' || typeof sourceManifest.version !== 'string') {
+      throw new Error('DSH_CONTEXT_HOST_SOURCE package.json must identify a versioned Host source package')
+    }
+    if (requireRc4 && sourceManifest.name === '@deepseek-ai/dsh-web-app' && sourceManifest.version !== '0.2.1-rc.4') {
+      errors.push(`Host source package is ${sourceManifest.name}@${sourceManifest.version}, expected 0.2.1-rc.4`)
+    }
+    const hostParent = pathToFileURL(join(sourceRoot, '__dsh_context_host_resolver__.mjs')).href
+    for (const name of hostDependencyNames) {
+      try {
+        const candidateUrl = import.meta.resolve(name)
+        const hostUrl = import.meta.resolve(name, hostParent)
+        if (!candidateUrl.startsWith('file:') || !hostUrl.startsWith('file:')) {
+          throw new Error(`non-file module resolution: candidate=${candidateUrl}, Host=${hostUrl}`)
+        }
+        const candidatePath = await realpath(fileURLToPath(candidateUrl))
+        const hostPath = await realpath(fileURLToPath(hostUrl))
+        const [candidatePackage, hostPackage] = await Promise.all([
+          packageDetails(candidatePath, name), packageDetails(hostPath, name),
+        ])
+        const issues = []
+        if (candidateUrl !== hostUrl || candidatePath !== hostPath) issues.push('candidate and Host resolve to different module paths')
+        if (candidatePackage.version !== hostPackage.version) issues.push('candidate and Host package versions differ')
+        if (requireRc4 && rc4Versions[name] && hostPackage.version !== rc4Versions[name]) {
+          issues.push(`expected ${rc4Versions[name]} for the RC.4 gate, got ${hostPackage.version}`)
+        }
+        if (issues.length) errors.push(`${name}: ${issues.join('; ')} (candidate ${candidatePath} @ ${candidatePackage.version}; Host ${hostPath} @ ${hostPackage.version})`)
+        modules.push({ name, candidatePath, hostPath, candidateVersion: candidatePackage.version, hostVersion: hostPackage.version })
+      } catch (error) {
+        errors.push(`${name}: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+  } catch (error) {
+    errors.push(`invalid DSH_CONTEXT_HOST_SOURCE: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  return { ok: errors.length === 0, errors, modules }
+}
+
+const hostDependencyProof = enabled
+  ? await inspectHostDependencies()
+  : { ok: false, errors: ['requires the isolated frozen Host integration stage'], modules: [] }
+if (enabled && !hostDependencyProof.ok) {
+  throw new Error(`Host dependency preflight failed closed before Host creation:\n${hostDependencyProof.errors.join('\n')}`)
+}
+const skip = enabled && hostDependencyProof.ok ? false : hostDependencyProof.errors.join('\n')
+const registryPath = hostDependencyProof.modules.find(module => module.name === '@deepseek-ai/dsh-agent-preset-registry')?.candidatePath
+  ?? join(packageRoot, 'node_modules/@deepseek-ai/dsh-agent-preset-registry/lib/index.js')
+const registrySource = await readFile(registryPath, 'utf8').catch(() => '')
+const skipV1 = skip || (registrySource.includes('compactionHost') ? false : 'the selected registry does not expose Host compaction capability v1')
 const BASIC = '@deepseek-ai/dsh-compaction-basic'
 const ENGINE = '@missher/dsh-context-manager/engine'
 const MANAGER = '@missher/dsh-context-manager'
 
+test('Host dependency preflight resolves the candidate and Host to identical versioned package paths before creating a Host', {
+  skip: enabled ? false : 'Host integration was not requested',
+}, () => {
+  assert.equal(hostDependencyProof.ok, true,
+    `Host preflight failed closed; no integration Host may be created:\n${hostDependencyProof.errors.join('\n')}`)
+  assert.equal(hostDependencyProof.modules.length, hostDependencyNames.length)
+  for (const module of hostDependencyProof.modules) {
+    assert.equal(module.candidatePath, module.hostPath, module.name)
+    assert.equal(module.candidateVersion, module.hostVersion, module.name)
+    if (requireRc4 && rc4Versions[module.name]) assert.equal(module.hostVersion, rc4Versions[module.name], module.name)
+  }
+})
+
+test('Host preflight refuses two-argument ESM resolution when the Node parent-URL flag is missing', () => {
+  const unsupported = hostPreflightRequirement({ integrationEnabled: true, sourceRoot: '/isolated-host', execArgv: [] })
+  assert.equal(unsupported.ok, false)
+  assert.match(unsupported.reason, /--experimental-import-meta-resolve/u)
+  assert.deepEqual(inheritedHostResolverFlags([]), [])
+
+  const supported = hostPreflightRequirement({ integrationEnabled: true, sourceRoot: '/isolated-host',
+    execArgv: [HOST_PARENT_RESOLVE_FLAG] })
+  assert.deepEqual(supported, { ok: true })
+  assert.deepEqual(inheritedHostResolverFlags([HOST_PARENT_RESOLVE_FLAG]), [HOST_PARENT_RESOLVE_FLAG])
+})
+
 async function loadHostModules() {
-  const names = [
-    '@deepseek-ai/cordis', '@deepseek-ai/cordis-plugin-include', '@deepseek-ai/cordis-plugin-group',
-    '@deepseek-ai/cordis-plugin-loader', '@deepseek-ai/dsh-session-projection', '@deepseek-ai/dsh-agent-preset',
-    '@deepseek-ai/dsh-agent-preset-registry', '@deepseek-ai/dsh-agent', '@deepseek-ai/dsh-agent-loop',
-    '@deepseek-ai/dsh-llm', '@deepseek-ai/dsh-session', '@deepseek-ai/dsh-settings', '@deepseek-ai/dsh-storage',
-    '@deepseek-ai/dsh-storage-json', '@deepseek-ai/dsh-storage-domain', '@deepseek-ai/dsh-token-meter',
-    '@deepseek-ai/dsh-tools', '@deepseek-ai/dsh-system-prompt', '@deepseek-ai/dsh-session-query-sqlite',
-    '@deepseek-ai/dsh-typert-registry', '@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh-compaction-basic',
-    '@deepseek-ai/dsh-tool-bash',
-  ]
-  return Object.fromEntries(await Promise.all(names.map(async name => [name, await import(name)])))
+  return Object.fromEntries(await Promise.all(hostModules.map(async name => [name, await import(name)])))
 }
 
 async function linkInstallModules(install) {
@@ -222,14 +353,15 @@ async function makeHost({ candidate = true, inspectorFirst = false, delayEngineS
   return { ctx, modules, root, profile, install, patches, delayedServiceRows, includeEntry, loaderLogs, startupFileStats }
 }
 
-async function runColdStartLoaderTest(name, hostOptions = {}) {
+async function runColdStartLoaderTest(name, hostOptions = {}, childTimeoutMs = 20_000) {
   const prepared = await makeHost({ ...hostOptions, prepareOnly: true })
   try {
     const childEnv = { ...process.env, DSH_CONTEXT_PREPARED_ROOT: prepared.root }
     delete childEnv.NODE_TEST_CONTEXT
-    const child = spawnSync(process.execPath, ['--test', '--test-concurrency=1',
+    const child = spawnSync(process.execPath, [...inheritedHostResolverFlags(), '--test', '--test-concurrency=1',
       `--test-name-pattern=^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, fileURLToPath(import.meta.url)], {
       cwd: packageRoot, env: childEnv, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+      timeout: childTimeoutMs, killSignal: 'SIGKILL',
     })
     const output = `${child.stdout ?? ''}${child.stderr ?? ''}`
     assert.equal(child.error, undefined, `cold-start Loader child failed to spawn: ${child.error?.message ?? ''}`)
@@ -484,7 +616,7 @@ test('RC2 Loader batches two semantic 100K spans, preserves eight growth rounds,
     toolResultsMode: 'reduce', toolResultsMaxChars: 50000, toolResultsMinSavings: 100, archiveReadBudget: 6000, archiveSearchLimit: 3 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
   if (!preparedRoot) return runColdStartLoaderTest('RC2 Loader batches two semantic 100K spans, preserves eight growth rounds, and reloads without replay',
-    { managerPolicy, basicAuto: false })
+    { managerPolicy, basicAuto: false }, 65000)
   let host = await makeHost({ preparedRoot, basicAuto: false })
   let handles = []
   const root = host.root
@@ -906,6 +1038,7 @@ test('real Host Loader compacts an oversized Agent before task/tool work and res
       // would make the independent cold-start runner skip its own test file.
       delete childEnv.NODE_TEST_CONTEXT
       const child = spawnSync(process.execPath, [
+        ...inheritedHostResolverFlags(),
         '--test', '--test-concurrency=1',
         '--test-name-pattern=^real Host Loader compacts an oversized Agent before task/tool work and resumes exactly once$',
         fileURLToPath(import.meta.url),
@@ -913,6 +1046,7 @@ test('real Host Loader compacts an oversized Agent before task/tool work and res
         cwd: packageRoot,
         env: childEnv,
         encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+        timeout: 18000, killSignal: 'SIGKILL',
       })
       const output = `${child.stdout ?? ''}${child.stderr ?? ''}`
       assert.equal(child.error, undefined, `cold-start Loader child failed to spawn: ${child.error?.message ?? ''}`)
@@ -1073,7 +1207,7 @@ test('RC2 Loader lets Context pressure handling cooperate with Basic without rep
   }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
   if (!preparedRoot) return runColdStartLoaderTest('RC2 Loader lets Context pressure handling cooperate with Basic without replacing the Basic provider',
-    { basicAuto: false, managerPolicy })
+    { basicAuto: false, managerPolicy }, 18000)
   const host = await makeHost({ preparedRoot })
   const handles = []
   let toolExecutions = 0
@@ -1174,7 +1308,7 @@ test('RC2 Loader keeps default Basic auto and Context pressure as separate one-s
     recentPercent: 10, summaryPercent: 4, safetyPercent: 2, summaryMaxTokens: 1024, maxPasses: 2, idleEnabled: false }
   const name = 'RC2 Loader keeps default Basic auto and Context pressure as separate one-shot paths'
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
-  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy })
+  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy }, 40000)
   const host = await makeHost({ preparedRoot })
   const handles = []
   let phase = 'starting default Basic profile'
@@ -1319,7 +1453,7 @@ test('RC2 Loader Basic idle sidecar commits once and reloads its durable ledger 
     safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: true, idleMinutes: 1, idleMinPercent: 10 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
   if (!preparedRoot) return runColdStartLoaderTest('RC2 Loader Basic idle sidecar commits once and reloads its durable ledger without replay',
-    { basicAuto: false, managerPolicy })
+    { basicAuto: false, managerPolicy }, 30000)
   let host = await makeHost({ preparedRoot })
   let handles = []
   const root = host.root
@@ -1406,7 +1540,7 @@ test('RC2 Loader cancels a paused Basic idle summary for queued input and never 
     safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: true, idleMinutes: 1, idleMinPercent: 10 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
   if (!preparedRoot) return runColdStartLoaderTest('RC2 Loader cancels a paused Basic idle summary for queued input and never replays its unknown receipt',
-    { managerPolicy })
+    { managerPolicy }, 30000)
   let host = await makeHost({ preparedRoot })
   let handles = []
   const root = host.root
@@ -1520,7 +1654,7 @@ test('RC2 Loader verifies command-compact mutual exclusion in both directions ar
   const managerPolicy = { enabled: true, capacityMode: 'percent', triggerPercent: 95, targetPercent: 10, earlyPercent: 0,
     safetyPercent: 2, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: true, idleMinutes: 1, idleMinPercent: 10 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
-  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy })
+  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy }, 40000)
   const host = await makeHost({ preparedRoot })
   const handles = []
   let phase = 'starting default Basic with the Context idle sidecar active'
@@ -1684,7 +1818,7 @@ test('RC2 Loader drains a pending Context summary on owner disposal and preserve
   const managerPolicy = { enabled: true, capacityMode: 'percent', triggerPercent: 50, targetPercent: 10, earlyPercent: 0,
     safetyPercent: 2, recentTokens: 20000, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: true, idleMinutes: 1, idleMinPercent: 10 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
-  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy })
+  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy }, 40000)
   const host = await makeHost({ preparedRoot })
   const handles = []
   let phase = 'starting the same Agent under the native Basic provider and Context request sidecar'
@@ -1808,7 +1942,7 @@ test('RC2 Loader runs native Basic before Context on the same task and retains n
   const managerPolicy = { enabled: true, capacityMode: 'percent', triggerPercent: 50, targetPercent: 10, earlyPercent: 0,
     safetyPercent: 2, recentTokens: 20000, summaryMaxTokens: 512, maxPasses: 1, idleEnabled: false, idleMinutes: 1, idleMinPercent: 10 }
   const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
-  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy })
+  if (!preparedRoot) return runColdStartLoaderTest(name, { managerPolicy }, 40000)
   const host = await makeHost({ preparedRoot })
   const handles = []
   let phase = 'starting default Basic and Context sidecar without changing Basic auto'

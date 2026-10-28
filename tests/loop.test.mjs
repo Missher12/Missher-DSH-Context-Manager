@@ -29,7 +29,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import AgentPresets from '@deepseek-ai/dsh-agent-preset-registry'
 import Manager from '../lib/index.js'
-import { ContextEngine as Engine } from '../lib/engine.js'
+import { ContextEngine as Engine, requestBoundContextWindow } from '../lib/engine.js'
 import { pressureHistory } from '../lib/inspector.js'
 import { defaults, budget, validatePolicy } from '../lib/policy.js'
 import { diagnosticsProjection } from '../lib/diagnostics.js'
@@ -41,6 +41,7 @@ const checkpointBuild = await build({ entryPoints: [fileURLToPath(new URL('../sr
     builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
   } }] })
 const { parseCheckpoint } = await import(`data:text/javascript;base64,${Buffer.from(checkpointBuild.outputFiles[0].text).toString('base64')}`)
+
 
 class Adapter extends LlmAdapter {
   order = []; requests = []; summaries = []; work = 0
@@ -214,6 +215,15 @@ async function fixture(options = {}, policy = {}, seed = history()) {
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
 const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed', JSON.stringify(agent.session.snapshotEvents().at(-1).data.reason))
+
+function exposeRequestContext(agent, { provider, model, contextWindow, headerProvider = provider, headerModel = model }) {
+  const readHeader = agent.session.requestHeader.bind(agent.session)
+  agent.session.requestContext = () => ({ provider, model, contextWindow })
+  agent.session.requestHeader = () => {
+    const header = readHeader()
+    return { ...header, config: { ...(header?.config ?? {}), provider: headerProvider, model: headerModel } }
+  }
+}
 
 // A valid in-memory surface does not establish that the persisted event log can
 // be opened. Exercise the physical V4 encoder, a complete Zstandard frame on
@@ -1024,6 +1034,54 @@ test('real loop: exactly 79.9% before new input compacts before any business cal
     agent.followup(message()); await agent.whenIdle()
     assert.deepEqual(adapter.order, ['summary-start', 'summary-finish', 'main']); completed(agent)
   } finally { await ctx.fiber.dispose() }
+})
+
+test('real llm/stream gate uses the matching request-bound window before dispatching business work', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 200000 }, {}, history((7990 - 21) * 4))
+  exposeRequestContext(agent, { provider: 'mock', model: 'large', contextWindow: 10000 })
+  try {
+    assert.equal(ctx.tokenMeter.measure(agent.session).totalTokens, 7990)
+    agent.followup(message()); await agent.whenIdle()
+    assert.deepEqual(adapter.order, ['summary-start', 'summary-finish', 'main'],
+      'the 10K request-bound window gates the first business call even though fresh model info reports 200K')
+    assert.equal(adapter.summaries.length, 1)
+    assert.equal(adapter.requests.length, 1, 'only the post-compaction business request reaches the adapter')
+    completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real llm/stream gate ignores a stale requestContext route and falls back to fresh model info', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 200000 }, {}, history((7990 - 21) * 4))
+  exposeRequestContext(agent, { provider: 'old-provider', model: 'old-model', contextWindow: 10000,
+    headerProvider: 'mock', headerModel: 'large' })
+  try {
+    agent.followup(message()); await agent.whenIdle()
+    assert.deepEqual(adapter.order, ['main'], 'a stale bound route cannot lower the active request window')
+    assert.equal(adapter.summaries.length, 0)
+    assert.equal(adapter.requests.length, 1)
+    completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('real llm/stream gate falls back when requestContext has no bound snapshot', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 200000 }, {}, history((7990 - 21) * 4))
+  agent.session.requestContext = () => undefined
+  try {
+    assert.equal(agent.session.requestContext(), undefined)
+    agent.followup(message()); await agent.whenIdle()
+    assert.deepEqual(adapter.order, ['main'], 'the absent bound snapshot uses the just-resolved model window')
+    assert.equal(adapter.summaries.length, 0)
+    assert.equal(adapter.requests.length, 1)
+    completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('requestBoundContextWindow unit compatibility branch falls back for a Session without the API', () => {
+  // AgentLoop itself calls requestContext() before llm/stream in current RC.2/RC.4;
+  // this only exercises the plugin helper's optional-API compatibility branch.
+  const legacySession = { requestHeader: () => ({ config: { provider: 'mock', model: 'large' } }) }
+  assert.equal('requestContext' in legacySession, false)
+  assert.equal(requestBoundContextWindow(legacySession, { provider: 'mock', model: 'large' }, 200000), 200000)
 })
 
 test('real loop: new image pricing participates in admission and its reference survives compaction', { timeout: 8000 }, async () => {

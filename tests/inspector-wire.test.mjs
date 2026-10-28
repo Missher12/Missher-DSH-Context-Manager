@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { TYPERT } from '../lib/typert.js'
+import { hostCapabilityReadout, readContextEngineStartupState, resolveContextCompactionPath } from '../lib/compatibility.js'
 
 // Exercise the shipped codec entry, not a parallel schema or a service-only return value.
 const codec = method => TYPERT.invocations.find(item => item.method === method).result.create()
@@ -26,6 +27,21 @@ test('actual inspect codec preserves the complete Goal stop readout through JSON
   assert.deepEqual(roundTrip('inspect', value), value)
   const active = { ...inspection(), goal: { ...goal(), phase: 'active', blockedReason: null } }
   assert.deepEqual(roundTrip('inspect', active), active)
+})
+
+test('actual compatibility RPC codec carries the exact blocked startup reason to the settings readout', () => {
+  const reason = '隔离引擎启动文件校验未通过：当前进程读取的文件与启动时快照不一致'
+  const startup = readContextEngineStartupState({ startupReadiness: () => ({ ready: false, reason }) })
+  const probe = { state: 'unsupported', reason: 'Host compaction API v1 is unavailable',
+    reasonCode: 'compaction-host-missing', missingInterfaces: [] }
+  const integration = { state: 'inactive', reason: startup.reason }
+  const value = { ...hostCapabilityReadout(probe, integration),
+    requestPath: resolveContextCompactionPath(probe, integration, 'blocked', startup.reason) }
+
+  assert.deepEqual(value.requestPath, { path: 'request-gate-sidecar', state: 'blocked', reasonCode: 'sidecar-blocked', reason })
+  assert.deepEqual(roundTrip('compatibility', value), value)
+  assert.equal(codec('compatibility').safeParse({ ...value, requestPath: { ...value.requestPath, extra: true } }).success, false,
+    'the strict RPC schema still rejects unknown fields')
 })
 
 test('actual inspect codec keeps Goal optional for old or historical responses', () => {

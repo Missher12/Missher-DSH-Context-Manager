@@ -33,6 +33,16 @@ function compressionLabel(mode: NonNullable<Inspection['compression']>['mode']):
     default: return 'unknownBinding'
   }
 }
+function requestPressureLabel(state: ContextCooperationReadout['requestPressure']): InspectorLocaleKey {
+  switch (state) {
+    case 'context': return 'coopPressureContext'
+    case 'native': return 'coopPressureNative'
+    case 'off': return 'coopPressureOff'
+    case 'waiting': return 'coopPressureWaiting'
+    case 'unsupported': return 'coopPressureUnsupported'
+    default: return 'coopPressureUnknown'
+  }
+}
 
 type BindingSnapshot = { target: string; state: 'loading' | 'ready' | 'missing' | 'failed'; value: CompactionReadout | null }
 type BindingBadge = { mode: CompactionReadout['mode']; text: string; title: string }
@@ -354,6 +364,50 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const autoRunLabel = historical ? safeData?.compression ? `${t(compressionLabel(safeData.compression.mode))} · ${t('historical')}` : t('unknown') : binding.text
   const toolRun = safeData?.cooperation?.toolResults.state
   const toolRunLabel = toolRun === 'off' ? t('coopOff') : toolRun === 'observe' ? t('coopObserve') : toolRun === 'active' ? t('coopActive') : toolRun === 'waiting' ? t('coopWaiting') : toolRun === 'unsupported' ? t('coopUnsupported') : t('unknown')
+  const cooperation = safeData?.cooperation
+  const originalsRunLabel = cooperation?.originals.state === 'ready' ? t('coopOriginalsReady')
+    : cooperation?.originals.state === 'empty' ? t('coopOriginalsEmpty')
+      : cooperation?.originals.state === 'unavailable' ? t('coopOriginalsUnavailable') : t('unknown')
+  const idleCooperationLabel = cooperation?.idleMaintenance === 'active' ? t('coopActive')
+    : cooperation?.idleMaintenance === 'waiting' ? t('coopWaiting')
+      : cooperation?.idleMaintenance === 'off' ? t('coopOff')
+        : cooperation?.idleMaintenance === 'unsupported' ? t('coopUnsupported') : t('unknown')
+  const cooperationDetails = cooperation
+    ? `${requestStale ? `${t('lastRead')} · ` : ''}${t('coopRequestPressure')}: ${t(requestPressureLabel(cooperation.requestPressure))} · ${t('coopToolResults')}: ${toolRunLabel} · ${t('coopOriginals')}: ${originalsRunLabel} · ${t('coopIdle')}: ${idleCooperationLabel}`
+    : t('unknown')
+  const savedRequestPolicy = accepted.value?.policy
+  const policyWindow = safeData && !historical && !requestStale ? contextWindow(safeData) : null
+  const policyBudgets = (policy: Policy) => {
+    if (policy.capacityMode !== 'percent') {
+      return `${t('legacyCapacity')} · ${t('recentBudget')} ${exactTokens(policy.recentTokens)} ${t('tokens')} · ${t('summaryBudget')} ${exactTokens(policy.summaryMaxTokens)} ${t('tokens')}`
+    }
+    const capacity = policyWindow === null ? null : capacityTokens(policy, policyWindow)
+    const recent = capacity === null ? `${policy.recentPercent}% · ${t('unknownWindow')}` : `${policy.recentPercent}% · ${exactTokens(capacity.recent)} ${t('tokens')}`
+    const summary = capacity === null ? `${policy.summaryPercent}% · ${t('unknownWindow')}` : `${policy.summaryPercent}% · ${exactTokens(capacity.summary)} ${t('tokens')}`
+    return `${t('recentBudget')} ${recent} · ${t('summaryBudget')} ${summary}`
+  }
+  const savedRequestPolicyDetails = savedRequestPolicy
+    ? [
+      t(savedRequestPolicy.enabled ? 'coopPolicyEnabled' : 'coopPolicyDisabled'),
+      t(savedRequestPolicy.historyMode === 'automatic' ? 'historyAutomatic' : 'historyCustom'),
+      `${t('trigger')} ${savedRequestPolicy.triggerPercent}%`,
+      `${t('savedEarlyCheck')} ${savedRequestPolicy.earlyPercent}%`,
+      policyBudgets(savedRequestPolicy),
+      savedRequestPolicy.historyMode === 'automatic'
+        ? t('automaticWorkingSetNote')
+        : `${t('target')} ${savedRequestPolicy.targetPercent}%`,
+      t('policySessionNote'),
+    ].join(' · ')
+    : t('coopPolicyUnknown')
+  const currentCompression = requestStale ? undefined : safeData?.compression
+  const bindingDetails = [
+    binding.text,
+    currentCompression?.agentPreset ? `${t('bindingPreset')} ${currentCompression.agentPreset}` : '',
+    currentCompression?.generation !== undefined ? `${t('bindingGeneration')} ${currentCompression.generation}` : '',
+    currentCompression?.provider ? `${t('bindingProvider')} ${currentCompression.provider}` : '',
+    currentCompression?.source ? `${t('bindingSource')} ${t(currentCompression.source === 'declaration' ? 'sourceDeclaration' : 'sourceRegistration')}` : '',
+    currentCompression?.reason ? `${t('runMessage')} ${currentCompression.reason}` : '',
+  ].filter(Boolean).join(' · ')
   const idleFreshness = idleDiagnostics?.target === target ? idleDiagnostics.freshness : 'unknown'
   const idleRunPrefix = idleFreshness === 'current' ? '' : `${t(idleFreshness === 'refreshing' ? 'runRefreshing' : 'lastRead')} · `
   const idleRunLabel = historical ? t('histUnavailable') : idleRun ? `${idleRunPrefix}${t(idleStatusLabel(idleRun))}${idleRun.restored ? ` · ${t('restored')}` : ''}${idleRun.updatedAt ? ` · ${formatTime(idleRun.updatedAt)}` : ''}` : idleFreshness === 'stale' ? t('idleUnknown') : t('unknown')
@@ -420,6 +474,9 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
             <div><dt>{t('runRecent')}</dt><dd>{latestRunLabel}</dd></div>
             <div><dt>{t('runDuration')}</dt><dd>{runDuration}</dd></div>
             <div><dt>{t('runUsage')}</dt><dd>{runUsage}</dd></div>
+            <div><dt>{t('bindingDiagnostic')}</dt><dd>{bindingDetails}</dd></div>
+            <div><dt>{t('cooperationDiagnostic')}</dt><dd>{cooperationDetails}</dd></div>
+            <div><dt>{t('policyDiagnostic')}</dt><dd>{savedRequestPolicyDetails}</dd></div>
           </dl>}
         </div>
       </details>
