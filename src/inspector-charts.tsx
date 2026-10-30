@@ -1,7 +1,7 @@
 /** Native-theme charts for one immutable session cut. */
 import { useState } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { EfficiencyReadout, FieldTotalReadout, Inspection, ReductionReadout } from './inspector-types.ts'
+import type { ContentRow, EfficiencyReadout, FieldTotalReadout, Inspection, ReductionReadout } from './inspector-types.ts'
 import type { CompactCapacity } from './idle-types.ts'
 import { contextWindow, composition, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
 import type { InspectorText } from './inspector-locales.ts'
@@ -23,7 +23,8 @@ export function CacheDonut({ value, t }: { value: number | null; t: InspectorTex
 
 /** One full-window bar includes available capacity and preserves category estimates. */
 export function ContextComposition({ data, policy, stale = false, t, onGroup }: { data: Inspection; policy: Policy | undefined; stale?: boolean; t: InspectorText; onGroup: (group: ContextGroup) => void }) {
-  const chart = composition(data, policy)
+  const chart = composition(data, stale ? undefined : policy)
+  const outputReserve = data.historical ? data.model?.maxTokens : data.admission?.outputReserve ?? data.model?.maxTokens
   const isGroup = (id: typeof chart.slices[number]['id']): id is ContextGroup => id !== 'free' && id !== 'other' && id !== 'reserve'
   const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatPercent(chart.limit,chart.window)}` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
   const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id)} ≈ ${formatTokens(slice.value)} ${t('tokens')} · ${formatPercent(slice.value,chart.window)}${hint(slice) ? ` · ${hint(slice)}` : ''}`
@@ -36,7 +37,7 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
       </Tooltip>)}
     </div>
     <div className="cmv-legend">{chart.slices.map(slice => <button key={slice.id} type="button" className="cmv-key" disabled={!isGroup(slice.id)} data-slice={slice.id} data-value={slice.value} data-share={slice.share} title={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span><i data-color={slice.id}/>{t(slice.id)}</span><strong>{formatTokens(slice.value)} <small>{t('tokens')} · {formatPercent(slice.value,chart.window)}</small></strong></button>)}</div>
-    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${formatPercent(chart.measured,chart.window)}`}`}><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatPercent(data.model?.maxTokens,chart.window)}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatPercent(chart.used - chart.window,chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')}><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
+    <div className="cmv-between cmv-muted"><Tooltip label={`${t('estimateHint')}${chart.measured === null ? '' : ` ${t('hostOccupancy')} ${formatPercent(chart.measured,chart.window)}`}`}><span tabIndex={0}>{t('estimate')} · {data.activeCount} {t('items')} · {t('reserved')} {formatPercent(outputReserve,chart.window)}</span></Tooltip>{chart.window === null ? <span>{t('unknownWindow')}</span> : chart.overflow ? <span>{t('overflow')} ≈ {formatPercent(chart.used - chart.window,chart.window)}</span> : <Tooltip label={t(chart.limit === null ? 'availableHint' : 'freeHint')}><span tabIndex={0}>{t('windowBasis')} · 100%</span></Tooltip>}</div>
 
   </article>
 }
@@ -78,7 +79,7 @@ export function CompactionChart({ data, t, onRecord }: { data: Inspection; t: In
   </article>
 }
 
-export function CompactionRecords({ data, t, openLatest }: { data: Inspection; t: InspectorText; openLatest: number }) {
+export function CompactionRecords({ data, t, openLatest, onInspect }: { data: Inspection; t: InspectorText; openLatest: number; onInspect?: (row: ContentRow) => void }) {
   const [expanded, setExpanded] = useState(false)
   const entries = [...data.compactions].reverse()
   return <article className="cmv-card cmv-records"><div className="cmv-heading"><h3>{t('recordList')}</h3>{entries.length > 2 && <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapse' : 'allRecords')}</Button>}</div>
@@ -86,6 +87,7 @@ export function CompactionRecords({ data, t, openLatest }: { data: Inspection; t
       <summary><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} ${t('tokens')} → ${formatTokens(entry.afterTokens)} ${t('tokens')} · ${formatPercent(entry.afterTokens,entry.beforeTokens)}` : entry.modelCallStatus==='not_dispatched'?t('notDispatched'):t('unknownUsage')}</span></summary>
       <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {formatTokens(Math.abs(entry.beforeTokens - entry.afterTokens))} {t('tokens')} · {formatPercent(Math.abs(entry.beforeTokens - entry.afterTokens),entry.beforeTokens)}</p>}<p>{t('segment')} · {t('compactions')} {formatTokens(entry.beforeTokens)} → {formatTokens(entry.afterTokens)} {t('tokens')}</p><p>{t('input')} {formatTokens(entry.inputTokens)} · {t('output')} {formatTokens(entry.outputTokens)} {t('tokens')}{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
         {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}{entry.error && <p className="cmv-error">{entry.error}</p>}{entry.execution && <p>{entry.execution}</p>}
+        {entry.checkpoint && onInspect && <Button size="sm" variant="outline" onClick={() => entry.checkpoint && onInspect(entry.checkpoint)}>{t('viewCheckpoint')}</Button>}
       </div></details></li>)}</ol>}
   </article>
 }

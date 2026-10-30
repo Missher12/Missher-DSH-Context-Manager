@@ -53,21 +53,6 @@ const primitivesBuild = buildSync({
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } }, write: false,
 })
 
-test('overview keeps estimated composition separate, handles missing usage, and exposes over-window values', () => {
-  const values = { contextPressure: { projectedTokens: 102000, pressureTokens: 95000, contextWindow: 100000 },
-    contextBreakdown: { systemTokens: 1000, toolsTokens: 2000, messageTokens: 3000 },
-    tokenUsage: { uncachedInputTokens: 999999, cacheReadTokens: 2, cacheWriteTokens: 3, outputTokens: 4 } }
-  const html = renderToStaticMarkup(React.createElement(client.ContextReadout, { values, policy: defaults }))
-  assert.match(html, /102\.0%/)
-  assert.match(html, /预计超出窗口/)
-  assert.match(html, /相加不等于上面的模型用量/)
-  assert.match(html, /999,999/)
-  assert.ok(!html.includes('999.9%'))
-  const unknown = renderToStaticMarkup(React.createElement(client.ContextReadout, { values: {}, policy: defaults }))
-  assert.match(unknown, /等待模型返回用量/)
-  assert.ok(!unknown.includes('NaN') && !unknown.includes('0.0%'))
-})
-
 test('settings section contains only policy controls and does not read any session', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -433,21 +418,22 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     assert.equal(document.querySelector('style').dataset.plugin, 'dsh-context-manager')
     assert.match(document.querySelector('.cm-native-help[aria-label^="开始压缩: "]')?.getAttribute('aria-label') ?? '', /新消息和预留空间可能让检查提前/)
     assert.equal(document.querySelector('#context-manager-idleMinutes').value, '15')
-    assert.equal(document.querySelector('#context-manager-idleMinPercent').value, '65')
+    assert.equal(document.getElementById(document.querySelector('#context-manager-idleMinutes').getAttribute('aria-describedby'))?.textContent, '分钟')
+    assert.equal(document.querySelector('#context-manager-idleMinPercent') === null, true, 'idle compaction has no occupancy control')
     const buttons = () => [...document.querySelectorAll('button')]
     await act(async () => setDomInput(document.querySelector('#context-manager-triggerPercent'), '70'))
     assert.equal(writes.length, 0)
     assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
-    await act(async () => setDomInput(document.querySelector('#context-manager-idleMinPercent'), '70'))
+    await act(async () => setDomInput(document.querySelector('#context-manager-idleMinutes'), '30'))
     await act(async () => buttons().find(b => b.textContent === '保存设置').click())
     assert.equal(writes.length, 1); assert.equal(writes[0].revision, 4)
     assert.equal(writes[0].ops[0].value.triggerPercent, 70)
     assert.equal(writes[0].ops[0].value.targetPercent, defaults.targetPercent, 'editing the trigger preserves the saved custom cap')
     assert.equal(writes[0].ops[0].value.historyMode, 'automatic')
     assert.equal(writes[0].ops[0].value.recentTokens, 20000)
-    assert.equal(writes[0].ops[0].value.idleMinPercent, 70, 'a real input event is included in the save')
-    assert.equal(form.getSnapshot().value.policy.idleMinPercent, 70, 'the form store returns the saved policy')
-    assert.equal(document.querySelector('#context-manager-idleMinPercent').value, '70', 'the rendered control reads back the saved value')
+    assert.equal(writes[0].ops[0].value.idleMinutes, 30, 'a real input event is included in the save')
+    assert.equal(form.getSnapshot().value.policy.idleMinutes, 30, 'the form store returns the saved policy')
+    assert.equal(document.querySelector('#context-manager-idleMinutes').value, '30', 'the rendered control reads back the saved value')
     const feedback = document.querySelector('.cm-feedback[role="status"]')?.textContent ?? ''
     assert.equal(feedback, '设置已保存。', 'a successful save confirms persistence without claiming unsupported features are active')
     assert.doesNotMatch(feedback, /请求前检查|闲置整理.*生效/)
@@ -472,13 +458,12 @@ test('settings: idle fields preserve invalid drafts, save focus, and handle stal
     await edit('idleMinutes', '1x')
     assert.equal(document.getElementById('context-manager-idleMinutes').value, '1x')
     assert.equal(save().disabled, true)
-    await edit('idleMinutes', '30'); await edit('idleMinPercent', '70'); await edit('summaryInstructions', '保留用户约束与验收命令')
+    await edit('idleMinutes', '30'); await edit('summaryInstructions', '保留用户约束与验收命令')
     await act(async () => { snapshot = { ...snapshot, revision: 10 }; listeners.forEach(cb => cb()) })
     await act(async () => save().click())
     assert.equal(writes[0].revision, 9, 'dirty draft retains its original revision')
     assert.match(document.body.textContent, /未保存/)
     assert.equal(writes[0].ops[0].value.idleMinutes, 30)
-    assert.equal(writes[0].ops[0].value.idleMinPercent, 70)
     assert.equal(writes[0].ops[0].value.summaryInstructions, '保留用户约束与验收命令')
     await act(async () => { snapshot = { ...snapshot, writable: false }; listeners.forEach(cb => cb()) })
     assert.equal(document.getElementById('context-manager-idleMinutes').disabled, true)
@@ -667,7 +652,7 @@ test('current context shows full-window percentages and keeps all original bucke
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { sessionId: 'capacity', cursor: 2, cutSeq: 2, sampledAt: 1000, historical: false, compression: { mode: 'enhanced', hostCapability: 'supported', reason: 'Inspection enhanced' },
-    pressure: {window:1000000,projected:320000,input:310000}, official: null, usage: null, model: {provider:'mock',model:'large',maxTokens:64000,effort:null},
+    pressure: {window:1000000,projected:320000,input:310000}, official: null, usage: null, model: {provider:'mock',model:'large',maxTokens:null,effort:null},
     admission: {tokens:320000,logRevision:3,baseline:'usage',window:1000000,outputReserve:64000},
     parts: [{category:'summary',tokens:30000,count:1},{category:'tool',tokens:200000,count:1},{category:'user',tokens:50000,count:1},{category:'system',tokens:20000,count:1}],
     rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 4, archivedCount: 0, requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
@@ -690,6 +675,7 @@ test('current context shows full-window percentages and keeps all original bucke
     assert.equal(card.querySelector('[data-color="free"]').style.width,'47%')
     assert.equal(card.querySelector('.cmv-capacity-stack').lastElementChild.dataset.color,'reserve')
     assert.equal(card.querySelector('[data-color="reserve"]').style.width,'21%')
+    assert.match(card.textContent, /输出预留 6\.40%/, 'the footer uses the resolved admission reserve even without an explicit maxTokens header')
     assert.equal(card.querySelector('[data-color="other"]').style.width,'2%')
     assert.equal(card.querySelectorAll('.cmv-capacity-stack').length,1)
     assert.equal(card.querySelectorAll('[aria-pressed]').length,0,'no hidden full-window toggle')
@@ -769,7 +755,7 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
       assert.match(status().textContent, /检查线 —/)
       if(snapshot.admission?.window===null){
         const number = document.querySelector('.cmv-composition .cmv-number')
-        assert.equal(number.querySelector('strong').textContent,'≈ 100.0K Token','known occupancy remains a Token readout when the route window is unknown')
+        assert.equal(number.querySelector('strong').textContent,'≈ 170.0K Token','known live meter occupancy remains a Token readout when the route window is unknown')
         assert.equal(number.querySelector('span').textContent,'/ — Token','current unknown route cannot borrow an old pressure window')
         assert.equal(number.querySelector('b').textContent,'—','an unknown denominator has no derived percentage')
         const policy = runFact('已保存策略')
@@ -950,9 +936,9 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
     compression: { mode: 'native', hostCapability: 'unsupported', reason: 'Official Basic remains active',
       agentPreset: 'official-basic', generation: 4, provider: 'deepseek-official', source: 'registration' },
     cooperation: baseCooperation,
-    admission: { tokens: 170000, logRevision: 3, baseline: 'usage', window: 200000, outputReserve: 8192 },
+    admission: { tokens: 170000, logRevision: 3, baseline: 'usage', window: 200000, outputReserve: 0 },
     pressure: { projected: 100000, input: 99000, window: 200000 }, official: null, usage: null,
-    model: { provider: 'offline', model: '200k', maxTokens: 8192, effort: null }, parts: [], rows: [], total: 0, offset: 0,
+    model: { provider: 'custom', model: 'custom-without-output-cap', maxTokens: null, effort: null }, parts: [], rows: [], total: 0, offset: 0,
     pageSize: 50, activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, compactions: [], pressureHistory: [] }
   let pending = false, releasePending
   const api = {
@@ -998,7 +984,7 @@ test('native Basic shows only a current Context sidecar gate with its saved requ
     await refresh()
     assert.match(read().textContent, /数据待刷新/)
     assert.equal(read().querySelector('[data-context-request-gate]'), null, 'stale reads do not present a live sidecar gate')
-    assert.equal(document.querySelector('[data-color="reserve"]'), null, 'stale reads do not reuse the saved-policy reserve')
+    assert.ok(!document.querySelector('[data-color="reserve"]'), 'stale reads do not reuse the saved-policy reserve')
     pending = false; releasePending?.(snapshot); await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
 
     snapshot = { ...snapshot, historical: true, cooperation: undefined, pressure: null,

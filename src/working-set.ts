@@ -278,5 +278,8 @@ export function validateWorkingCandidate(plan: WorkingPlan, replacementTokens: n
   if (freed < minimumGain(plan.before)) {
     throw new Error('压缩收益不足，停止重复摘要；任务原文保留')
   }
+  if (replacementTokens > plan.summaryTokens + FRAMING_TOKENS) {
+    throw new Error('摘要超过本次正文预算，原文保留')
+  }
   return after
 }

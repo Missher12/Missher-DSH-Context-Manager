@@ -115,7 +115,14 @@ export class IdleStore {
     return this.enqueue(async () => {
       const current = this.get(input.sessionId)
       if (current) {
-        if (sameEligibility(current, input)) return current
+        if (sameEligibility(current, input)) {
+          // Upgrades may reconsider a qualification skipped by the removed
+          // occupancy gate. A dispatched/claimed attempt is never reopened.
+          if (current.status === 'skipped' && current.reasonCode === 'below_threshold' && current.attemptId === undefined) {
+            return this.put({ ...input, status: 'eligible', updatedAt: Date.now() })
+          }
+          return current
+        }
         if (current.fingerprint === input.fingerprint) return null
         if (input.completedAt < current.completedAt
           || (input.completedAt === current.completedAt && input.turnEndSeq <= current.turnEndSeq)) return null

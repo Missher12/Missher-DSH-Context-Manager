@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from './index.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type { IdleEligibility } from './idle-store.ts'
-import { deadlineLimits, idleFloorTokens, transactionTotalMs, type Policy } from './policy.ts'
+import { deadlineLimits, transactionTotalMs, type Policy } from './policy.ts'
 import { SummaryDeadline } from './summary-deadline.ts'
 
 interface Entry {
@@ -63,7 +63,7 @@ export class IdleCompactor {
   constructor(
     private readonly ctx: Context,
     private readonly owns: (agent: Agent) => boolean,
-    private readonly compact: (agent: Agent, signal: AbortSignal, preflight: (allowBelow?: boolean) => Promise<void>, pruned: () => void, deadline: SummaryDeadline) => Promise<CompactionResult | null>,
+    private readonly compact: (agent: Agent, signal: AbortSignal, preflight: () => Promise<void>, pruned: () => void, deadline: SummaryDeadline) => Promise<CompactionResult | null>,
   ) {
     ctx.on('agent/created', async ({ agent }) => { if (owns(agent)) await this.restore(agent) })
     ctx.on('agent/status', ({ agent, status }) => {
@@ -194,21 +194,34 @@ export class IdleCompactor {
   private async restore(agent: Agent) {
     if (this.disposed) return
     const entry = this.entry(agent)
-    const record = this.ctx.contextManager.idleStore.get(String(agent.id))
+    let record = this.ctx.contextManager.idleStore.get(String(agent.id))
     if (!record) return
     entry.status = this.ctx.contextManager.savedIdleStatus(record)
     if (record.status === 'started') {
-      const done = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/end' && String(event.data.compactionId) === record.compactionId && !event.data.error)
+      const compactionId = record.compactionId
+      const done = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/end' && String(event.data.compactionId) === compactionId && !event.data.error)
       await this.ctx.contextManager.idleStore.settle(record, record.attemptId, { status: done ? 'completed' : 'interrupted', reasonCode: done ? 'recovered_commit' : 'interrupted', ...(done ? { afterTokens: this.ctx.tokenMeter.measure(agent.session).totalTokens } : {}) })
       entry.status = this.ctx.contextManager.savedIdleStatus(this.ctx.contextManager.idleStore.get(String(agent.id))!)
       return
     }
-    if (record.status !== 'eligible') return
+    const unspentThresholdSkip = record.status === 'skipped' && record.reasonCode === 'below_threshold' && record.attemptId === undefined
+    if (record.status !== 'eligible' && !unspentThresholdSkip) return
     const policy = this.ctx.contextManager.snapshot()
     if (!policy.enabled || !policy.idleEnabled || !this.validHistory(agent, record) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length) {
       await this.ctx.contextManager.idleStore.settle(record, undefined, { status: 'cancelled', reasonCode: !policy.enabled || !policy.idleEnabled ? 'disabled' : 'history_changed' })
       entry.status = this.ctx.contextManager.savedIdleStatus(this.ctx.contextManager.idleStore.get(String(agent.id))!)
       return
+    }
+    if (unspentThresholdSkip) {
+      const epoch = entry.epoch
+      const { sessionId, turnEndSeq, completedAt, fingerprint } = record
+      const reopened = await this.ctx.contextManager.idleStore.reserve({ sessionId, turnEndSeq, completedAt, fingerprint })
+      if (this.disposed || this.entries.get(agent) !== entry || !reopened || reopened.status !== 'eligible') return
+      if (entry.epoch !== epoch) {
+        await this.ctx.contextManager.idleStore.settle(reopened, undefined, { status: 'cancelled', reasonCode: 'state_changed' })
+        return
+      }
+      record = reopened
     }
     entry.eligibility = record
     entry.idleSince = Math.min(record.completedAt, Date.now())
@@ -279,24 +292,14 @@ export class IdleCompactor {
       if (entry.idleSince + policy.idleMinutes * 60000 > Date.now()) { rearm = 1; return }
       const window = info.context?.contextWindow
       if (!window) throw new IdleSkipped('no_window', '当前模型未提供上下文窗口，暂不整理')
-      const checkPressure = (allowBelow = false) => {
+      const checkEligibility = () => {
         const current = this.ctx.contextManager.snapshot()
         this.assertReady(agent, entry, epoch, generation, route, current)
         if (entry.idleSince + current.idleMinutes * 60000 > Date.now()) throw new IdleSkipped('delay_changed', '闲置时长已调整，等待下次检查')
         before = this.ctx.tokenMeter.measure(agent.session).totalTokens
-        const minimumPercent = current.historyMode === 'automatic' ? current.idleMinPercent : Math.max(current.idleMinPercent, current.targetPercent + 10)
-        // The idle floor keeps its percentage meaning but never exceeds the
-        // effective request admission (output reserve, safety, absolute soft
-        // trigger included), so the settings page and both maintenance paths
-        // show one consistent threshold.
-        const minimumTokens = idleFloorTokens(current, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
-        const percentFloor = window * minimumPercent / 100
-        entry.status = { ...entry.status, beforeTokens: before, windowTokens: window, minimumPercent, ...(minimumTokens < percentFloor ? { minimumTokens } : {}) }
-        if (!allowBelow && before < minimumTokens) throw new IdleSkipped('below_threshold', minimumTokens < percentFloor
-          ? `当前约 ${(before / window * 100).toFixed(1)}%，未达到闲置整理门槛（有效阈值 ${minimumTokens.toLocaleString()} Token）`
-          : `当前约 ${(before / window * 100).toFixed(1)}%，未达到闲置整理门槛 ${minimumPercent}%`)
+        entry.status = { ...entry.status, beforeTokens: before, windowTokens: window }
       }
-      checkPressure()
+      checkEligibility()
       release = this.ctx.contextManager.acquireIdle()
       if (!release) { rearm = Math.min(300000, 30000 * 2 ** Math.min(entry.checks++, 4)); throw new IdleSkipped('busy', '其他会话正在整理，稍后检查') }
       const record = await store.claim(eligibility, attemptId, before)
@@ -308,17 +311,17 @@ export class IdleCompactor {
       }
       entry.attemptId = attemptId
       signal.throwIfAborted()
-      checkPressure()
+      checkEligibility()
       entry.status = { ...entry.status, status: 'compacting', dueAt: null, reasonCode: 'compacting', message: '正在闲置压缩；新消息到达时让出' }
       entry.expectStart = true
-      const operation = this.compact(agent, signal, async (allowBelow = false) => {
+      const operation = this.compact(agent, signal, async () => {
           try {
             signal.throwIfAborted()
-            checkPressure(allowBelow)
+            checkEligibility()
             const bound = !entry.compactionId || await store.bindCompaction(eligibility, attemptId, entry.compactionId)
             if (!bound) throw new IdleSkipped('state_changed', '闲置资格已改变，本轮不整理')
             signal.throwIfAborted()
-            checkPressure(allowBelow)
+            checkEligibility()
           } catch (error) { if (error instanceof IdleSkipped) refusal = error; throw error }
       }, () => {
         // Called synchronously inside our maintenance claim, immediately after

@@ -108,7 +108,7 @@ export interface ReductionReadout {
   /** Why the archive is unavailable for this run; absent when it opened. */
   archiveError?: string
 }
-export type InspectedCompaction = CompactionEntry & { execution?:string; modelCallStatus?: 'not_dispatched'|'dispatched'; trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
+export type InspectedCompaction = CompactionEntry & { checkpoint?: ContentRow; execution?:string; modelCallStatus?: 'not_dispatched'|'dispatched'; trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
 /** Read-only host goal projection; the context page never mutates it. */
 export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
 export interface Inspection {

@@ -322,6 +322,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const contentRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [selectedContent, setSelectedContent] = useState('')
+  const [selectedCompaction, setSelectedCompaction] = useState<ContentRow | null>(null)
   const [openLatest, setOpenLatest] = useState(0)
   const [idleCapacity, setIdleCapacity] = useState<CompactCapacity | null>(null)
   const [idleBinding, setIdleBinding] = useState<BindingSnapshot | null>(null)
@@ -335,7 +336,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   copyTarget.current = target
   useEffect(() => {
     copyGeneration.current++
-    setExpanded(false); setSelectedContent(''); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setRunDetailsTarget(''); setCopyFeedback(''); setCopyFailed(false)
+    setExpanded(false); setSelectedContent(''); setSelectedCompaction(null); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setRunDetailsTarget(''); setCopyFeedback(''); setCopyFailed(false)
     return () => { copyGeneration.current++ }
   }, [target])
   const reportIdleDiagnostics = useCallback((value: Omit<IdleDiagnostic, 'signature'>) => {
@@ -485,7 +486,11 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
         <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={requestStale} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={requestStale} bindingMode={binding.mode} t={t}/></div>
         <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
-        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest}/></div>
+        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest} onInspect={setSelectedCompaction}/></div>
+        {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article className="cmv-card cmv-checkpoint-reader">
+          <div className="cmv-heading"><h3>{t('checkpointContent')}</h3><Button size="sm" variant="ghost" onClick={() => setSelectedCompaction(null)}>{t('closeCheckpoint')}</Button></div>
+          <ContentDetail key={`${target}:${safeData.cutSeq}:${selectedCompaction.id}`} target={target} cutSeq={safeData.cutSeq} row={selectedCompaction} api={api} t={t} window={contextWindow(safeData)}/>
+        </article>}
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
           {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatTokens(row.tokens)} <small>{t('tokens')} · {formatPercent(row.tokens,contextWindow(safeData))}</small></b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
           {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}

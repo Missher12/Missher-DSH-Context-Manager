@@ -1,6 +1,30 @@
-# Context 0.10.4: compaction capability diagnostic source candidate
+# Context 0.10.7: reserve recovery after reload and centered controls
 
-**Status:** Source preparation only. No typecheck, tests, build, package, Host run, native settings UI, release, or installation has been performed for 0.10.4.
+The inspector recovers a missing in-memory output reservation from exact-route Host model metadata without generation or session writes. Lookup failure, route/window mismatch and concurrent session changes remain unknown; historical cuts do not resolve current metadata. The reserve footer uses the same resolved admission value as the chart. Settings controls use a compact 180px desktop column with centered text. Current validation and native installation evidence are recorded separately in `verification/RESULTS-0.10.7-20261030.json`.
+
+## 2026-10-30 source cleanup for Git delivery
+
+Removed the unreachable legacy overview and its obsolete component test, unused settings styles, an unreferenced preview page and screenshots, and frozen legacy build overrides. Current compaction behavior is unchanged. The client bundle is 19,780 bytes smaller. Build and both TypeScript checks passed; the complete suite finished with 430 passes, 31 conditional skips and zero failures (461 cases). See [the cleanup record](./verification/RESULTS-CLEANUP-20261030.json).
+
+This is a source cleanup. The separately installed 0.10.7 archive, user settings and sessions were not replaced, and this cleanup does not claim a new native installation run.
+
+## Context 0.10.6: idle timing without an occupancy gate, aligned controls (historical)
+
+**Status (2026-10-30):** Server/client typechecks and build passed. The 460-case suite was exercised; its sole failure was an old assertion requiring an occupancy-only skip to remain terminal. That scenario was updated to cover a skip with no safe range, and all 16 idle-store tests passed. Across these runs 429 executable cases have passing evidence, with 31 conditional skips. Native installation, interface review and low-occupancy idle acceptance are recorded separately under `verification/`.
+
+Idle compaction now uses the saved waiting time after normal completion without a percentage floor. The 80% request trigger remains unchanged. Unspent legacy threshold-only skips can be restored after validating the actual session history; paid or consumed attempts cannot replay. Numeric inputs and selects share a width and 32px height, with inset units and full-width controls on narrow layouts.
+
+## Context 0.10.5: reasoning headroom and checkpoint quality bounds (historical)
+
+**Status (2026-10-29):** The 459-case suite was exercised. The first run reported 417 passes, 31 conditional skips, 10 native-addon signing failures under the Desktop Node runtime, and one validation-error precedence regression. The 10 persistence/idle cases passed under the Codex Node runtime; the precedence regression was corrected and all 27 working-set tests passed. Across these runs, all 428 executable cases have passing evidence. Server/client typechecks and the build passed. This is local validation, with native installation and idle acceptance recorded separately under `verification/`.
+
+Reasoning generation gets bounded space independently of the retained checkpoint body. Existing request thresholds, model route/effort, summary body allocation, transaction limits and failure-replay policy are preserved. Actual checkpoint text still must satisfy the planned body allowance, aggregate checkpoint occupancy, request headroom and net gain. Truncated output never replaces source history.
+
+## Context 0.10.4: locally verified custom-model reserves and summary inspection (historical)
+
+**Status (2026-10-29):** Local candidate. Server/client typechecks and the build passed; the full suite reported 425 passed, 31 conditional skips, and zero failures across 456 tests. Packaging evidence is recorded separately in `verification/RESULTS-0.10.4-20261029.json`. Formal release, daily Host installation, native settings UI, and real-provider summary quality remain unverified.
+
+**New behavior:** Custom-model inspection uses actual request-gate parameters when the recorded header and context still match, including a verified zero output reservation. It never substitutes another route's window or invents missing model defaults. Compaction records link exact current or archived checkpoints and expose summary/original text only on demand through the existing bounded read API. The sidecar startup race and stale reserve display are fixed; development dependency declarations and pnpm build normalization are repaired. Existing monetary estimates, capacity policies, and per-cycle call limits are unchanged.
 
 **Change:** Settings diagnostics distinguish Host `compactionHost.v1` registration from the plugin-owned request-gate sidecar. The page can display the Host version through the optional public `@deepseek-ai/dsh-app-boot` helper and the exact interfaces missing from the Host. Native Basic remains Host-owned; the sidecar is limited to sessions actually bound to official Basic. This diagnostic does not change Host bindings.
 

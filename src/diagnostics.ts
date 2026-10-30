@@ -3,6 +3,7 @@ import { canonicalHeader, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-compaction/types'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { estimateMessage } from '@deepseek-ai/dsh-token-meter/estimate'
+import { isCompactCheckpointSource } from '@deepseek-ai/dsh-compaction/checkpoint'
 import { HISTORY_LIMIT, type ContextDiagnostics, type CompactionEntry } from './diagnostics-types.ts'
 
 interface State {
@@ -18,6 +19,7 @@ const entrySchema = z.object({
   status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']),
   manual: z.boolean(), applied: z.boolean(), beforeTokens: count.optional(), afterTokens: count.optional(),
   messages: count.optional(), error: z.string().max(300).optional(),
+  checkpointSeq: count.optional(),
   inputTokens: count.optional(), outputTokens: count.optional(),
 })
 const viewSchema = z.object({
@@ -46,7 +48,10 @@ export function foldDiagnostics(previous: State, event: SessionEvent): State {
     // Match the contractual adjacent replacement, including reversed seq endpoints.
     if (event.seq === pending.seq + 1 && event.type === 'user/message' && event.surfaceOp !== 'append'
       && event.surfaceOp.startSeq === pending.start && event.surfaceOp.endSeq === pending.end) {
-      state = update(state, pending.id, { applied: true, afterTokens: estimateMessage(event.data) })
+      const source = event.data.source
+      const checkpointSeq = isCompactCheckpointSource(source) && source.compactionId === pending.id ? event.seq : undefined
+      state = update(state, pending.id, { applied: true, afterTokens: estimateMessage(event.data),
+        ...(checkpointSeq === undefined ? {} : { checkpointSeq }) })
       if (state.view.compactions.find(entry => entry.id === pending.id)?.kind === 'prune') {
         state = update(state, pending.id, { status: 'completed', endedAt: event.time })
       }

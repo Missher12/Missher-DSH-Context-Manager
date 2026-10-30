@@ -1,0 +1,81 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.5",
+  "verifiedAt": "2026-10-29T03:55:10.818208+00:00",
+  "artifact": {
+    "sha256": "84a4c168fad60a63132e98832d933832d9552b24d6a3ab8b71b236e33e5e1d88",
+    "files": 26,
+    "bytes": 548505
+  },
+  "change": "Separate bounded reasoning generation from retained checkpoint text; enforce planned body and aggregate checkpoint limits without accepting truncated output or automatically replaying failures.",
+  "verification": {
+    "build": "passed",
+    "serverAndClientTypecheck": "passed",
+    "fullSuite": {
+      "tests": 459,
+      "initialPassed": 417,
+      "initialFailed": 11,
+      "conditionalSkipped": 31
+    },
+    "resolvedFailures": {
+      "nativeSigningRuntime": {
+        "cases": 10,
+        "codexNodeRerun": "passed"
+      },
+      "validationErrorPrecedence": {
+        "fix": "Preserve occupancy/net-gain failure precedence before checkpoint-body bound",
+        "workingSetRerun": {
+          "passed": 27,
+          "failed": 0
+        }
+      }
+    },
+    "finalUniqueExecutableCasesWithPassingEvidence": 428,
+    "unresolvedFailures": 0,
+    "singleCleanFullSuiteRunClaimed": false
+  },
+  "nativeInstallation": {
+    "hostVersion": "0.2.1-rc.4",
+    "installedVersion": "0.10.5",
+    "normalRestart": true,
+    "sessionsRetained": 19,
+    "originalSessionFilesRetainedExactOrAppendOnly": 38,
+    "settingsRestoredExactly": true,
+    "requestGate": "sidecar-ready"
+  },
+  "nativeIdleAcceptance": {
+    "status": "completed",
+    "trigger": "idle",
+    "applied": true,
+    "hostManualFlag": true,
+    "hostFlagExplanation": "The official compactNow maintenance API marks manual=true; plugin execution and durable ledger identify this timer-started operation as trigger=idle. No compact command or manual model invocation was used.",
+    "versionInExecution": "Context 0.10.5 · 总限600s/首输出120s/停滞180s · 调用准入1/实际派发1 · completed",
+    "timerTestMinutes": 1,
+    "originalTimerMinutesRestored": 15,
+    "idleMinimumPercent": 65,
+    "requestTriggerPercent": 80,
+    "earlyCheckPercent": 1,
+    "summaryPercent": 4,
+    "wholeContextBefore": 175522,
+    "wholeContextAfter": 95985,
+    "selectedOriginalTokens": 81478,
+    "selectedMessages": 127,
+    "checkpointTokens": 1941,
+    "summaryInputTokens": 108968,
+    "summaryOutputTokens": 5003,
+    "calls": 1,
+    "summaryBodyAndSourcesReadable": true,
+    "sourceReferenceCount": 127,
+    "fullFifteenMinuteWallClockWait": false
+  },
+  "postCompactionContinuity": {
+    "realModelCall": true,
+    "completedNativeReplyObserved": true,
+    "fullReplyReadInNativeUI": true,
+    "deliveredVersionCorrect": true,
+    "artifactPathCorrect": true,
+    "checkCountCorrect": 31,
+    "completedDeliveryDistinguishedFromHistoricalTodo": true
+  },
+  "limits": "This real idle run and three recalled delivery facts passed; they do not prove lossless semantic retention of every historical detail or universal provider reliability. Source logs and references remain available. No formal release or push was performed."
+}

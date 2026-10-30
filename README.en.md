@@ -1,8 +1,28 @@
-# 2026-10-28 Context 0.10.4 source candidate: compaction capability diagnostics
+# Context 0.10.7: restore custom-model reserves after reload
+
+When a custom model has no explicit output cap and the in-memory request budget was lost on restart, the inspector reads exact-route metadata through the public Host API and applies the same default as the request gate. Failed lookups, mismatched windows and concurrent session changes remain unknown. Historical cuts never use current model metadata. Inspection generates no model request and writes no session events.
+
+Settings inputs and selects retain equal widths and 32px heights, with a compact 180px desktop column and centered text. Units remain inside the right edge.
+
+## Context 0.10.6: time-based idle compaction and aligned settings controls (historical)
+
+After normal task completion, compaction is attempted when the saved idle wait expires (15 minutes by default), with no occupancy threshold. The pre-request trigger, such as 80%, retains its saved value. An old qualification skipped only for low occupancy can resume when its session loads again, provided its history and model remain unchanged and no summary attempt was claimed. Paid, failed or completed attempts never replay. Unsafe or unproductive replacements leave the original history intact.
+
+Numeric fields and selects share the same width and 32px height; units sit inside the numeric field. Both fill the available width in narrow layouts. The old occupancy control is removed; its saved field remains readable for existing profiles but no longer gates idle work.
+
+## Context 0.10.5: separate reasoning generation from retained checkpoint text (historical)
+
+Compaction preserves the goal, constraints and corrections, completed work, pending work, evidence and next action. Reasoning models may spend their output allowance before completing checkpoint text. Version 0.10.5 gives that one generation separate bounded room, constrained by the actual window, safety space and explicit route output cap. Reasoning headroom uses at most 10% of the window, capped at 32,768 tokens. The framed checkpoint still passes its planned text limit, aggregate checkpoint budget and net-gain validation. Truncated or oversized output leaves the original history intact, without automatically replaying a failed call.
+
+Upgrading preserves saved trigger thresholds, idle conditions, model selection and sessions. Validation and local installation results are recorded separately under `verification/`.
+
+## 2026-10-29 Context 0.10.4: custom-model reserves and summary inspection (historical)
 
 Local source candidate: `@missher/dsh-context-manager` **0.10.4**. The existing 0.10.3 tarball and delivery materials remain preserved and are not overwritten. This settings diagnostic separates the Host `compactionHost.v1` provider-registration capability from the plugin-owned request-gate sidecar; it displays the public app-boot Host version when available and lists exact missing interfaces. The sidecar handles only sessions actually bound to official Basic, which remains Host-owned.
 
-This version is at source-preparation stage. Typecheck, tests, build, package, Host runtime, native settings UI, release, and installation have not been run for this candidate. The 0.10.3 synthetic component-UI evidence is historical and does not cover this candidate.
+For custom models without an explicit output limit, the inspector can use the engine's observed output reservation. Missing windows or unmatched requests remain unknown until a matching request runs. Compaction records now open current or archived summaries and their paginated original sources on demand, without prefetching bodies.
+
+This candidate also fixes premature sidecar startup checks, stale reserve charts, missing development dependencies, and local pnpm build-path handling. Server/client typechecks and the build passed on 2026-10-29. The complete suite reported 425 passed, 31 conditional skips, and zero failures across 456 tests. See `verification/RESULTS-0.10.4-20261029.json`. Formal release, daily Host installation, native UI acceptance, and real-provider summary quality remain unverified. Prior 0.10.3 synthetic UI evidence does not establish acceptance of this candidate.
 
 The 0.10.3 candidate's geometry notes and acceptance records remain in the history below and in `COMPATIBILITY.json`.
 
@@ -17,7 +37,7 @@ The 0.10.3 candidate's geometry notes and acceptance records remain in the histo
 
 ## Public interface gallery
 
-This candidate has no public PNG gallery. Local.15 completed a synthetic UI preview for layout review; it does not establish RC.2 Host-native UI acceptance. The public gallery still needs a separate visual pass with generation details and SHA checksums.
+The package retains the desktop and narrow synthetic session-cost PNG previews. These historical illustrations do not establish native acceptance of the newly added controls. Local.15's synthetic UI evidence likewise covers only its original layout review.
 
 ## Historical note: local.8 (2026-10-13)
 
@@ -156,7 +176,7 @@ New installations default to `capacityMode=percent` and `summaryTimeoutMode=adap
 | Protocol caps in percentage mode | 128,000 recent / 32,768 summary tokens, also bounded by the model and request |
 | Maximum compactions / adaptive timing | 2 / 600 seconds total, 120 first output, 180 stall |
 | Idle compaction / idle delay | Enabled / 15 minutes |
-| Minimum idle occupancy | Automatic: 65%; custom: max(65%, target + 10%); both capped by effective admission |
+| Idle trigger | 15 idle minutes after normal task completion; no occupancy threshold; new input cancels the old plan |
 | Absolute working-history budget | Disabled; initial values 200,000 → 100,000 tokens |
 | Local structure normalization | Enabled; value-preserving for a proven single-string array-field error; no model call |
 | Saved legacy fields | `recentTokens=20,000`, `summaryMaxTokens=8,192`, `timeoutMs=90,000`, `formatRepairMaxTokens=2,048` remain for legacy/fixed reads; they are not auto-migrated to current defaults, and local normalization does not spend a repair allowance |
@@ -222,3 +242,5 @@ Existing configurations keep fixed mode and their exact transaction-wide `timeou
 Durable permits bind each provider attempt to its ledger and compaction. Ordinary automatic, manual and recovery calls share a 2-primary/4-total source budget. After exhaustion, the separate explicitly confirmed rescue permits only one additional call per cycle, without retries or repair. Unknown outcomes never automatically replay. The context panel offers an explicit, expiring, exact-source/route recovery mutation when budget is provable; unbound legacy manual charges require verification. Busy idle plans retain eligibility with capped backoff.
 
 Back up context_manager_operations with cycles/idle/summaries and the recovery journal. Older versions cannot enforce the new permit table: disable automatic compaction before a coordinated downgrade; keep current sessions and accounting. Exact evidence and limitations are in [PUBLICATION.md](./PUBLICATION.md). Earlier local.1 results are historical.
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

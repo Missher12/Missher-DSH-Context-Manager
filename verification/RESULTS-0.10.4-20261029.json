@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Shanghai",
+  "version": "0.10.4",
+  "status": "local-candidate",
+  "branch": "snapshot/pre-reinstall-20261029",
+  "baseCommit": "6cba4c0ae8d2735cc3ebfd89b8b230fa04fc99c7",
+  "runtime": {
+    "node": "v24.22.1",
+    "pnpm": "11.25.0",
+    "declaredPackageManager": "pnpm@11.1.3"
+  },
+  "checks": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "server": "passed",
+      "client": "passed"
+    },
+    "build": {
+      "command": "pnpm run build",
+      "status": "passed"
+    },
+    "tests": {
+      "command": "pnpm test",
+      "total": 456,
+      "passed": 425,
+      "failed": 0,
+      "skipped": 31,
+      "skipConditions": [
+        "Host request-error handoff",
+        "enhanced protected pruning",
+        "enhanced maintenance range",
+        "isolated frozen Host integration",
+        "Electron and historical installation conditions"
+      ]
+    },
+    "package": {
+      "command": "node scripts/verify-package-boundary.mjs dist/missher-dsh-context-manager-0.10.4.tgz",
+      "status": "passed",
+      "files": 26,
+      "sha256": "4a6f9663f108fb0e50756a1a8475f1667b164bb3ccabbf5e0c9214805f39a198",
+      "bytes": 547130
+    }
+  },
+  "changes": [
+    "Wait for Manager activation before checking the Basic sidecar",
+    "Hide policy reserve while inspection is stale",
+    "Use observed request parameters for custom-model output reservations",
+    "Open current or archived compaction summaries and original sources on demand",
+    "Repair dependency declarations, build comment normalization and package image allowlist"
+  ],
+  "changedFiles": [
+    "PUBLICATION.md",
+    "README.en.md",
+    "README.md",
+    "lib/chart-data.js",
+    "lib/client.js",
+    "lib/compatibility.js",
+    "lib/diagnostics.js",
+    "lib/efficiency.js",
+    "lib/engine.js",
+    "lib/index.js",
+    "lib/inspector-fold.js",
+    "lib/inspector.js",
+    "lib/policy.js",
+    "lib/tool-results.js",
+    "lib/typert.js",
+    "lib/working-set.js",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "scripts/build.mjs",
+    "scripts/verify-package-boundary.mjs",
+    "src/diagnostics-types.ts",
+    "src/diagnostics.ts",
+    "src/engine.ts",
+    "src/index.ts",
+    "src/inspector-charts.tsx",
+    "src/inspector-locales.ts",
+    "src/inspector-types.ts",
+    "src/inspector-view.tsx",
+    "src/inspector-wire.ts",
+    "src/inspector.ts",
+    "tests/idle-recovery.test.mjs",
+    "tests/inspector-admission.test.mjs",
+    "tests/loop.test.mjs",
+    "tests/settings.test.mjs",
+    "tests/summary-source.test.mjs",
+    "verification/RESULTS-0.10.4-20261029.json"
+  ],
+  "boundaries": {
+    "dailyProfileModified": false,
+    "dailyInstalledVersion": "0.10.2",
+    "nativeInstallationVerified": false,
+    "realProviderSummaryQualityVerified": false,
+    "published": false,
+    "capacityAndCallLimitsChanged": false,
+    "monetaryCapAdded": false
+  }
+}

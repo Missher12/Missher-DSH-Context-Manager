@@ -1,0 +1,77 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.7",
+  "verifiedAt": "2026-10-30T02:10:23.598Z",
+  "artifact": {
+    "sha256": "0da1f8a93fcbc2facac6b3d2edcab8ce4abf01b6e646dfe0ef7d06489b37565d",
+    "fileCount": 26
+  },
+  "rootCause": "Custom routes without an explicit maxTokens header depended on a process-local WeakMap for output reservation. Restart discarded that map, leaving admission.outputReserve null and hiding the reserve. The footer separately ignored resolved admission metadata.",
+  "fix": "Recover missing output reservation through the exact-route Host metadata API, matching the recorded request window and the request gate's defaultMaxTokens-or-zero semantics. Failed, mismatched or concurrently invalidated metadata stays unknown; historical cuts never query current metadata. The read lease stays alive across the asynchronous lookup.",
+  "settingsUI": {
+    "desktopWidthPx": 180,
+    "heightPx": 32,
+    "equalInputAndSelectWidth": true,
+    "centeredText": true,
+    "nativeScreenshotInspected": true
+  },
+  "verification": {
+    "build": "passed",
+    "serverTypecheck": "passed",
+    "clientTypecheck": "passed",
+    "redGreenRegressionCases": 3,
+    "affectedSuite": {
+      "tests": 76,
+      "passed": 76,
+      "failed": 0,
+      "skipped": 0
+    },
+    "packageBoundary": "passed"
+  },
+  "nativeInstallation": {
+    "version": "0.10.7",
+    "hostVersion": "0.2.1-rc.4",
+    "normalRestart": true,
+    "sessionsRetained": 55,
+    "originalSessionFilesRetained": 110,
+    "postRestartExactFiles": 109,
+    "postRestartAppendOnlyFiles": 1,
+    "settingsValuesAndUserOverridesUnchanged": true,
+    "triggerPercent": 80,
+    "idleMinutes": 15
+  },
+  "nativeModelChecks": [
+    {
+      "provider": "missher",
+      "model": "Qwen3.8-Flash",
+      "window": 261244,
+      "explicitMaxTokens": null,
+      "resolvedOutputReserve": 0,
+      "reserveTokens": 54862,
+      "checkTokens": 206382,
+      "reserveVisible": true,
+      "observedAfterRestartWithoutNewPrompt": true
+    },
+    {
+      "provider": "qwen-token-plan-cn",
+      "model": "qwen3.7-plus",
+      "window": 1000000,
+      "explicitMaxTokens": 65536,
+      "resolvedOutputReserve": 65536,
+      "reserveTokens": 210000,
+      "checkTokens": 790000,
+      "reserveVisible": true
+    },
+    {
+      "provider": "deepseek-account",
+      "model": "deepseek-flash",
+      "window": 1048576,
+      "explicitMaxTokens": 256000,
+      "resolvedOutputReserve": 256000,
+      "reserveTokens": 287458,
+      "checkTokens": 761118,
+      "reserveVisible": true
+    }
+  ],
+  "scope": "Native UI and readouts were checked on the three listed routes. Automated cases also cover configured defaults, unavailable or mismatched metadata, historical reads and concurrent changes. No universal claim about every provider is made. No prompt or manual compaction was sent for this verification. Existing enabled idle maintenance remained active."
+}

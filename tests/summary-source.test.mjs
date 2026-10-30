@@ -109,6 +109,57 @@ function appendTool(f) {
   return f.add('tool/result', { turn: 2, step: 1, message: createMessage({ role: 'tool', toolCallId: 'tool-1', content: text('recorded tool result '.repeat(100)), source: { kind: 'tool' } }) }, 'append')
 }
 
+test('compaction records link their exact current and archived checkpoints without returning bodies', async t => {
+  const f = fixture(); const host = await service(t, f.events)
+  const query = { sessionId: 'read-only', atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false }
+  const result = await host.api.inspect(query, new AbortController().signal)
+  assert.equal(result.compactions[0].checkpoint?.id, `event:${f.first}`)
+  assert.equal(result.compactions[0].checkpoint?.current, false)
+  assert.equal(result.compactions[1].checkpoint?.id, `event:${f.second}`)
+  assert.equal(result.compactions[1].checkpoint?.current, true)
+  assert.equal(Object.hasOwn(result.compactions[0].checkpoint, 'text'), false)
+  assert.deepEqual(inspectionSchema().parse(JSON.parse(JSON.stringify(result))), result)
+  const past = await host.api.inspect({ ...query, atSeq: f.first }, new AbortController().signal)
+  assert.equal(past.compactions.length, 1)
+  assert.equal(past.compactions[0].checkpoint?.id, `event:${f.first}`)
+})
+
+test('recent compaction opens its archived summary and original sources only on demand', async t => {
+  const f = fixture(); const host = await service(t, f.events)
+  const query = { sessionId: 'read-only', atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false }
+  const snapshot = await host.api.inspect(query, new AbortController().signal)
+  const reads = []
+  const api = {
+    inspect: async () => snapshot,
+    idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }),
+    content: (input, signal) => { reads.push(input); return host.api.content(input, signal) },
+  }
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const root = createRoot(document.getElementById('root'))
+  const formState = { revision: 1, value: undefined }
+  const form = { subscribe: () => () => {}, getSnapshot: () => formState }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 0 }
+  try {
+    await act(async () => root.render(React.createElement(ContextInspectorView, { target: 'read-only', form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.equal(reads.length, 0, 'recent records do not prefetch conversation bodies')
+    await act(async () => document.querySelectorAll('.cmv-records details > summary')[1].click())
+    const buttons = [...document.querySelectorAll('.cmv-records button')].filter(button => button.textContent === '查看摘要')
+    assert.equal(buttons.length, 2, 'both the current and archived checkpoints are reachable')
+    await act(async () => buttons[1].click())
+    assert.equal(reads.length, 1)
+    assert.equal(reads[0].id, `event:${f.first}`)
+    assert.match(document.querySelector('.cmv-checkpoint-reader .cmi-body').textContent, /summary-first/)
+    assert.equal(document.querySelectorAll('.cmv-checkpoint-reader .cmv-summary-source .cmi-content-list > button').length, 4)
+    await act(async () => document.querySelector('.cmv-checkpoint-reader .cmv-summary-source .cmi-content-list > button').click())
+    assert.equal(reads.at(-1).id, `event:${f.inputs[0]}`)
+    assert.match(document.querySelector('.cmv-checkpoint-reader .cmi-body').textContent, /^aaa/)
+  } finally {
+    await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document
+  }
+})
+
 test('summary source lookup follows exact inputs, deduplicates metadata links, and preserves nested summary identity', () => {
   const f = fixture()
   const indexed = indexContext(f.events).indexed
@@ -328,7 +379,7 @@ test('real DOM reads four source links on demand in the same panel, cancels old 
     api.idleStatus = async () => ({ status: 'scheduled', dueAt: Date.now() + 30000, message: '后台任务尚未结束，稍后检查', reasonCode: 'background-busy' })
     windowTokens = null
     await render('c'); await settle()
-    assert.match(document.querySelector('[aria-label="闲置整理"]').textContent, /后台任务尚未结束/)
+    assert.match(document.querySelector('[aria-label="闲置整理"]').textContent, /等待整理/)
     const unknownGrowth = document.querySelector('[data-growth="sinceCompaction"]').textContent
     assert.match(unknownGrowth, /未知/)
     assert.doesNotMatch(unknownGrowth, /≈ -—/)

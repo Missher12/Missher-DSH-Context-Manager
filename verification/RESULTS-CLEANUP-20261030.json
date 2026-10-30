@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "version": "0.10.7",
+  "scope": "Source cleanup for Git delivery after the separately installed 0.10.7 fix",
+  "removedFiles": [
+    "src/overview.tsx",
+    "variants/legacy/cordis.patch.yml",
+    "variants/legacy/COMPATIBILITY.json",
+    "variants/legacy/README.md",
+    "variants/legacy/package.json",
+    "variants/legacy/lib/index.js",
+    "variants/legacy/lib/engine.js",
+    "variants/legacy/src/version.ts",
+    "examples/header-row-preview/index.html",
+    "docs/screenshots/context-enhanced-preview.jpg",
+    "docs/screenshots/context-official-readonly.jpg",
+    "docs/screenshots/PROVENANCE.json"
+  ],
+  "cleanup": [
+    "Removed unreachable legacy overview and its test-only client export and obsolete render test",
+    "Removed unused settings CSS selectors",
+    "Removed unreferenced preview page, historical screenshots and frozen legacy build overrides"
+  ],
+  "unchanged": [
+    "Compaction behavior",
+    "User settings and sessions",
+    "Original installed 0.10.7 archive"
+  ],
+  "checks": {
+    "build": {
+      "command": "node scripts/build.mjs",
+      "exitCode": 0
+    },
+    "serverTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "exitCode": 0
+    },
+    "clientTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.client.json",
+      "exitCode": 0
+    },
+    "tests": {
+      "command": "node --test --test-concurrency=1 tests/*.test.mjs",
+      "exitCode": 0,
+      "total": 461,
+      "passed": 430,
+      "failed": 0,
+      "skipped": 31,
+      "cancelled": 0,
+      "durationMs": 218449.597555
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "clientBundle": {
+    "previousBytes": 852877,
+    "cleanedBytes": 833097,
+    "removedBytes": 19780,
+    "cleanedSha256": "5d90c23df80094120e05afefd89325c76650b37f4178e276182590d5c09fbb07"
+  },
+  "logSha256": {
+    "cleanup-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup-typecheck-server.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup-typecheck-client.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup-tests.log": "00da6616890ddb028530561482963ed4b7ecb93bb86d876f48caa93f3b6e9e72"
+  },
+  "nativeAcceptance": "Prior 0.10.7 installation and real model-route checks remain recorded in RESULTS-0.10.7-20261030.json. This cleanup did not reinstall or claim another native UI run.",
+  "packaging": "The installed immutable 0.10.7 tarball was not repacked or overwritten by source cleanup."
+}

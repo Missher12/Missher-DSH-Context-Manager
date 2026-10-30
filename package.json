@@ -1,6 +1,6 @@
 {
   "name": "@missher/dsh-context-manager",
-  "version": "0.10.4",
+  "version": "0.10.7",
   "description": "Pre-request compaction, verified tool-result reduction with a read-only original archive, usage attribution and a native per-session context inspector for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
@@ -117,7 +117,11 @@
     "@deepseek-ai/dsh-storage-json": "0.2.1-rc.4",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.1-rc.4",
     "@deepseek-ai/dsh-compaction-tool-result-pruner": "0.2.1-rc.4",
-    "@deepseek-ai/schemastery": "3.18.5"
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@deepseek-ai/dsh-goal": "0.2.1-rc.4",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.4",
+    "@deepseek-ai/dsh-tool-bash": "0.2.1-rc.4",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.4"
   },
   "repository": {
     "type": "git",

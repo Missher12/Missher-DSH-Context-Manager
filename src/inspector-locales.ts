@@ -1,6 +1,7 @@
 /** Copy owned by the context panel. Native settings retain their existing copy. */
 export const zh = {
   latestCompaction: '最近压缩', recordList: '压缩记录', recordDetails: '查看记录与原因', dataBasis: '数据口径与详情', knownBound: '已知用量下界',
+  viewCheckpoint: '查看摘要', checkpointContent: '压缩摘要与来源', closeCheckpoint: '关闭摘要',
   title: '上下文', readonly: '只读', refresh: '刷新', settingsHint: '设置 → 上下文管理', settingsLink: '设置',
   runDetails: '运行详情', bindingDiagnostic: '压缩方式', cooperationDiagnostic: '功能状态', timeoutDiagnostic: '整理时限', policyDiagnostic: '已保存策略', idleDiagnostic: '空闲整理详情', goalDiagnostic: '任务停止详情',
   runAuto: '自动压缩', runToolResults: '工具结果', runPostTask: '任务后整理', runRecent: '最近结果', runDuration: '耗时', runUsage: '本次用量', sampledAt: '最近采样',
@@ -43,7 +44,7 @@ export const zh = {
   reasonUnavailable: '当前绑定的压缩 provider 不可用', reasonHostUnsupported: '宿主压缩 API 不可用，无法确认绑定', reasonUnknown: '无法确认此会话的当前绑定',
   planUpper: '压后上界', continuationReserve: '续跑余量', reserveNeed: '估算需求', reserveMax: '可用上限',
   protectedContent: '受保护内容', observedGrowth: '近期净增长峰值', incomingEstimate: '当前新输入估算',
-  admissionPressure: '本次请求占用', admissionHint: '这是 Context 完整请求准入检查线。官方 Basic 仍按自身策略提前自动整理；Context 设置不会更改 Basic 原生策略。计量来自当前已加载会话的宿主 TokenMeter，仍包含估算，并非精确账单。只使用同一路由已记录的窗口和输出预留；缺失时检查线未知。新输入或路由变化后会重新检查。',
+  admissionPressure: '本次请求占用', admissionHint: '这是 Context 完整请求准入检查线。官方 Basic 仍按自身策略提前自动整理；Context 设置不会更改 Basic 原生策略。计量来自当前已加载会话的宿主 TokenMeter，仍包含估算，并非精确账单。窗口须与请求路由一致；输出预留来自请求参数或同一路由的模型配置，无法核实时检查线未知。新输入或路由变化后会重新检查。',
   unknown: '等待完整参数', off: '自动压缩已关闭', stale: '数据待刷新',
   recent: '最近请求容量', requestWindowUnknown: '窗口比例未知', requestInputDetail: '请求输入用量', cache: '缓存命中', noRequest: '暂无请求记录',
   trend: '占用变化', trendHint: '宿主投影估算的最近 40 个截面，不是准入门控计量。按记录顺序排列；缺失值留空。点击柱查看该截面的上下文。',
@@ -98,6 +99,7 @@ export const zh = {
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
   latestCompaction: 'Latest compaction', recordList: 'Compaction records', recordDetails: 'Record and reason', dataBasis: 'Data basis and details', knownBound: 'Known usage lower bound',
+  viewCheckpoint: 'View summary', checkpointContent: 'Compaction summary and sources', closeCheckpoint: 'Close summary',
   title: 'Context', readonly: 'Read only', refresh: 'Refresh', settingsHint: 'Settings → Context manager', settingsLink: 'Settings',
   runDetails: 'Run details', bindingDiagnostic: 'Compaction method', cooperationDiagnostic: 'Feature status', timeoutDiagnostic: 'Timing limits', policyDiagnostic: 'Saved settings', idleDiagnostic: 'Idle compaction details', goalDiagnostic: 'Task stop details',
   runAuto: 'Automatic compaction', runToolResults: 'Tool results', runPostTask: 'Post-task compaction', runRecent: 'Latest result', runDuration: 'Duration', runUsage: 'This call usage', sampledAt: 'Sampled',
@@ -140,7 +142,7 @@ export const en: Record<InspectorLocaleKey, string> = {
   reasonUnavailable: 'The provider in this binding is unavailable', reasonHostUnsupported: 'Host compaction API is unavailable; binding cannot be confirmed', reasonUnknown: 'This session’s current binding cannot be confirmed',
   planUpper: 'After-plan ceiling', continuationReserve: 'Continuation reserve', reserveNeed: 'Estimated need', reserveMax: 'Available maximum',
   protectedContent: 'Protected content', observedGrowth: 'Recent peak net growth', incomingEstimate: 'Current input estimate',
-  admissionPressure: 'Current request usage', admissionHint: 'This is the Context complete-request admission line. Official Basic may compact earlier under its own policy; Context settings do not change Basic’s native policy. The meter reads the loaded session through the host TokenMeter, includes estimates, and is not an exact bill. Window and output reserve must be recorded for the same route; otherwise the check is unknown. New input or route changes are checked again.',
+  admissionPressure: 'Current request usage', admissionHint: 'This is the Context complete-request admission line. Official Basic may compact earlier under its own policy; Context settings do not change Basic’s native policy. The meter reads the loaded session through the host TokenMeter, includes estimates, and is not an exact bill. The window must match the request route. Output reserve comes from request controls or exact-route model metadata; when unverifiable, the check stays unknown. New input or route changes are checked again.',
   unknown: 'Waiting for parameters', off: 'Auto compaction off', stale: 'Awaiting refresh',
   recent: 'Latest request capacity', requestWindowUnknown: 'Window percentage unknown', requestInputDetail: 'Request input usage', cache: 'Cache hit', noRequest: 'No request records',
   trend: 'Occupancy', trendHint: 'Last 40 estimated host-projection cuts, not admission measurements. Record order is preserved; missing values stay blank. Select a bar to inspect that cut.',

@@ -13,7 +13,7 @@ import type { TokenMeasurement } from '@deepseek-ai/dsh-token-meter'
 import type { SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from './index.ts'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
-import { budget, deadlineLimits, idleFloorTokens, type Policy } from './policy.ts'
+import { budget, deadlineLimits, type Policy } from './policy.ts'
 import { DeadlineError, SummaryDeadline, chunkProgresses } from './summary-deadline.ts'
 import { IdleCompactor, IdleSkipped, withAbort } from './idle.ts'
 import type { SummaryTrigger } from './summary-ledger.ts'
@@ -216,7 +216,7 @@ export class ContextEngine extends BasicCompactionEngine {
   private readonly flushedSegments = new WeakMap<Agent, Set<string>>()
   /** Every member is pre-raced with its own deadline, so disposal stays bounded. */
   private readonly physical = new Set<Promise<unknown>>()
-  private readonly idlePreflights = new WeakMap<Agent, (allowBelow?: boolean) => Promise<void>>()
+  private readonly idlePreflights = new WeakMap<Agent, () => Promise<void>>()
   private readonly idlePruned = new WeakMap<Agent, () => void>()
   private readonly summaryTriggers = new WeakMap<Agent, SummaryTrigger>()
   private readonly compactPhases = new WeakMap<Agent, CompactPhase>()
@@ -315,6 +315,7 @@ export class ContextEngine extends BasicCompactionEngine {
         }
         engine.admissions.set(agent, { turn: step.data.turn, step: step.data.step, passes, policy, budget: limits,
           pressure, previousPressure, growthSamples, requestOverhead })
+        ctx.contextManager.recordRequestBudget(agent.session, limits.window, limits.outputReserve)
         if ((policy.enabled && pressure >= limits.admission) || pressure >= limits.hard) {
           const canCompact = policy.enabled && passes < policy.maxPasses
           const source = limits.admissionSource === 'absolute' ? '（绝对软预算）' : limits.admissionSource === 'hard' ? '（硬上限）' : ''
@@ -761,7 +762,7 @@ export class ContextEngine extends BasicCompactionEngine {
     if (!config) throw new Error('尚无实际模型路由，无法规划压缩')
     const info = await withAbort(this.ctx.llm.resolveModelInfo(config.provider, config.model, signal), signal)
     signal.throwIfAborted()
-    await this.idlePreflights.get(agent)?.(true)
+    await this.idlePreflights.get(agent)?.()
     const policy = this.ctx.contextManager.snapshot()
     const window = info.context?.contextWindow
     if (!window) throw new Error('当前模型未提供上下文窗口')
@@ -771,12 +772,8 @@ export class ContextEngine extends BasicCompactionEngine {
       this.idlePruned.get(agent)?.()
       await this.ctx.sessions.flush(agent.session)
       signal.throwIfAborted()
-      await this.idlePreflights.get(agent)?.(true)
+      await this.idlePreflights.get(agent)?.()
       measure = this.ctx.tokenMeter.measure(agent.session)
-    }
-    if (this.idlePreflights.has(agent)) {
-      const minimumTokens = idleFloorTokens(policy, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
-      if (measure.totalTokens < minimumTokens) return null
     }
     const previousAdmission = this.admissions.get(agent)
     const state = { turn: 0, step: 0, passes: 0, policy, budget: limits, pressure: measure.totalTokens,
@@ -1380,9 +1377,9 @@ export class ContextEngine extends BasicCompactionEngine {
     activeSignal.throwIfAborted()
     const summaryCap = Math.min(this.summaryCap(policy, info.context.contextWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
     const normalMaxTokens = Math.min(summaryCap, config.maxTokens ?? Infinity)
-    const maxTokens = this.recovering.has(agent)
+    const checkpointTokens = this.recovering.has(agent)
       ? Math.min(normalMaxTokens, Math.max(256, Math.floor(normalMaxTokens * 0.75))) : normalMaxTokens
-    if(policy.capacityMode==='percent'&&maxTokens<256)throw new Error('当前窗口下摘要百分比额度不足以生成安全摘要，原文保留；未调用模型')
+    if(policy.capacityMode==='percent'&&checkpointTokens<256)throw new Error('当前窗口下摘要百分比额度不足以生成安全摘要，原文保留；未调用模型')
     const start = agent.session.snapshotEvents().findLast(event => event.type === 'compaction/start')
     if (start?.type !== 'compaction/start' && this.emergencyIntent.get(agent)?.kind!=='prepare') throw new Error('缺少压缩操作记录')
     const sessionId = String(agent.id)
@@ -1395,22 +1392,34 @@ export class ContextEngine extends BasicCompactionEngine {
     try {
       const baseInstruction = policy.checkpointFormat === 'sections' ? INSTRUCTION_SECTIONS : INSTRUCTION
       const instruction = [baseInstruction,
+        `Checkpoint text budget: at most ${checkpointTokens} tokens. Preserve the goal, constraints and corrections, completed work, pending work, evidence and next action. Reasoning is separate from this retained-text budget.`,
         ...(policy.summaryInstructions.trim() ? [`Additional preservation focus (keep all requirements above):\n${policy.summaryInstructions.trim()}`] : []),
         ...(this.recovering.has(agent) ? [RECOVERY_STRATEGY] : []),
       ].join('\n\n')
+      const messages = [...input.messages, { role: 'user' as const, content: [{ type: 'text' as const, text: instruction }] }]
+      const systemTokens = input.messages.filter(message => message.role === 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
+      const selectedTokens = input.messages.filter(message => message.role !== 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
+      const estimatedSummaryInput = systemTokens + Math.max(selectedTokens, this.plans.get(agent)?.tokens ?? 0)
+        + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
+        + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
+      // Reasoning models may count hidden reasoning against maxTokens. The
+      // retained checkpoint still passes the original plan's body/aggregate
+      // bounds; only this one generation gets bounded room for reasoning.
+      const reasoning = config.reasoningEffort !== undefined || (info.reasoning?.efforts.length ?? 0) > 0
+      const generationCeiling = reasoning ? Math.max(normalMaxTokens, Math.min(32768, Math.floor(info.context.contextWindow * 0.1))) : normalMaxTokens
+      const generationTokens = this.recovering.has(agent)
+        ? Math.min(generationCeiling, Math.max(256, Math.floor(generationCeiling * 0.75))) : generationCeiling
+      const maxTokens = Math.min(generationTokens, config.maxTokens ?? Infinity,
+        Math.max(0, budget(policy, info.context.contextWindow, 0).hard - estimatedSummaryInput))
+      if (maxTokens < checkpointTokens) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
       const primaryOptions: GenerateOptions = {
         provider: config.provider, model: config.model,
         ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
         maxTokens, purpose: 'compaction', sessionId: agent.session.id,
         signal: activeSignal, toolHistory: agent.session.toolHistory(),
         ...(input.tools === undefined ? {} : { tools: [...input.tools] }),
-        messages: [...input.messages, { role: 'user', content: [{ type: 'text', text: instruction }] }],
+        messages,
       }
-      const systemTokens = input.messages.filter(message => message.role === 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
-      const selectedTokens = input.messages.filter(message => message.role !== 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
-      const estimatedSummaryInput = systemTokens + Math.max(selectedTokens, this.plans.get(agent)?.tokens ?? 0)
-        + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
-        + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
       if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens).hard) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
       const primaryReceipt = await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger, compactionId, estimatedSummaryInput)
       const primaryAttempt = await ledger.start(sessionId, compactionId, trigger)

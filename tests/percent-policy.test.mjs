@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {defaults,budget,capacityTokens,idleFloorTokens,formatPercent,migrateCapacity,validatePolicy} from '../lib/policy.js'
+import {defaults,budget,capacityTokens,formatPercent,migrateCapacity,validatePolicy} from '../lib/policy.js'
 import {composition,contextWindow} from '../lib/chart-data.js'
 
 test('percent policy follows the actual window, floor rounds and retains protocol caps',()=>{
@@ -12,7 +12,6 @@ test('percent policy follows the actual window, floor rounds and retains protoco
   const limits=budget(defaults,window,window*.16)
   assert.equal(limits.recentTokens,capacityTokens(defaults,window).recent)
   assert.equal(limits.admission,Math.floor(window*.79))
-  assert.equal(idleFloorTokens(defaults,window,window*.16),window*.65)
  }
  assert.equal(formatPercent(220000,200000),'110.00%');assert.equal(formatPercent(0,null),'—')
 })

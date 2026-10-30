@@ -37,6 +37,7 @@ export interface Policy {
   summaryStallMs: number
   idleEnabled: boolean
   idleMinutes: number
+  /** Legacy saved field, accepted for existing profiles; no longer gates idle compaction. */
   idleMinPercent: number
   summaryInstructions: string
   /**
@@ -190,19 +191,6 @@ export function budget(policy: Policy, window: number, outputReserve: number): B
     : percentTarget < requestedPercentTarget ? 'admission' : 'percent'
   return { historyMode: policy.historyMode, recentTokens: capacityTokens(policy, window).recent,
     window, outputReserve, safety, hard, trigger, admission, target, admissionSource, targetSource, absoluteTrigger, absoluteTarget }
-}
-
-/**
- * Effective idle-compaction floor shared by the idle scheduler and the
- * maintenance range selection. The idle percentage floor keeps its meaning,
- * but it can never exceed the current request admission, which already
- * accounts for the output reserve, safety space and any absolute trigger.
- */
-export function idleFloorTokens(policy: Policy, window: number, outputReserve: number): number {
-  const limits = budget(policy, window, outputReserve)
-  const minimumPercent = policy.historyMode === 'automatic' ? policy.idleMinPercent : Math.max(policy.idleMinPercent, policy.targetPercent + 10)
-  const percentFloor = window * minimumPercent / 100
-  return Math.min(percentFloor, limits.admission)
 }
 
 /**

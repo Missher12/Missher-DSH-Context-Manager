@@ -1,4 +1,4 @@
-import { useState, useEffect, useSyncExternalStore, type ChangeEvent, type ComponentType } from 'react'
+import { useState, useEffect, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties } from 'react'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, zh, type InspectorLocaleKey } from './inspector-locales.ts'
 import { settingsEn, settingsText, settingsZh, type SettingsLocaleKey, type SettingsText } from './settings-locales.ts'
@@ -23,7 +23,6 @@ import { TYPERT_REMOTE } from './inspector-wire.ts'
 import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
 import type { IdleStatus } from './idle-types.ts'
 import css from './client.css'
-export { ContextReadout } from './overview.tsx'
 export { ContextInspectorView } from './inspector-view.tsx'
 export { PeakIndicator } from './peak-indicator.tsx'
 
@@ -215,7 +214,7 @@ function pathReasonLabel(code: NonNullable<HostCapabilityReadout['requestPath']>
   }
 }
 
-const numericKeys = ['recentPercent', 'summaryPercent', 'repairPercent', 'triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'idleMinPercent', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
+const numericKeys = ['recentPercent', 'summaryPercent', 'repairPercent', 'triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
 function toDraft(policy: Policy): Draft {
@@ -242,8 +241,10 @@ function ContextValueField({ id, label, hint, text, disabled, invalid, overridde
     <div className="cm-native-value-control">
       {multiline
         ? <textarea id={id} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={event => onEdit(event.currentTarget.value)}/>
-        : <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>}
-      {unit && <span className="cm-native-unit">{unit}</span>}
+        : <div className="cm-native-input-wrap" style={unit ? { '--cm-unit-padding': `${unit.length + 3}ch` } as CSSProperties : undefined}>
+          <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} aria-describedby={unit ? `${id}-unit` : undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>
+          {unit && <span id={`${id}-unit`} className="cm-native-unit">{unit}</span>}
+        </div>}
       {overridden && <><span className="cm-native-overridden">{overriddenLabel}</span><Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onReset}>{resetLabel}</Button></>}
     </div>
     {invalid && <p className="cm-error" role="alert">{invalidLabel}</p>}
@@ -339,7 +340,6 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
         <details className="cm-native-advanced"><summary>{t('advanced')}</summary>
           {toggle('prefixDiagnosticsEnabled', t('prefixLabel'), t('prefixHint'), !draft.enabled)}
           {draft.capacityMode === 'percent' && numeric('recentPercent', t('recentPercentLabel'), t('recentPercentHint'), '%', !draft.enabled)}
-          {numeric('idleMinPercent', t('idleMinPercentLabel'), t('idleMinPercentHint'), '%')}
           <ContextValueField id="context-manager-summaryInstructions" label={t('summaryInstructionsLabel')} hint={t('summaryInstructionsHint')}
             text={draft.summaryInstructions} disabled={disabled} invalid={draft.summaryInstructions.length > 2000} multiline
             overridden={!!draft.summaryInstructions} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('instructionsTooLong')}

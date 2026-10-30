@@ -53,6 +53,10 @@ class Adapter extends LlmAdapter {
     if (options.purpose === 'compaction') {
       this.order.push('summary-start'); this.summaries.push(options)
       if (this.options.pause) await this.options.pause(options.signal)
+      if (this.options.summaryNeedsTokens && options.maxTokens < this.options.summaryNeedsTokens) {
+        yield { type: 'usage', usage: { inputTokens: 500, outputTokens: options.maxTokens, reasoningTokens: options.maxTokens } }
+        yield { type: 'finish', reason: { kind: 'max-tokens' } }; return
+      }
       if (this.options.imageFailure) throw new LlmError('image offload requested','IMAGE_OFFLOAD_REQUIRED')
       if (this.options.fail) { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'summary unavailable' } } }; return }
       const checkpointResponse = this.options.checkpointText
@@ -216,6 +220,17 @@ async function fixture(options = {}, policy = {}, seed = history()) {
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
 const completed = agent => assert.equal(agent.session.snapshotEvents().at(-1).data.reason.kind, 'completed', JSON.stringify(agent.session.snapshotEvents().at(-1).data.reason))
 
+test('custom route keeps its observed output reservation after idle without borrowing another request', async () => {
+  const { ctx, agent } = await fixture({}, { enabled: false, idleEnabled: false }, history(100))
+  try {
+    agent.followup(message()); await agent.whenIdle(); completed(agent)
+    assert.equal(agent.session.requestHeader().config.maxTokens, undefined)
+    assert.deepEqual(ctx.contextManager.requestBudgetReadout?.(agent.session), { window: 10000, outputReserve: 0 })
+    agent.session.append('request/header', { reason: 'change', header: { config: { provider: 'mock', model: 'another-model' } } })
+    assert.equal(ctx.contextManager.requestBudgetReadout?.(agent.session), undefined, 'a route change cannot reuse a previous request budget')
+  } finally { await ctx.fiber.dispose() }
+})
+
 function exposeRequestContext(agent, { provider, model, contextWindow, headerProvider = provider, headerModel = model }) {
   const readHeader = agent.session.requestHeader.bind(agent.session)
   agent.session.requestContext = () => ({ provider, model, contextWindow })
@@ -305,10 +320,10 @@ test('idle: restored history is dormant; a completed task arms exactly one maint
   } finally { await ctx.fiber.dispose() }
 })
 
-test('idle: short context skips; background busy past 90 seconds retains eligibility and eventually compacts once', { timeout: 10000 }, async t => {
+test('idle: low occupancy compacts after 15 minutes; background work postpones without losing eligibility', { timeout: 10000 }, async t => {
   clock(t)
   for (const background of [false, true]) {
-    const { ctx, adapter, agent } = await fixture({}, {}, history(background ? 28000 : 2000))
+    const { ctx, adapter, agent } = await fixture({}, {}, history(background ? 28000 : 12000))
     let busy = background, checks = 0
     if (background) ctx.on('workspace/session-activity', async () => { checks++; return busy ? [{ kind: 'background', label: 'fixture work' }] : [] })
     try {
@@ -325,8 +340,12 @@ test('idle: short context skips; background busy past 90 seconds retains eligibi
         assert.equal(adapter.summaries.length,1)
         t.mock.timers.tick(86400000); await immediate(); assert.equal(adapter.summaries.length,1)
       } else {
-        await drainUntil(() => idleState(ctx, agent).status === 'skipped')
-        assert.equal(adapter.summaries.length,0)
+        await drainUntil(() => ['completed', 'skipped'].includes(idleState(ctx, agent).status))
+        assert.equal(idleState(ctx, agent).status, 'completed', 'a history below the former 65% floor still compacts')
+        assert.equal(adapter.summaries.length,1)
+        assert.equal(adapter.requests.length,1)
+        assert.equal(ctx.contextManager.snapshot().triggerPercent,80)
+        assert.equal(idleState(ctx, agent).minimumPercent,undefined)
       }
     } finally {
       await ctx.fiber.dispose()
@@ -940,6 +959,39 @@ test('real loop: actual request route and reasoning effort are inherited by summ
   try {
     agent.followup(message()); await agent.whenIdle()
     assert.equal(adapter.summaries.length, 1); assert.equal(adapter.summaries[0].model, 'small'); assert.equal(adapter.summaries[0].reasoningEffort, 'high'); completed(agent)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('reasoning summary can finish within its own generation allowance while retaining a small checkpoint', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 30000, summaryNeedsTokens: 1500 },
+    { summaryMaxTokens: 512 }, history(96000))
+  ctx.on('agent/request', async (_payload, next) => ({ ...await next(), reasoningEffort: 'high' }))
+  try {
+    const task = message('Preserve this current task and its authorization boundaries.')
+    agent.followup(task); await agent.whenIdle(); completed(agent)
+    assert.equal(adapter.summaries.length, 1, 'one successful call, without a paid retry')
+    assert.equal(adapter.summaries[0].reasoningEffort, 'high')
+    assert.ok(adapter.summaries[0].maxTokens > 512)
+    assert.ok(adapter.summaries[0].maxTokens <= 3000, 'generation remains bounded by the real window')
+    const checkpoint = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'compact-checkpoint')
+    assert.ok(checkpoint, 'the real transaction commits a completed checkpoint')
+    assert.ok(ctx.tokenMeter.estimateMessage(checkpoint.data) <= 512 + 128)
+    assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
+    assert.equal(adapter.requests.length, 1)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('reasoning headroom respects an explicit route output cap and never applies a truncated checkpoint', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ contextWindow: 30000, maxTokens: 512, summaryNeedsTokens: 1500 },
+    { summaryMaxTokens: 512 }, history(96000))
+  const original = agent.session.deriveMessages().map(m => m.id)
+  try {
+    agent.followup(message()); await agent.whenIdle()
+    assert.equal(adapter.summaries.length, 1)
+    assert.ok(adapter.summaries[0].maxTokens <= 512)
+    assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 0)
+    assert.ok(original.every(id => agent.session.deriveMessages().some(m => m.id === id)))
+    assert.equal(adapter.requests.length, 0)
   } finally { await ctx.fiber.dispose() }
 })
 
@@ -2183,12 +2235,15 @@ test('real loop semantic replay: two compactions preserve prior facts and the la
   }
 })
 
-test('percent: actual request summary obeys window-based output cap and continues once',async()=>{
+test('percent: reasoning output and retained checkpoint each obey their window-based bound',async()=>{
  const {ctx,adapter,agent}=await fixture({}, {capacityMode:'percent',recentPercent:10,summaryPercent:5,repairPercent:1})
  try{
   agent.followup(message());await agent.whenIdle()
   assert.equal(adapter.summaries.length,1)
-  assert.ok(adapter.summaries[0].maxTokens<=500)
+  assert.ok(adapter.summaries[0].maxTokens<=1000)
+  const checkpoint=agent.session.snapshotEvents().find(e=>e.type==='user/message'&&e.data.source.kind==='compact-checkpoint')
+  assert.ok(checkpoint)
+  assert.ok(ctx.tokenMeter.estimateMessage(checkpoint.data)<=500+128)
   assert.ok(adapter.requests.length>0);completed(agent)
  }finally{await ctx.fiber.dispose()}
 })

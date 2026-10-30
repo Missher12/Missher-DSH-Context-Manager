@@ -1,0 +1,88 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.6",
+  "verifiedAt": "2026-10-30T01:51:21.106Z",
+  "artifact": {
+    "sha256": "64853c2d8d112163ef11f3990dee3104e90b7b8c2f85511ea36f05e618967f5a",
+    "files": 26
+  },
+  "changes": [
+    "Idle compaction depends on elapsed idle time after normal completion, without an occupancy floor.",
+    "Previously skipped below-threshold qualifications may resume only when never claimed or dispatched; paid failures are not replayed.",
+    "Number inputs and selects share the control-column width and 32px height; units are aligned inside number fields.",
+    "Legacy idleMinPercent settings remain readable but no longer affect behavior or appear in the settings UI."
+  ],
+  "verification": {
+    "build": "passed",
+    "serverAndClientTypecheck": "passed",
+    "focusedRegression": {
+      "passed": 4
+    },
+    "fullSuite": {
+      "tests": 460,
+      "initialPassed": 428,
+      "initialFailed": 1,
+      "conditionalSkipped": 31
+    },
+    "resolvedFailure": {
+      "reason": "An obsolete journal assertion expected below_threshold to remain terminal. The no-replay assertion now uses no_range, and the complete IdleStore file passed.",
+      "idleStoreRerunPassed": 16
+    },
+    "finalUniqueExecutableCasesWithPassingEvidence": 429,
+    "unresolvedFailures": 0,
+    "singleCleanFullSuiteRunClaimed": false
+  },
+  "nativeInstallation": {
+    "hostVersion": "0.2.1-rc.4",
+    "installedVersion": "0.10.6",
+    "enabled": true,
+    "normalRestart": true,
+    "sessionsRetained": 55,
+    "originalSessionFiles": 110,
+    "exactFiles": 98,
+    "appendOnlyFiles": 12,
+    "missingOrChangedOriginalFiles": 0,
+    "effectiveAndUserSettingsUnchanged": true,
+    "requestGate": "sidecar-ready",
+    "otherBundleObservation": "MSE enabled state changed from false to true between snapshots. No unrelated plugin state was restored or overwritten."
+  },
+  "nativeIdleAcceptance": {
+    "status": "completed",
+    "applied": true,
+    "trigger": "idle",
+    "hostManualFlag": true,
+    "hostFlagExplanation": "The official compactNow maintenance API marks manual=true. Plugin execution and its qualification identify this timer-started operation as idle; no compact command or prompt was sent.",
+    "executionVersion": "0.10.6",
+    "timerMinutes": 15,
+    "timerTemporarilyChanged": false,
+    "requestTriggerPercent": 80,
+    "occupancyGateRemoved": true,
+    "wholeContextBefore": 169024,
+    "wholeContextAfter": 72811,
+    "modelWindow": 261244,
+    "selectedOriginalTokens": 97901,
+    "selectedMessages": 194,
+    "checkpointTokens": 1688,
+    "summaryInputTokens": 140237,
+    "summaryOutputTokens": 5123,
+    "calls": 1,
+    "summaryBodyChars": 6688,
+    "sourceReferenceCount": 194,
+    "summaryBodyAndSourcesReadable": true,
+    "originalNormalCompletion": "2026-10-29T11:13:56.360Z",
+    "idleExecutionStarted": "2026-10-30T01:46:09.023Z",
+    "completed": "2026-10-30T01:48:08.295Z",
+    "fullFreshFifteenMinuteWallClockWait": false,
+    "method": "Loaded an existing session that had already been idle beyond 15 minutes and had previously been skipped solely below the old occupancy floor. The native restore path automatically resumed its never-dispatched qualification."
+  },
+  "nativeSettingsVisual": {
+    "screenshotInspected": true,
+    "equalInputAndSelectWidth": true,
+    "controlHeightCssPx": 32,
+    "unitsInsideInputs": true,
+    "observedTriggerPercent": 80,
+    "observedIdleMinutes": 15,
+    "explicitNoOccupancyGateHelp": true
+  },
+  "limits": "A real low-occupancy idle run completed without shortening the configured timer. This was not a fresh 15-minute wall-clock wait or a proof of lossless retention of every historical detail. Existing source logs remain available. No commit, push or formal release was performed."
+}

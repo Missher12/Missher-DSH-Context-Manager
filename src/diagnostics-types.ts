@@ -9,6 +9,7 @@ export interface CompactionEntry {
   applied: boolean
   beforeTokens?: number
   afterTokens?: number
+  checkpointSeq?: number
   messages?: number
   error?: string
   inputTokens?: number

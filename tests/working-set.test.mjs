@@ -39,6 +39,13 @@ function assertSafe(nodes, plan) {
   assert.equal(validateWorkingCandidate(plan, plan.summaryTokens + 128), plan.estimatedAfter)
 }
 
+test('working set: generation headroom cannot enlarge the planned checkpoint body', () => {
+  const plan = planWorkingSet([node(1, 20000), node(2, 1000, { protected: true })],
+    limits(21000, { summaryTokens: 500, aggregateCheckpointTokens: 8000 }))
+  assert.ok(plan)
+  assert.throws(() => validateWorkingCandidate(plan, 2000), /摘要.*本次.*预算/)
+})
+
 test('working set: keep the preferred recent groups when the first plan already fits', () => {
   // Rewritten checkpoints can have larger sequence numbers at earlier surface positions.
   const nodes = [node(900, 100000), node(5, 12000), node(6, 1000, { protected: true })]

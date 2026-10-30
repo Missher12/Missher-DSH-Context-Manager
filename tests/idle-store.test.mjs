@@ -90,6 +90,19 @@ test('concurrent claims have exactly one durable winner', async t => {
   assert.deepEqual(store.get(first.sessionId), winners[0])
 })
 
+test('old occupancy-only skips can rearm, but a spent or failed attempt cannot replay', async t => {
+  const { store, saved } = await harness(t)
+  const first = eligibility()
+  await store.reserve(first)
+  await store.settle(first, undefined, { status: 'skipped', reasonCode: 'below_threshold', beforeTokens: 3000 })
+  const resumed = await store.reserve(first)
+  assert.equal(resumed.status, 'eligible')
+  assert.equal((await saved())[first.sessionId].status, 'eligible')
+  await store.claim(first, 'one-attempt', 3000)
+  await store.settle(first, 'one-attempt', { status: 'skipped', reasonCode: 'below_threshold' })
+  assert.equal((await store.reserve(first)).status, 'skipped', 'a claim already consumed an attempt')
+})
+
 test('reopen keeps started transaction identity for explicit interrupted recovery', async t => {
   const { store, facility } = await harness(t)
   const first = eligibility()
@@ -269,7 +282,7 @@ test('records expose immutable copies and reject content or invalid accounting f
 })
 
 for (const scenario of [
-  { name: 'skipped preflight', status: 'skipped', reasonCode: 'below_threshold', claimed: false, afterTokens: undefined },
+  { name: 'skipped preflight with no safe range', status: 'skipped', reasonCode: 'no_range', claimed: false, afterTokens: undefined },
   { name: 'failed summary', status: 'failed', reasonCode: 'failed', claimed: true, afterTokens: undefined },
   { name: 'no compactable range', status: 'skipped', reasonCode: 'no_range', claimed: true, afterTokens: 4500 },
 ]) {

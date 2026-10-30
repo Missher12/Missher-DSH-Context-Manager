@@ -18,7 +18,7 @@ import { mountAgentLoopTestDependencies } from './fixtures/agent-loop-dependenci
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import Manager from '../lib/index.js'
 import { ContextEngine as Engine } from '../lib/engine.js'
-import { defaults as percentDefaults, budget, validatePolicy, idleFloorTokens } from '../lib/policy.js'
+import { defaults as percentDefaults, budget, validatePolicy } from '../lib/policy.js'
 import { installTestCompactionHost } from './fixtures/test-compaction-host.mjs'
 
 const defaults={...percentDefaults,capacityMode:'legacy'}
@@ -213,10 +213,10 @@ test('absolute: an oversized protected floor stops before spending on a useless 
   } finally { await ctx.fiber.dispose() }
 })
 
-test('absolute: idle run compacts at the absolute trigger where the percentage floor would skip', { timeout: 8000 }, async t => {
+test('idle: completed history compacts below the old percentage floor with or without an absolute budget', { timeout: 8000 }, async t => {
   // The seed sits just below 200k, the final assistant reply pushes the
-  // completed turn above it: the pre-request gate stays quiet while the idle
-  // pass sees the absolute trigger, far below the 95% percentage floor.
+  // completed turn above it: the pre-request gate stays quiet. Idle compaction
+  // ignores the legacy 95% floor with either absolute-budget setting.
   for (const absolute of [true, false]) {
     const { ctx, adapter, agent } = await fixture({ bigResponse: true }, { ...(absolute ? ABSOLUTE : {}), idleEnabled: true, idleMinutes: 1, idleMinPercent: 95, triggerPercent: 95, earlyPercent: 0, safetyPercent: 1 }, await seedAt(199900))
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
@@ -226,27 +226,8 @@ test('absolute: idle run compacts at the absolute trigger where the percentage f
       await drainUntil(() => ctx.contextManager.idleStatus(agent.id).status === 'scheduled')
       t.mock.timers.tick(60001)
       await drainUntil(() => ['completed', 'skipped', 'failed'].includes(ctx.contextManager.idleStatus(agent.id).status))
-      if (absolute) {
-        assert.equal(ctx.contextManager.idleStatus(agent.id).status, 'completed')
-        assert.equal(adapter.summaries.length, 1)
-      } else {
-        assert.equal(ctx.contextManager.idleStatus(agent.id).status, 'skipped')
-        assert.equal(adapter.summaries.length, 0, 'percentage floor alone would skip this occupancy')
-      }
+      assert.equal(ctx.contextManager.idleStatus(agent.id).status, 'completed')
+      assert.equal(adapter.summaries.length, 1)
     } finally { t.mock.timers.reset(); await ctx.fiber.dispose() }
   }
-})
-
-test('absolute: idle floor never exceeds the effective admission with output reserve and safety', () => {
-  // Window 100k with a 60k output reserve: hard envelope is 38k and the
-  // admission is 37k, so the idle floor cannot keep waiting for 65k/65000.
-  const floor = idleFloorTokens(defaults, 100000, 60000)
-  assert.equal(floor, 37000)
-  // Without a binding absolute trigger the percentage floor still applies.
-  assert.equal(idleFloorTokens(defaults, 100000, 8000), 65000)
-  // An absolute trigger below the percentage floor binds the idle floor.
-  assert.equal(idleFloorTokens({ ...defaults, ...ABSOLUTE }, 1000000, 256000), 200000)
-  assert.equal(idleFloorTokens({ ...defaults, targetPercent: 75 }, 100000, 8000), 65000, 'automatic mode never derives the idle floor from an inactive target')
-  assert.equal(idleFloorTokens({ ...defaults, historyMode: 'custom', idleMinPercent: 30 }, 100000, 8000), 65000)
-  assert.equal(idleFloorTokens({ ...defaults, idleMinPercent: 30 }, 100000, 8000), 30000)
 })

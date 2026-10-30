@@ -116,9 +116,9 @@ export class ContextInspector extends TypertRemoteService {
       message: compression.mode === 'native' ? '官方 Basic 仍是压缩 provider；Context Manager 尚未就绪' : `Context 仅查看。${compression.reason}`,
       owner: compression.mode === 'native' || compression.mode === 'other' ? 'other' : 'unknown', compression }
   }
-  private admission(sessionId: string, cut: number): AdmissionReadout | undefined {
-    // get() reads existing services/sessions only. Never load an Agent, resolve
-    // a provider model, or substitute the approximate status projection here.
+  private async admission(sessionId: string, cut: number, signal: AbortSignal): Promise<AdmissionReadout | undefined> {
+    // Read existing sessions and exact-route metadata only. Never activate an
+    // Agent, generate a model request, or substitute a pressure projection.
     const meter = this.ctx.get('tokenMeter')
     if (!meter) return
     const session = this.ctx.sessions.get(SessionId(sessionId))
@@ -127,12 +127,29 @@ export class ContextInspector extends TypertRemoteService {
       const measurement = meter.measure(session)
       if (measurement.logRevision !== cut + 1 || !Number.isSafeInteger(measurement.totalTokens)
         || measurement.totalTokens < 0) return
-      const config = session.requestHeader()?.config
+      const header = session.requestHeader()
+      const config = header?.config
       const context = session.requestContext()
       const sameRoute = config !== undefined && context !== undefined
         && context.provider === config.provider && context.model === config.model
       const window = sameRoute ? context.contextWindow : undefined
-      const outputReserve = config?.maxTokens
+      const observed = this.getManager()?.requestBudgetReadout?.(session)
+      let outputReserve = config?.maxTokens ?? (sameRoute && observed && observed.window === window ? observed.outputReserve : undefined)
+      // The observed budget is process-local. After a reload, recover the same
+      // configured default used by the request gate from the owning adapter.
+      // A successfully resolved route with no default reserves zero; an absent
+      // or failed lookup stays unknown rather than inventing that zero.
+      if (outputReserve === undefined && sameRoute && typeof window === 'number' && window > 0) {
+        try {
+          const info = await this.ctx.get('llm')?.resolveModelInfo(config.provider, config.model, signal)
+          if (info?.provider === config.provider && info.id === config.model && info.context?.contextWindow === window) {
+            outputReserve = info.defaultMaxTokens ?? 0
+          }
+        } catch { /* Unavailable metadata must not hide the known meter reading. */ }
+      }
+      signal.throwIfAborted()
+      if (this.ctx.sessions.get(SessionId(sessionId)) !== session || session.seq !== cut + 1
+        || session.requestHeader() !== header || session.requestContext() !== context) return
       return { tokens: measurement.totalTokens, logRevision: measurement.logRevision, baseline: measurement.baseline.kind,
         window: typeof window === 'number' && Number.isSafeInteger(window) && window > 0 ? window : null,
         outputReserve: typeof outputReserve === 'number' && Number.isSafeInteger(outputReserve) && outputReserve >= 0 ? outputReserve : null }
@@ -142,7 +159,7 @@ export class ContextInspector extends TypertRemoteService {
       return undefined
     }
   }
-  private async read<T>(sessionId: string, atSeq: number | null, signal: AbortSignal, mode: 'all' | 'none', use: (observation: SessionObservation, cut: number, index: ReturnType<typeof indexContext>) => T): Promise<T> {
+  private async read<T>(sessionId: string, atSeq: number | null, signal: AbortSignal, mode: 'all' | 'none', use: (observation: SessionObservation, cut: number, index: ReturnType<typeof indexContext>, signal: AbortSignal) => T | Promise<T>): Promise<T> {
     const cancel = AbortSignal.any([signal, this.lifetime.signal, AbortSignal.timeout(12000)])
     const observation = await this.ctx.sessionQuery.observeSession(SessionId(sessionId), { signal: cancel, projectionMode: mode })
     try {
@@ -152,20 +169,20 @@ export class ContextInspector extends TypertRemoteService {
       if (cut + 1 > MAX_EVENTS) throw new Error(`当前日志超过 ${MAX_EVENTS.toLocaleString()} 条记录的分析上限。`)
       const index = indexContext(observation.events.slice(0, cut + 1), this.ctx.sessions.messageProjections)
       cancel.throwIfAborted()
-      return use(observation, cut, index)
+      return await use(observation, cut, index, cancel)
     } finally { observation[Symbol.dispose]() }
   }
   @Remote('inspect')
   async inspect(input: InspectQuery, signal: AbortSignal): Promise<Inspection> {
     const query = inspectQuerySchema().parse(input)
-    return this.read(query.sessionId, query.atSeq, signal, query.atSeq === null ? 'all' : 'none', (observation, cut, index) => {
+    return this.read(query.sessionId, query.atSeq, signal, query.atSeq === null ? 'all' : 'none', async (observation, cut, index, cancel) => {
       const manager = this.getManager()
       const values = observation.projections?.values
       const pressure = values?.contextPressure
       const official = values?.contextBreakdown
       const usage = values?.tokenUsage
       const goalState = values?.goal
-      const admission = query.atSeq === null ? this.admission(query.sessionId, cut) : undefined
+      const admission = query.atSeq === null ? await this.admission(query.sessionId, cut, cancel) : undefined
       const summary = query.atSeq === null ? manager?.summaryLedger?.stats(query.sessionId) : undefined
       // The Host projection is authoritative for the current cut only. A
       // historical cut keeps the event-log fold and omits every current
@@ -204,13 +221,15 @@ export class ContextInspector extends TypertRemoteService {
         fingerprint: attribution.fingerprint === null ? null : { ...attribution.fingerprint },
         changes: attribution.changes.map(item => ({ seq: item.seq, time: item.time, changed: [...item.changed], note: item.note })),
       }
-      signal.throwIfAborted()
+      cancel.throwIfAborted()
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
       const compactions = index.diagnostics.compactions.map(entry => {
+        const checkpoint = entry.checkpointSeq === undefined ? undefined
+          : index.indexed.find(item => item.row.seq === entry.checkpointSeq && item.row.category === 'summary')?.row
         const trigger = entry.kind === 'compact' ? triggers.get(entry.id) : undefined
         const run=query.atSeq===null?manager?.summaryOperations?.run(query.sessionId,entry.id):undefined
         const modelCallStatus=run?.endedAt!==undefined?((run.actualDispatched??run.dispatched)===0?'not_dispatched' as const:'dispatched' as const):undefined
-        return { ...entry, ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}) }
+        return { ...entry, ...(checkpoint ? { checkpoint } : {}), ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}) }
       })
       const needle = query.search.trim().toLocaleLowerCase()
       const matched = index.indexed.map(item => item.row).filter(row => (query.archived || row.current)

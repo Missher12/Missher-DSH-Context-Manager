@@ -1,6 +1,6 @@
 import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import type { Volatile } from '@deepseek-ai/cosmokit'
 import type {} from '@deepseek-ai/dsh-settings'
 import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
@@ -80,6 +80,11 @@ export default class ContextManager extends Service {
   private readonly compactReaders = new Map<string, () => CompactPhase | undefined>()
   private readonly executions = new Map<string, string>()
   private readonly stops = new Map<string, { reasonCode: string; message: string }>()
+  private readonly requestBudgets = new WeakMap<Session, {
+    header: NonNullable<ReturnType<Session['requestHeader']>>
+    context: NonNullable<ReturnType<Session['requestContext']>>
+    window: number; outputReserve: number
+  }>()
   private readonly recoveries = new Map<string, (signal: AbortSignal) => Promise<void>>()
   private readonly drains = new Set<() => Promise<void>>()
   private basicIdleSidecarState: 'inactive' | 'pending' | 'active' | 'blocked' | 'failed' = 'inactive'
@@ -218,7 +223,9 @@ export default class ContextManager extends Service {
     // the provider to preset selection. The injected child is lifecycle-owned
     // by this Manager Context; registration itself remains owned by this exact
     // plugin Context so the Host retracts it when the Manager unloads.
-    this.ctx.inject(['agents', 'llm', 'sessions', 'tokenMeter'], child => {
+    // Await the Manager's own activation too: a pending Engine fiber can settle
+    // before it has provided compaction, which would falsely block the sidecar.
+    this.ctx.inject(['agents', 'llm', 'sessions', 'tokenMeter', 'contextManager'], child => {
       if (this.hostCapability.state === 'supported') {
         registerContextCompaction(this.ctx, this.hostCapability, status => { this.registrationReadout = status })
         return
@@ -451,6 +458,21 @@ export default class ContextManager extends Service {
     return { status, dueAt: null, reasonCode: record.reasonCode ?? record.status, updatedAt: record.updatedAt,
       message: record.status === 'eligible' ? '会话未加载，恢复后继续核验闲置计划' : messages[record.reasonCode ?? record.status] ?? '本轮整理已结束，等待下次任务正常完成',
       ...(record.beforeTokens === undefined ? {} : { beforeTokens: record.beforeTokens }), ...(record.afterTokens === undefined ? {} : { afterTokens: record.afterTokens }) }
+  }
+
+  /** Record actual gate parameters; no model lookup or persistent session write. */
+  recordRequestBudget(session: Session, window: number, outputReserve: number): void {
+    const header = session.requestHeader(), context = session.requestContext()
+    if (!header || !context || context.provider !== header.config.provider || context.model !== header.config.model
+      || context.contextWindow !== window) return
+    this.requestBudgets.set(session, { header, context, window, outputReserve })
+  }
+
+  /** A new request header/context invalidates the previous route's metadata. */
+  requestBudgetReadout(session: Session): { window: number; outputReserve: number } | undefined {
+    const saved = this.requestBudgets.get(session)
+    if (!saved || saved.header !== session.requestHeader() || saved.context !== session.requestContext()) return
+    return { window: saved.window, outputReserve: saved.outputReserve }
   }
 
   /** Freeze one admission's policy; edits take effect on the next request. */

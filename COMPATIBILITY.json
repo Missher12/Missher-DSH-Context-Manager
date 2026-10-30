@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.4",
-  "runtimeDiagnosticVersion": "0.10.4",
+  "candidatePackageVersion": "0.10.7",
+  "runtimeDiagnosticVersion": "0.10.7",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.4 source preparation builds on the preserved 0.10.3 candidate. This line adds a settings diagnostic that separates Host compaction-provider registration from the plugin-owned request-gate sidecar, reports the official Host runtime version when the optional public app-boot helper is available, and lists exact missing compactionHost v1 interfaces. Native Basic remains Host-owned. The current source has not been built, tested, packaged, run in the Host, released, or installed; historical 0.10.3 evidence remains historical and does not cover this candidate.",
+  "candidateStatus": "0.10.7 restores custom-model reserve readouts after reload through exact-route model metadata, retains unknown states on failed or mismatched metadata, and centers compact settings controls. Current verification and native acceptance are recorded separately under verification. Existing compaction behavior and Host Basic ownership are preserved.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,

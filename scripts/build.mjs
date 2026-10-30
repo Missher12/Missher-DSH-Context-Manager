@@ -24,7 +24,7 @@ const clientPath = join(outdir, 'client.js')
 const clientSource = await readFile(clientPath, 'utf8')
 let normalizedPathComments = 0
 const normalizedClient = clientSource.replace(
-  /^\/\/ .*?\/node_modules\/\.pnpm\/[^/]+\/node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\/([^\r\n]+)$/gm,
+  /^\/\/ (?:.*?\/)?node_modules\/\.pnpm\/[^/]+\/node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\/([^\r\n]+)$/gm,
   (_line, packagePath, relativePath) => {
     normalizedPathComments += 1
     return `// ${packagePath}/${relativePath}`

@@ -134,7 +134,7 @@ test('idle sidecar: official Basic remains the provider while Context uses its o
     // root service on the child would be a duplicate Cordis registration.
     assert.equal(ctx.contextManager.isNativeBasicAgent(agent), true)
     await drainUntil(() => ctx.contextManager.cooperationReadout(agent).idleMaintenance === 'active',
-      'the isolated idle sidecar should activate without replacing Basic')
+      () => `the isolated idle sidecar should activate without replacing Basic: ${JSON.stringify(ctx.contextManager.capabilityReadout())}`)
     assert.equal(ctx.contextManager.cooperationReadout(agent).requestPressure, 'context',
       'the Context request gate runs as a sidecar while Basic remains the provider')
     const installedAfterActivation = ctx.get('compaction')
@@ -222,6 +222,24 @@ test('idle recovery: a durable completed turn keeps its deadline across full res
   assert.equal(third.adapter.summaryCalls, 0, 'a settled qualification must never be replayed after another restart')
   assert.equal(third.ctx.contextManager.idleStore.get(sessionId).status, 'completed')
   assert.equal(resumedAgain.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 1)
+})
+
+test('idle recovery: an unspent old occupancy skip resumes its original timer after upgrade', { timeout: 30000 }, async t => {
+  const { boot, stop } = await fixture(t)
+  const first = await boot()
+  const { agent } = await completeNewTurn(first.ctx)
+  await drainUntil(() => state(first.ctx, agent).status === 'scheduled')
+  const record = first.ctx.contextManager.idleStore.get(sessionId)
+  await first.ctx.contextManager.idleStore.settle(record, undefined, { status: 'skipped', reasonCode: 'below_threshold', beforeTokens: 3000 })
+  await stop(first.ctx)
+  const second = await boot()
+  const { agent: resumed } = await second.ctx.agents.resume({ resumeSessionId: sessionId, agentOptions: options })
+  await drainUntil(() => state(second.ctx, resumed).status === 'scheduled', 'the old non-billable skip must become eligible')
+  assert.equal(state(second.ctx, resumed).dueAt, record.completedAt + delay)
+  t.mock.timers.tick(delay)
+  await drainUntil(() => state(second.ctx, resumed).status === 'completed')
+  assert.equal(second.adapter.summaryCalls, 1)
+  assert.equal(second.adapter.mainCalls, 0)
 })
 
 test('idle recovery: old persisted history without registered eligibility stays dormant', { timeout: 20000 }, async t => {
