@@ -24,6 +24,7 @@
 .dsh-context-settings .cm-facts dt { color: var(--dsw-alias-label-tertiary); }
 .dsh-context-settings .cm-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .dsh-context-settings .cm-facts dd.cm-detail-interfaces { text-align: left; }
+.dsh-context-settings .cm-detail-interfaces ul { margin: 0; padding-left: 18px; }
 .dsh-context-settings .cm-interface { display: block; overflow-wrap: anywhere; }
 .dsh-context-settings .cm-detail summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
 .dsh-context-settings .cm-detail[open] > summary { margin-bottom: 10px; }

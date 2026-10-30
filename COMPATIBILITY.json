@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.7",
-  "runtimeDiagnosticVersion": "0.10.7",
+  "candidatePackageVersion": "0.10.8",
+  "runtimeDiagnosticVersion": "0.10.8",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.7 restores custom-model reserve readouts after reload through exact-route model metadata, retains unknown states on failed or mismatched metadata, and centers compact settings controls. Current verification and native acceptance are recorded separately under verification. Existing compaction behavior and Host Basic ownership are preserved.",
+  "candidateStatus": "0.10.8 distinguishes the active compaction path from optional Host engine replacement, removes duplicate diagnostics, and preserves actionable startup failures. Compaction behavior and Host Basic ownership remain unchanged.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,

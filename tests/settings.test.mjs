@@ -58,11 +58,12 @@ test('settings section contains only policy controls and does not read any sessi
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
   const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
-  const compatibility = async () => ({ state: 'unsupported', reason: 'Host compaction API v1 is incomplete', reasonCode: 'methods-missing',
-    missingInterfaces: ['agentPresets.compactionHost.register(owner, registration)'],
+  const compatibility = async () => ({ state: 'unsupported', reason: 'Host cannot register or select an enhanced Context compaction provider', reasonCode: 'compaction-host-missing',
+    missingInterfaces: ['agentPresets.compactionHost.version = 1', 'agentPresets.compactionHost.register(owner, registration)',
+      'agentPresets.compactionHost.bindingFor(agentContext)', 'agentPresets.compactionHost.retained()'],
     hostRuntime: { state: 'available', version: '0.2.1-rc.4', source: '@deepseek-ai/dsh-app-boot' },
     requestPath: { path: 'request-gate-sidecar', state: 'ready', reasonCode: 'sidecar-ready' },
-    integration: { state: 'inactive', reason: 'no enhanced provider registration API' } })
+    integration: { state: 'inactive', reason: 'Host cannot register or select an enhanced Context compaction provider' } })
   const root = createRoot(document.getElementById('root'))
   try {
     await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
@@ -73,7 +74,11 @@ test('settings section contains only policy controls and does not read any sessi
     const capabilityDetails = document.querySelector('details.cm-detail')?.textContent ?? ''
     assert.match(capabilityDetails, /0\.2\.1-rc\.4/)
     assert.match(capabilityDetails, /agentPresets\.compactionHost\.register\(owner, registration\)/)
-    assert.match(capabilityDetails, /Context 请求前门侧车/)
+    assert.match(capabilityDetails, /请求前接入/)
+    assert.match(capabilityDetails, /无需注册/)
+    assert.match(capabilityDetails, /宿主引擎替换（可选）/)
+    assert.doesNotMatch(capabilityDetails, /Host cannot register|宿主能力不支持|provider 注册未注册/)
+    assert.equal(document.querySelectorAll('.cm-detail-interfaces li').length, 4, 'each optional interface remains a distinct accessible list item')
     assert.match(document.querySelector('.cm-native-help[aria-label^="开始压缩: "]')?.getAttribute('aria-label') ?? '', /新消息和预留空间可能让检查提前/)
     assert.equal(document.querySelectorAll('style').length, 2)
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0,
@@ -86,6 +91,26 @@ test('settings section contains only policy controls and does not read any sessi
     await act(async () => setDomInput(trigger, '70'))
     assert.equal(trigger.value, '70', 'the actual input stages the same threshold change without a removed preset button')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+test('optional provider registration never hides a blocked or failed active compaction path', async () => {
+  for (const state of ['blocked', 'failed']) {
+    const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+    globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
+    const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: () => { throw new Error('unexpected write') } }
+    const failure = '隔离引擎启动失败：storage unavailable'
+    const compatibility = async () => ({ state: 'unsupported', reason: 'optional API absent', reasonCode: 'compaction-host-missing',
+      integration: { state: 'inactive', reason: 'optional API absent' },
+      requestPath: { path: 'request-gate-sidecar', state, reasonCode: `sidecar-${state}`, reason: failure } })
+    const root = createRoot(document.getElementById('root'))
+    try {
+      await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
+      assert.ok(document.querySelector('[role="alert"]'), 'an unavailable active path remains an actionable error')
+      assert.doesNotMatch(document.querySelector('[role="alert"]').textContent, /已就绪/)
+      assert.equal(document.querySelector('details.cm-detail').textContent.split(failure).length - 1, 1,
+        'the actual startup failure is retained once')
+    } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+  }
 })
 const primitivesScope = { module: { exports: {} }, require: name => name === 'katex/dist/katex.min.css' ? {} : require(name), setTimeout, clearTimeout }
 for (const name of ['window', 'document', 'Node']) Object.defineProperty(primitivesScope, name, { get: () => name === 'Node' ? globalThis.window?.Node : globalThis[name] })

@@ -796,10 +796,14 @@ test('RC2 Loader batches two semantic 100K spans, preserves eight growth rounds,
     const activeCheckpointTokens = activeCheckpoints.reduce((sum, event) =>
       sum + entryContext(host, 'token-meter').tokenMeter.estimateMessage(event.data), 0)
     assert.ok(activeCheckpointTokens <= 4000, `active checkpoints exceed G=4K: ${activeCheckpointTokens}; ${diagnostic}`)
-    assert.ok(adapter.summaries.every(options => options.maxTokens <= 3872),
-      `each summary reserves framing inside the aggregate G=4K budget; got ${JSON.stringify(adapter.summaries.map(options => options.maxTokens))}`)
-    assert.ok(adapter.summaries.slice(0, 2).every(options => options.maxTokens <= 1872),
-      'the initial A/B batch reserves framing inside two 2K shares')
+    assert.ok(adapter.summaries.every(options => options.maxTokens > 3872 && options.maxTokens <= 10000),
+      'the reasoning model has bounded generation room separate from its retained checkpoint budget')
+    const retainedBudgets = adapter.summaries.map(options => Number(
+      /Checkpoint text budget: at most (\d+) tokens/u.exec(options.messages.at(-1)?.content[0]?.text ?? '')?.[1]))
+    assert.ok(retainedBudgets.every(tokens => tokens > 0 && tokens <= 3872),
+      `each retained summary reserves framing inside G=4K; got ${JSON.stringify(retainedBudgets)}`)
+    assert.deepEqual(retainedBudgets.slice(0, 2), [1872, 1872],
+      'the initial A/B batch retains its two 2K shares even with extra reasoning room')
     assert.equal(adapter.requests.length, 10, 'the initial task, tool follow-up and eight continuations reach the stub once')
     for (const round of [task, ...roundTasks]) {
       assert.equal(events.filter(event => event.type === 'user/message' && event.data.id === round.id).length, 1,
@@ -1152,14 +1156,17 @@ test('RC2 real Host Agent keeps its declared Basic provider when Host compaction
   skip,
   timeout: 20000,
 }, async () => {
-  const host = await makeHost()
+  const preparedRoot = process.env.DSH_CONTEXT_PREPARED_ROOT?.trim()
+  if (!preparedRoot) return runColdStartLoaderTest('RC2 real Host Agent keeps its declared Basic provider when Host compaction API v1 is absent')
+  const host = await makeHost({ preparedRoot })
   const handles = []
   try {
     const manager = managerFor(host)
     const readout = manager.capabilityReadout()
     assert.equal(readout.state, 'unsupported')
     assert.equal(readout.integration.state, 'inactive')
-    assert.match(readout.reason, /does not expose the compaction provider capability/u)
+    assert.equal(readout.reasonCode, 'compaction-host-missing')
+    assert.equal(readout.requestPath.path, 'request-gate-sidecar')
 
     const registry = registryFor(host)
     assert.equal(registry.compactionHost, undefined, 'the exact RC.2 registry has no v1 registration surface')
@@ -1185,6 +1192,7 @@ test('RC2 real Host Agent keeps its declared Basic provider when Host compaction
     assert.equal(manager.isNativeBasicAgent(agent), true)
     await waitFor(() => manager.cooperationReadout(agent).requestPressure !== 'waiting', 'Context request sidecar did not report readiness')
     assert.equal(manager.cooperationReadout(agent).requestPressure, 'context')
+    assert.equal(manager.capabilityReadout().requestPath.state, 'ready')
     const inspector = entryContext(host, 'context-manager-inspector').contextInspector
     const idle = await inspector.idleStatus({ sessionId: String(agent.id) }, new AbortController().signal)
     assert.equal(idle.compression.mode, 'native')

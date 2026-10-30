@@ -1,4 +1,6 @@
-# Context 0.10.7: restore custom-model reserves after reload
+# Context 0.10.8: report the active compaction path clearly
+
+A ready before-request integration enables Context pressure compaction and configured idle maintenance. The optional Host engine replacement API is separate: DSH 0.2.1-rc.4 does not expose it, and the active integration requires no provider registration. Startup and safety-check failures remain visible.
 
 When a custom model has no explicit output cap and the in-memory request budget was lost on restart, the inspector reads exact-route metadata through the public Host API and applies the same default as the request gate. Failed lookups, mismatched windows and concurrent session changes remain unknown. Historical cuts never use current model metadata. Inspection generates no model request and writes no session events.
 
@@ -216,18 +218,20 @@ These are separate, dated validation layers, not fresh acceptance on every platf
 
 ## Independent development
 
-Use Node 24 or a compatible host development environment, the pnpm version pinned in `package.json`, and a **separately built matching SDK**. Work in your own development copy, not a directory linked by a daily installation:
+Use Node 24 or a compatible development environment and the pnpm version pinned in `package.json`. The development dependencies resolve pinned official RC.4 packages from the registry; a separate SDK checkout is not required. Work in your own development copy:
 
 ```sh
-node scripts/link-harness.mjs /path/to/built-harness
 pnpm install --frozen-lockfile
 pnpm run typecheck
 pnpm run build
 pnpm test
-npm pack --ignore-scripts
+pnpm run test:host
+pnpm pack
 ```
 
-The linker creates this copy's explicit `harness-sdk` and development dependency links; it neither builds nor modifies the host. Relative SDK overrides in `pnpm-workspace.yaml` are development-only and excluded from the package. Test concurrency is one. Runtime dependencies use registry/host package names, with no machine-specific absolute paths or install hooks.
+`pnpm-workspace.yaml` contains only the plugin root. `scripts/link-harness.mjs` is an optional local SDK helper, not part of normal installation. Test concurrency is one. Runtime dependencies use registry/host package names, with no machine-specific absolute paths or install hooks.
+
+`test:host` runs the isolated official RC.4 Host Loader with synthetic model transport, covering request compaction, idle maintenance, cancellation, reload and Basic cooperation. The stock host has no `compactionHost` v1; only the six registration cases requiring that optional API are inapplicable and are not counted as passes.
 
 ## License and sources
 

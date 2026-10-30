@@ -121,6 +121,7 @@ export function ContextPage({ form, compatibility, t = settingsText() }: { form:
   const requestPath = host?.requestPath
   const missingInterfaces = host?.missingInterfaces ?? []
   const sidecarState = requestPath?.path === 'request-gate-sidecar' ? requestPath.state : undefined
+  const registrationOptional = host?.state === 'unsupported' && sidecarState !== undefined
   const status: SettingsLocaleKey = !host ? 'statusChecking'
     : sidecarState === 'ready' ? 'statusSidecarReady'
       : sidecarState === 'pending' ? 'statusSidecarPending'
@@ -143,17 +144,18 @@ export function ContextPage({ form, compatibility, t = settingsText() }: { form:
         <dt>{t('hostCapability')}</dt><dd>{t(host.state === 'supported' ? 'capabilitySupported' : host.state === 'unsupported' ? 'capabilityUnsupported' : 'capabilityUnknown')}</dd>
         {host.version !== undefined && <><dt>{t('hostApiVersion')}</dt><dd>{host.version}</dd></>}
         <dt>{t('requestPath')}</dt><dd>{t(requestPath ? requestPathLabel(requestPath.path) : 'requestPathUnknown')} · {t(requestPath ? requestPathStateLabel(requestPath.state) : 'requestPathUnknownState')}</dd>
-        <dt>{t('runtimeRegistration')}</dt><dd>{t(registrationStateLabel(host.integration.state))}</dd>
+        <dt>{t('runtimeRegistration')}</dt><dd>{t(registrationOptional ? 'registrationNotRequired' : registrationStateLabel(host.integration.state))}</dd>
         <dt>{t('missingInterfaces')}</dt><dd className="cm-detail-interfaces">{host.state === 'unknown'
           ? t('interfacesNotChecked')
           : missingInterfaces.length
-            ? missingInterfaces.map(name => <code className="cm-interface" key={name}>{name}</code>)
+            ? <ul>{missingInterfaces.map(name => <li key={name}><code className="cm-interface">{name}</code></li>)}</ul>
             : t('noMissingInterfaces')}</dd>
       </dl>
-      <p className="cm-intro">{t(hostReasonLabel(host.reasonCode))}: {host.reason}</p>
+      <p className="cm-intro">{t(hostReasonLabel(host.reasonCode))}{!host.reasonCode && <> {host.reason}</>}</p>
       {requestPath && <p className="cm-intro">{t('detailReason')}: {t(pathReasonLabel(requestPath.reasonCode))}
         {requestPath.reason && <> · <code>{requestPath.reason}</code></>}</p>}
-      {host.integration.reason && <p className="cm-intro">{t('detailReason')}: {host.integration.reason}</p>}
+      {host.integration.reason && host.integration.reason !== host.reason && !registrationOptional &&
+        <p className="cm-intro">{t('detailReason')}: {host.integration.reason}</p>}
     </details>}
     <ContextSettings form={form} t={t} />
   </section>
