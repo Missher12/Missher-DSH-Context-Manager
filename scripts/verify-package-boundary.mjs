@@ -15,7 +15,9 @@ const manifest = JSON.parse(read('package.json'))
 const compatibility = JSON.parse(read('COMPATIBILITY.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
 const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
-  ...(manifest.files.includes('docs/images') ? ['docs/images/context-session-cost-desktop.png', 'docs/images/context-session-cost-narrow.png'] : []),
+  ...(manifest.files.includes('docs/images') ? ['docs/images/context-session-cost-desktop.png', 'docs/images/context-session-cost-narrow.png',
+    // New README screenshots are optional when checking older tarballs.
+    ...['docs/images/context-compaction-overview.png', 'docs/images/context-summary-details.png'].filter(file => members.includes(`package/${file}`))] : []),
   'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compatibility.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
   'lib/history-tools.js', 'lib/index.js', 'lib/policy.js', 'lib/reducer.js', 'lib/tool-results.js', 'lib/working-set.js', 'package.json',
   ...(inspector ? ['lib/inspector.js', 'lib/inspector-fold.js', 'lib/typert.js'] : [])].map(p => `package/${p}`).sort()

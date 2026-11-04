@@ -12,8 +12,10 @@ import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import type { CompactionReadout, ContextCooperationReadout } from './compatibility.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
+import { ContentDetail, Loading, errorText } from './content-reader.tsx'
+export { CheckpointBody } from './content-reader.tsx'
+import { StatCards, SummaryCard, WindowChips } from './context-overview.tsx'
 import css from './inspector.css'
-import { parseCheckpoint } from './checkpoint.ts'
 
 export interface ContextViewInjected {
   target: string
@@ -22,8 +24,6 @@ export interface ContextViewInjected {
   pulse: { subscribe(callback: () => void): () => void; getSnapshot(): unknown }
   locale?: string
 }
-const errorText = (error: unknown, t: InspectorText) => error instanceof Error ? error.message : t('error')
-function Loading() { return <div className="cmv-empty"><StateDot state="ongoing"/></div> }
 function compressionLabel(mode: NonNullable<Inspection['compression']>['mode']): InspectorLocaleKey {
   switch (mode) {
     case 'enhanced': return 'enhancedCurrent'
@@ -131,7 +131,7 @@ function diagnosticValue(value: IdleStatus): IdleDiagnosticValue {
   return { ...rest, recovery: recovery ? { available: recovery.available, message: recovery.message, riskAcceptanceRequired: recovery.riskAcceptanceRequired } : undefined }
 }
 
-function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity, onBinding, onDiagnostic }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void; onBinding: (value: BindingSnapshot) => void; onDiagnostic: (value: Omit<IdleDiagnostic, 'signature'>) => void }) {
+function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onCapacity, onBinding, onDiagnostic, onStatus }: { target: string; api: InspectorApi; revision: unknown; settingsRevision: number | undefined; retry: number; t: InspectorText; onCapacity: (value: CompactCapacity | null) => void; onBinding: (value: BindingSnapshot) => void; onDiagnostic: (value: Omit<IdleDiagnostic, 'signature'>) => void; onStatus: (target: string, value: IdleStatus | null) => void }) {
   const [state, setState] = useState<{ target: string; value: IdleStatus } | null>(null)
   const [error, setError] = useState('')
   const [recovering, setRecovering] = useState(false)
@@ -164,6 +164,7 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
         const value = await api.idleStatus({ sessionId: target }, abort.signal)
         if (abort.signal.aborted) return
         setState({ target, value }); lastStatus.current = { target, value }; setError('')
+        onStatus(target, value)
         reportBinding({ target, state: value.compression ? 'ready' : 'missing', value: value.compression ?? null })
         onDiagnostic({ target, value: diagnosticValue(value), freshness: 'current' })
         currentCompressionMode.current = value.compression?.mode ?? 'unknown'
@@ -182,13 +183,14 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
           action.current?.abort(); action.current = null
           setRecovering(false); setRecoveryResult(''); setEmergencyPlan(null)
           setError(message)
+          if (retained === null) onStatus(target, null)
           timer = setTimeout(() => { void read() }, 5000)
         }
       }
     }
     void read()
     return () => { abort.abort(); clearTimeout(timer) }
-  }, [target, api, revision, settingsRevision, retry, onCapacity, reportBinding, onDiagnostic, t])
+  }, [target, api, revision, settingsRevision, retry, onCapacity, reportBinding, onDiagnostic, onStatus, t])
   const value = state?.target === target ? state.value : null
   useEffect(() => {
     const capacity = value?.capacity ?? null
@@ -269,60 +271,6 @@ function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspecti
   </div>
 }
 
-type ContentDetailProps = { target: string; cutSeq: number; row: ContentRow; api: InspectorApi; t: InspectorText; window:number|null }
-function ContentDetail(props: ContentDetailProps) {
-  const [trail, setTrail] = useState<ContentRow[]>([])
-  const row = trail.at(-1) ?? props.row
-  return <article className="cmv-reader">
-    {trail.length > 0 && <Button size="sm" variant="ghost" onClick={() => setTrail(value => value.slice(0, -1))}>{props.t('backToSummary')}</Button>}
-    <ContentReader key={row.id} {...props} row={row} onSource={source => setTrail(value => [...value, source])}/>
-  </article>
-}
-
-/** Display validated fields without generating or rewriting the stored summary. */
-export function CheckpointBody({ text, complete, t }: { text: string; complete: boolean; t: InspectorText }) {
-  const value = useMemo(() => {
-    if (!complete) return null
-    const marker = text.indexOf('Checkpoint sections: context-manager/3\n')
-    let body = marker < 0 ? text : text.slice(marker)
-    // Applied checkpoints wrap the canonical body in the Host's summary tag.
-    // Strip only that paired closing tag; the complete stored text stays below.
-    if (marker > 0 && text.slice(0, marker).trimEnd().endsWith('<compacted-summary>')) {
-      body = body.replace(/\n+<\/compacted-summary>\s*$/u, '')
-    }
-    try { return parseCheckpoint(body) } catch { return null }
-  }, [text, complete])
-  const raw = <pre className="cmi-body" tabIndex={0}>{text || t('noText')}</pre>
-  if (!value) return raw
-  const fields = [['goal', 'summaryGoal'], ['constraints', 'summaryConstraints'], ['completed', 'summaryCompleted'], ['pending', 'summaryPending'], ['evidence', 'summaryEvidence'], ['next', 'summaryNext'], ['uncertainties', 'summaryUncertainties']] as const
-  return <><div className="cmv-checkpoint-fields">{fields.map(([key, label]) => <section key={key} data-field={key}><h4>{t(label)}</h4>{typeof value[key] === 'string' ? <p>{value[key]}</p> : (value[key] as string[]).length ? <ul>{(value[key] as string[]).map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="cmv-muted">{t('noRecordedFacts')}</p>}</section>)}</div><details className="cmv-raw-summary"><summary>{t('originalSummaryText')}</summary>{raw}</details></>
-}
-
-function ContentReader({ target, cutSeq, row, api, t, window, onSource }: ContentDetailProps & { onSource: (row: ContentRow) => void }) {
-  const [offsets, setOffsets] = useState([0])
-  const [sourceOffset, setSourceOffset] = useState(0)
-  const [page, setPage] = useState<ContentPage | null>(null)
-  const [error, setError] = useState('')
-  const [retry, setRetry] = useState(0)
-  const offset = offsets.at(-1)!
-  useEffect(() => {
-    const controller = new AbortController()
-    setPage(null); setError('')
-    void api.content({ sessionId: target, cutSeq, id: row.id, offset, ...(row.category === 'summary' ? { sourceOffset } : {}) }, controller.signal).then(value => {
-      if (!controller.signal.aborted && value.sessionId === target && value.cutSeq === cutSeq && value.id === row.id && value.offset === offset && (!value.sources || value.sources.offset === sourceOffset)) setPage(value)
-    }).catch(reason => { if (!controller.signal.aborted) setError(errorText(reason, t)) })
-    return () => controller.abort()
-  }, [api, target, cutSeq, row.id, row.category, offset, sourceOffset, retry, t])
-  return <><div className="cmv-heading"><h3>{row.title}</h3><span className="cmv-muted">≈ {formatTokens(row.tokens)} {t('tokens')} · {formatPercent(row.tokens,window)}</span></div><div className="cmv-muted cmv-reader-meta">{t(row.category)} · {t('record')} {row.seq}{row.current ? '' : ` · ${t('replaced')}`}{row.images ? ` · ${row.images} ${t('images')}` : ''}</div><div className="cmv-muted cmv-source">{row.source}</div>
-    {error ? <div role="alert"><p>{error}</p><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div> : !page ? <Loading/> : <>{row.category === 'summary' ? <CheckpointBody text={page.text} complete={page.offset === 0 && page.nextOffset === null && page.text.length === page.totalChars} t={t}/> : <pre className="cmi-body" tabIndex={0}>{page.text || t('noText')}</pre>}{(offset > 0 || page.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={offsets.length === 1} onClick={() => setOffsets(value => value.slice(0, -1))}>{t('previousText')}</Button><span>{t('characters')} {exactTokens(offset + 1)}–{exactTokens(offset + page.text.length)} / {exactTokens(page.totalChars)}</span><Button size="sm" disabled={page.nextOffset === null} onClick={() => { if (page.nextOffset !== null) setOffsets(value => [...value, page.nextOffset!]) }}>{t('nextText')}</Button></div>}</>}
-    {row.category === 'summary' && page && <section className="cmv-summary-source" aria-label={t('sourceOriginals')}><h3>{t('sourceOriginals')}</h3><p className="cmv-muted">{t('sourceHint')}</p>
-      {page.sources?.rows.length ? <><div className="cmi-content-list">{page.sources.rows.map(source => <button type="button" key={source.id} onClick={() => onSource(source)}><span className="cmv-row-title"><strong>{source.title}</strong></span><span className="cmv-muted">{t('record')} {source.seq} · {t(source.category)}</span></button>)}</div>
-        {(sourceOffset > 0 || page.sources.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={sourceOffset === 0} onClick={() => setSourceOffset(value => Math.max(0, value - 4))}>{t('previousSources')}</Button><span>{sourceOffset + 1}–{sourceOffset + page.sources.rows.length} / {exactTokens(page.sources.total)}</span><Button size="sm" disabled={page.sources.nextOffset === null} onClick={() => { if (page.sources?.nextOffset != null) setSourceOffset(page.sources.nextOffset) }}>{t('nextSources')}</Button></div>}</>
-        : <p className="cmv-muted">{t('noSources')}</p>}
-    </section>}
-  </>
-}
-
 function ContentBrowser({ data, query, change, api, target, loading, t, initialSelected }: { data: Inspection; initialSelected?: string; query: InspectQuery; change: (patch: Partial<InspectQuery>) => void; api: InspectorApi; target: string; loading: boolean; t: InspectorText }) {
   const [selected, setSelected] = useState(initialSelected ?? '')
   const [shown, setShown] = useState(4)
@@ -347,6 +295,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [idleCapacity, setIdleCapacity] = useState<CompactCapacity | null>(null)
   const [idleBinding, setIdleBinding] = useState<BindingSnapshot | null>(null)
   const [idleDiagnostics, setIdleDiagnostics] = useState<IdleDiagnostic | null>(null)
+  const [idleStatus, setIdleStatus] = useState<{ target: string; value: IdleStatus | null } | null>(null)
   const [runDetailsTarget, setRunDetailsTarget] = useState('')
   const [copyFeedback, setCopyFeedback] = useState('')
   const [copyFailed, setCopyFailed] = useState(false)
@@ -357,12 +306,15 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   copyTarget.current = target
   useEffect(() => {
     copyGeneration.current++
-    setExpanded(false); setSelectedContent(''); setSelectedCompaction(null); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setRunDetailsTarget(''); setCopyFeedback(''); setCopyFailed(false)
+    setExpanded(false); setSelectedContent(''); setSelectedCompaction(null); setOpenLatest(0); setIdleCapacity(null); setIdleBinding(null); setIdleDiagnostics(null); setIdleStatus(null); setRunDetailsTarget(''); setCopyFeedback(''); setCopyFailed(false)
     return () => { copyGeneration.current++ }
   }, [target])
   const reportIdleDiagnostics = useCallback((value: Omit<IdleDiagnostic, 'signature'>) => {
     const signature = JSON.stringify([value.target, value.freshness, value.value])
     setIdleDiagnostics(current => current?.signature === signature ? current : { ...value, signature })
+  }, [])
+  const reportIdleStatus = useCallback((target: string, value: IdleStatus | null) => {
+    setIdleStatus(current => current?.target === target && current.value === value ? current : { target, value })
   }, [])
   const scrollToContent = useRef(false)
   const [query, setQuery] = useState<InspectQuery>({ sessionId: target, ...defaultQuery })
@@ -382,6 +334,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const historical = effective.atSeq !== null || !!safeData?.historical
   const binding = bindingBadge(safeData, idleBinding, target, historical, loading || !!error, !!error, t)
   const latestRun = safeData?.compactions.at(-1)
+  const latestCheckpoint = safeData?.compactions.findLast(entry => entry.kind === 'compact' && entry.applied && entry.checkpoint)?.checkpoint
   const idleRun = idleDiagnostics?.target === target ? idleDiagnostics.value : null
   const autoRunLabel = historical ? safeData?.compression ? `${t(compressionLabel(safeData.compression.mode))} · ${t('historical')}` : t('unknown') : binding.text
   const toolRun = safeData?.cooperation?.toolResults.state
@@ -481,46 +434,72 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   useEffect(() => { if (selectedCompaction) checkpointRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [selectedCompaction])
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
-    <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span>{refreshing && <span className="cmv-binding-refresh">{t('runRefreshing')}</span>}</div><Tooltip label={t('settingsHint')}><span className="cmv-muted" tabIndex={0}>{t('settingsLink')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button></header>
-      <div className="cmv-meta">{!historical && <IdleStatusLine key={target} target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding} onDiagnostic={reportIdleDiagnostics}/>}</div>
+    <div className="cmv-inner">
+      <header className="cmv-hero">
+        <div className="cmv-hero-title">
+          <h2>{t('title')}</h2>
+          {historical && <span className="cmv-chip">{t('historical')}</span>}
+          {safeData?.model && <span className="cmv-hero-model">{safeData.model.provider} / {safeData.model.model}</span>}
+          <span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span>
+          {refreshing && <span className="cmv-binding-refresh">{t('runRefreshing')}</span>}
+        </div>
+        <div className="cmv-hero-actions">
+          {safeData && <WindowChips data={safeData} policy={accepted.value?.policy} t={t}/>}
+          <Button size="sm" variant="ghost" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button>
+          <span className="cmv-settings-note" tabIndex={0} title={t('settingsHint')}>{t('settingsHint')}</span>
+        </div>
+      </header>
+      <div className="cmv-meta">{!historical && <IdleStatusLine key={target} target={target} api={api} revision={automatic} settingsRevision={accepted.revision} retry={retry} t={t} onCapacity={setIdleCapacity} onBinding={setIdleBinding} onDiagnostic={reportIdleDiagnostics} onStatus={reportIdleStatus}/>}</div>
       {!historical && safeData?.cooperation && capabilityWarnings(safeData.cooperation, t).length > 0 && <div className="cmv-notice" role="status">{requestStale && <>{t('lastRead')} · </>}{capabilityWarnings(safeData.cooperation, t).join(' · ')}</div>}
       {safeData?.goal?.blockedReason && !historical && <div className="cmv-notice"><span role="status">{requestStale && <>{t('lastRead')} · </>}{t('goalStopShort')}：{safeData.goal.blockedReason.message}</span></div>}
-      <details key={target} className="cmv-run-details" open={runDetailsTarget === target} onToggle={event => setRunDetailsTarget(event.currentTarget.open ? target : '')}>
-        <summary>{t('runDetails')}</summary>
-        <div className="cmv-run-panel">
-          <div className="cmv-run-head"><span className="cmv-muted">{t('sampledAt')} {safeData ? formatTime(safeData.sampledAt) : '—'}{requestStale ? ` · ${error ? t('lastRead') : t('runRefreshing')}` : ''}</span><Button size="sm" variant="outline" disabled={!safeData} onClick={() => { void copyRunDiagnostics() }}>{t('copyDiagnostics')}</Button></div>
-          {copyFeedback && <p className={copyFailed ? 'cmv-error' : 'cmv-muted'} role={copyFailed ? 'alert' : 'status'}>{copyFeedback}</p>}
-          {!safeData ? <p className="cmv-muted">{loading ? t('statusRefreshing') : t('noData')}</p> : <dl className="cmv-run-facts">
-            <div><dt>{t('runAuto')}</dt><dd>{autoRunLabel}</dd></div>
-            <div><dt>{t('runToolResults')}</dt><dd>{historical ? t('histUnavailable') : toolRunLabel}</dd></div>
-            <div><dt>{t('runPostTask')}</dt><dd>{idleRunLabel}</dd></div>
-            <div><dt>{t('runRecent')}</dt><dd>{latestRunLabel}</dd></div>
-            <div><dt>{t('runDuration')}</dt><dd>{runDuration}</dd></div>
-            <div><dt>{t('runUsage')}</dt><dd>{runUsage}</dd></div>
-            <div><dt>{t('bindingDiagnostic')}</dt><dd>{bindingDetails}</dd></div>
-            <div><dt>{t('cooperationDiagnostic')}</dt><dd>{cooperationDetails}</dd></div>
-            <div><dt>{t('policyDiagnostic')}</dt><dd>{savedRequestPolicyDetails}</dd></div>
-          </dl>}
-        </div>
-      </details>
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')}><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
-        <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={requestStale} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={requestStale} bindingMode={binding.mode} t={t}/></div>
-        <CompactionChart key={target + ':compactions'} data={safeData} t={t} onInspect={setSelectedCompaction} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/>
-        {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article ref={checkpointRef} className="cmv-card cmv-checkpoint-reader">
-          <div className="cmv-heading"><h3>{t('checkpointContent')}</h3><Button size="sm" variant="ghost" onClick={() => setSelectedCompaction(null)}>{t('closeCheckpoint')}</Button></div>
-          <ContentDetail key={`${target}:${safeData.cutSeq}:${selectedCompaction.id}`} target={target} cutSeq={safeData.cutSeq} row={selectedCompaction} api={api} t={t} window={contextWindow(safeData)}/>
-        </article>}
-        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest} onInspect={setSelectedCompaction}/></div>
-        <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><UsageComposition data={safeData} t={t}/></div>
-        <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
-          {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatTokens(row.tokens)} <small>{t('tokens')} · {formatPercent(row.tokens,contextWindow(safeData))}</small></b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
-          {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
+        <div className="cmv-page">
+          <ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={requestStale} t={t} onGroup={showGroup}/>
+          <StatCards data={safeData} policy={accepted.value?.policy} idle={idleStatus?.target === target ? idleStatus.value : null} t={t}/>
+          <div id="cmi-history-panel"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/></div>
+          <CompactionChart key={target + ':compactions'} data={safeData} t={t} onInspect={setSelectedCompaction} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/>
+          <UsageComposition data={safeData} t={t} api={api} target={target}/>
+          <SummaryCard entry={latestCheckpoint} target={target} cutSeq={safeData.cutSeq} api={api} t={t} onOpen={setSelectedCompaction}/>
+          {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article ref={checkpointRef} className="cmv-card cmv-checkpoint-reader">
+            <div className="cmv-heading"><h3>{t('checkpointContent')}</h3><Button size="sm" variant="ghost" onClick={() => setSelectedCompaction(null)}>{t('closeCheckpoint')}</Button></div>
+            <ContentDetail key={`${target}:${safeData.cutSeq}:${selectedCompaction.id}`} target={target} cutSeq={safeData.cutSeq} row={selectedCompaction} api={api} t={t} window={contextWindow(safeData)}/>
+          </article>}
+          <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest} onInspect={setSelectedCompaction}/></div>
+          <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
+            {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" className="cmv-content-row" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><i className="cmv-content-dot" data-category={row.category}/><strong className="cmv-content-name">{row.title}</strong><span className="cmv-content-kind">{t(row.category)}</span><b className="cmv-content-value">{formatTokens(row.tokens)} <small>{t('tokens')} · {formatPercent(row.tokens,contextWindow(safeData))}</small></b></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
+            {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}
+          </div>
         </div>
-        <UsageDetails data={safeData} t={t} onCut={showCut} capacity={safeData.historical ? null : idleCapacity}/>
         <footer className="cmv-footer"><span>{t('updated')} {formatTime(safeData.sampledAt)}</span><span>{t('readonly')} · {t('record')} {safeData.cutSeq}</span></footer>
       </>}
+      <details className="cmv-card cmv-more">
+        <summary>{t('moreDetails')}</summary>
+        <div className="cmv-more-body">
+            {safeData && <RequestStatus data={safeData} policy={accepted.value?.policy} stale={requestStale} bindingMode={binding.mode} t={t}/>}
+            <details key={target} className="cmv-run-details" open={runDetailsTarget === target} onToggle={event => setRunDetailsTarget(event.currentTarget.open ? target : '')}>
+            <summary>{t('runDetails')}</summary>
+              <div className="cmv-run-panel">
+                <div className="cmv-run-head"><span className="cmv-muted">{t('sampledAt')} {safeData ? formatTime(safeData.sampledAt) : '—'}{requestStale ? ` · ${error ? t('lastRead') : t('runRefreshing')}` : ''}</span><Button size="sm" variant="outline" disabled={!safeData} onClick={() => { void copyRunDiagnostics() }}>{t('copyDiagnostics')}</Button></div>
+                {copyFeedback && <p className={copyFailed ? 'cmv-error' : 'cmv-muted'} role={copyFailed ? 'alert' : 'status'}>{copyFeedback}</p>}
+                {!safeData ? <p className="cmv-muted">{loading ? t('statusRefreshing') : t('noData')}</p> : <dl className="cmv-run-facts">
+                  <div><dt>{t('runAuto')}</dt><dd>{autoRunLabel}</dd></div>
+                  <div><dt>{t('runToolResults')}</dt><dd>{historical ? t('histUnavailable') : toolRunLabel}</dd></div>
+                  <div><dt>{t('runPostTask')}</dt><dd>{idleRunLabel}</dd></div>
+                  <div><dt>{t('runRecent')}</dt><dd>{latestRunLabel}</dd></div>
+                  <div><dt>{t('runDuration')}</dt><dd>{runDuration}</dd></div>
+                  <div><dt>{t('runUsage')}</dt><dd>{runUsage}</dd></div>
+                  <div><dt>{t('bindingDiagnostic')}</dt><dd>{bindingDetails}</dd></div>
+                  <div><dt>{t('cooperationDiagnostic')}</dt><dd>{cooperationDetails}</dd></div>
+                  <div><dt>{t('policyDiagnostic')}</dt><dd>{savedRequestPolicyDetails}</dd></div>
+                </dl>}
+              </div>
+            </details>
+            {safeData && <UsageDetails data={safeData} t={t} onCut={showCut} capacity={safeData.historical ? null : idleCapacity}/>}
+          </div>
+        </details>
+
     </div>
   </section>
 }

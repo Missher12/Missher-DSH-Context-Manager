@@ -1,3 +1,11 @@
+# Context 1.0.0: capacity first, compact visual overview
+
+Capacity and content composition now lead the Context page and fill the available width. Main cards and the seven summary fields use full-width rows with natural heights. Compact status cards adapt from four to two to one column; category labels, bars and numeric columns align across rows. The page includes recorded context change, the latest compaction, request usage, a stored summary preview and compression history. Capacity segments show their real window percentages when the text fits. Recent requests use aligned horizontal stacked bars; effective-content rows separate titles, types and values. Original-source reads and pagination remain available without model calls.
+
+Server/client typechecks, build and 158 focused checks completed: 157 passed, one conditional skip, zero failures. Native DSH 0.2.1-rc.4 and its actual web UI were checked at nine widths from 390 to 1920px, with additional sidebar-open checks. Settings controls stayed aligned and stable. The 80% trigger, 15-minute idle interval and all 87 sessions were retained. Exact scope is recorded in `verification/RESULTS-1.0.0-20261104.json`.
+
+This release changes presentation, not compaction policy or budgets. Earlier real automatic-compaction evidence remains attributed to 0.10.11; no fresh 1.0.0 model-quality run or complete full-suite rerun is claimed. GitHub Actions was removed. No npm publication or GitHub Release is implied.
+
 # Context 0.10.11: recent summaries and visual history
 
 The Context page now shows the latest applied compaction as a card, followed by a timeline. Complete checkpoints expose seven readable fields, the full stored text and original-source links. Later failed attempts remain visible without hiding the last applied summary. The UI uses the existing bounded read APIs and makes no model calls.

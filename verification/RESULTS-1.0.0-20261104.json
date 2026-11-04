@@ -1,0 +1,141 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "1.0.0",
+  "verifiedAt": "2026-11-04T14:53:33.405502+00:00",
+  "artifact": {
+    "path": "dist/1.0.0/missher-dsh-context-manager-1.0.0.tgz",
+    "sha256": "5bc384bc26e307445e7b1a70ba70438403dbda21e1378d6d6bb97f4ab387ee12",
+    "fileCount": 28,
+    "packageBoundary": "passed"
+  },
+  "change": "Capacity and composition first; full-width main cards with natural height; compact responsive status cards; aligned category rows; measured full-width trend; latest compaction, request usage, automatic read-only stored-summary preview, full-width seven-field reader, timeline and content browsing. No compaction policy, budget, saved-setting or Host ownership change.",
+  "reviewFixes": [
+    "Sparkline uses the 40-unit viewBox consistently, draws a path per contiguous segment and never connects across a missing projection.",
+    "The summary preview loads the newest applied checkpoint once on mount; the request is aborted and ignored when the session or checkpoint identity changes, while cut polling keeps the same stored summary visible. Constraints render as a list.",
+    "Capacity composition reuses composition(data, policy) verbatim: no output-reserve or safety recomputation, no zero for an unknown admission split. Unknown free/reserve values keep explicit gray legend entries (including an unresolved window) instead of a fabricated ratio.",
+    "Reduction direction is uniform: positive delta reads as reduced with a minus sign, negative as increased with a plus sign, zero as unchanged, and a newest applied entry without before/after values stays unknown instead of borrowing an older figure.",
+    "Session cost reads are keyed by target and refresh after new requests; a historical cut or target switch never shows another session's cost, and a partial cost is labelled as a lower bound.",
+    "The trend has readable y-axis ticks, keeps an over-window peak above the 100% line, breaks area fill at missing ranges, and trend points answer Enter/Space for historical navigation.",
+    "Request usage uses aligned horizontal stacks. Segments explicitly override the global 6px legend-dot size; real zero segments are omitted, fully unknown samples show unknown, and partially reported samples show a lower bound."
+  ],
+  "verification": {
+    "node": "24.22.1 (standard, artifact-sessions runtime)",
+    "serverTypecheck": "passed",
+    "clientTypecheck": "passed",
+    "build": "passed",
+    "focusedViewSuites": {
+      "command": "node --test --test-timeout=20000 --test-concurrency=1 tests/settings.test.mjs tests/context-overview.test.mjs tests/summary-source.test.mjs tests/chart-data.test.mjs tests/inspector-wire.test.mjs",
+      "tests": 68,
+      "passed": 68,
+      "failed": 0,
+      "skipped": 0
+    },
+    "focusedCheckpointSummarySuites": {
+      "command": "node --test --test-timeout=20000 --test-concurrency=1 tests/checkpoint.test.mjs tests/checkpoint-replay.test.mjs tests/checkpoint-format-settings.test.mjs tests/summary-ledger.test.mjs tests/summary-operations.test.mjs tests/summary-deadline.test.mjs tests/session-cost.test.mjs tests/compatibility.test.mjs",
+      "tests": 90,
+      "passed": 89,
+      "failed": 0,
+      "skipped": 1
+    },
+    "focusedTotals": {
+      "tests": 158,
+      "passed": 157,
+      "failed": 0,
+      "skipped": 1
+    },
+    "fullSuiteAttempt": {
+      "tests": 470,
+      "passed": 438,
+      "failed": 1,
+      "skipped": 31,
+      "note": "One full-suite attempt on this build stopped at the superseded legend-count assertion in an older settings test. That expectation was updated to the intended four content groups plus two explicit unknown entries and is not a product failure. The suite was not repeated after the update, so no complete 1.0.0 full-suite pass is claimed."
+    },
+    "historicalBaseline": {
+      "version": "0.10.10",
+      "tests": 463,
+      "passed": 432,
+      "skipped": 31,
+      "failed": 0,
+      "note": "Previously accepted full-suite baseline for unchanged core; not re-run against 1.0.0."
+    },
+    "liveDataRenderCheck": {
+      "source": "/tmp/context-v1-20261104/live-data.json (local acceptance data, not shipped)",
+      "observations": [
+        "capacity split 287.5K reserve / 27.41% and 70.85% free from the recorded admission budget",
+        "latest applied compaction -101.9K · 99.62%",
+        "summary preview loaded automatically with goal, constraints list and next action",
+        "no [object Object] or raw object text in the rendered page"
+      ],
+      "scope": "Read-only local render with jsdom; not native DSH UI acceptance."
+    },
+    "latestCapacityLabelChecks": {
+      "tests": 31,
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Existing settings and context-overview tests rerun after adding capacity segment labels; included in the 158 focused total, not additional cases."
+    }
+  },
+  "native": {
+    "hostVersion": "0.2.1-rc.4",
+    "installedVersion": "1.0.0",
+    "installation": "Final 1.0.0 runtime installed and native DSH restarted normally after all sessions were idle. Installed client bytes match the built client; final archive additionally contains the refreshed documentation screenshots.",
+    "settings": {
+      "triggerPercent": 80,
+      "idleMinutes": 15,
+      "entireNamespaceValuePreserved": true
+    },
+    "sessions": {
+      "count": 87,
+      "missingOriginalIds": []
+    },
+    "actions": "GitHub Actions workflow removed and not recreated"
+  },
+  "scope": "Native installation and UI layout, existing real stored summaries and source reads, settings/session preservation, typechecks, build, focused automated checks and archive boundary. Real-model automatic-compaction evidence comes from the preceding 0.10.11 run; no fresh 1.0.0 15-minute model run, universal model-quality guarantee, npm publication or GitHub Release is claimed.",
+  "visualAcceptance": {
+    "surface": "Native DSH plus the actual running Host web UI in Ego; existing fictional-material acceptance session. No fabricated runtime values or model calls for visual checks.",
+    "viewportWidths": [
+      390,
+      480,
+      600,
+      768,
+      900,
+      1024,
+      1280,
+      1440,
+      1920
+    ],
+    "sidebarOpenWidths": [
+      1024,
+      1440
+    ],
+    "mainLayout": [
+      "capacity first; all main cards full width and natural height",
+      "no horizontal overflow in the nine measured widths",
+      "category tracks share identical start/end coordinates; token and percent columns align",
+      "blue trend line and area restored; chart uses available width without scaling text",
+      "KPI cards use 4 / 2 / 1 columns; smallest size uses compact horizontal cards",
+      "1920px viewport uses the 1857px available content width with consistent inner padding"
+    ],
+    "summary": [
+      "stored preview loads automatically without generation",
+      "all seven fields open in one full-width closable reader",
+      "each field occupies its own row; aligned label/body columns on desktop, stacked labels on narrow screens",
+      "reader checked at 390 and 1440px without horizontal overflow",
+      "original-source navigation and character paging 1–16000 to 16001–32000 of 407523 observed"
+    ],
+    "settings": [
+      "desktop controls 180×32px",
+      "390px controls fill available width at 353×32px",
+      "centered input text",
+      "120 animation frames produced one distinct control geometry"
+    ],
+    "readmeImages": [
+      "docs/images/context-compaction-overview.png",
+      "docs/images/context-summary-details.png"
+    ],
+    "contentRowSpacing": "Installed UI checked at 390, 600 and 1440px: timeline-style preview rows, aligned type/value columns and separators; narrow titles fill the first row, type and value share the second row; no horizontal overflow.",
+    "requestUsage": "Installed UI checked at 390, 600 and 1440px: aggregate usage above eight compact horizontal stacked rows; identical track start/end coordinates; actual segment widths and 10px height; no horizontal overflow. Unknown inputs retain explicit unknown/lower-bound meaning; no fixed-size zero segments.",
+    "capacityLabels": "Native desktop screenshot plus actual Host web UI at 390, 1440 and 1920px: segment percentages use the recorded window denominator; free and reserve labels visible, labels in segments narrower than 48px hidden without clipping, all values remain in accessible labels/tooltips; no horizontal overflow."
+  }
+}

@@ -23,7 +23,7 @@ export const zh = {
   recoveryUnavailable: '单次恢复当前不可用', emergencyUnavailable: '人工恢复当前不可用', emergencyCheck: '检查一次人工恢复（不调用模型）', emergencyConfirm: '确认未知费用风险并额外调用一次', emergencyCancel: '取消', emergencyBatch: '批次', emergencyInput: '预计输入', tokens: 'Token', authorizationExpires: '授权两分钟内有效。',
   current: '当前上下文', contentBasis: '有效内容', windowBasis: '整个窗口', basis: '组成口径',
   summary: '记忆摘要', tool: '工具结果', message: '对话消息', instruction: '指令与定义', free: '未占用', other: '其他占用',
-  reserve: '压缩预留', reserveTooltip: '压缩保留', reserveHint: '检查线之后尚未占用的空间，为压缩和后续输出保留，不计入可用空间。达到检查线会先检查压缩，再继续执行。',
+  reserve: '输出与安全预留', reserveTooltip: '输出与安全预留', reserveHint: '检查线或输出上限之后为后续输出与压缩保留的空间，不计入可用空间。达到检查线会先检查压缩，再继续执行。',
   freeHint: '尚未占用且位于当前压缩检查线之前，可继续用于对话。灰色预留区不计入此数值。',
   summaryHint: '压缩后保留的摘要属于已用内容。点击查看摘要正文。',
   capacity: '总容量', used: '已用', hostOccupancy: '宿主占用', unknownWindow: '尚无窗口容量',
@@ -100,6 +100,15 @@ export const zh = {
   reductionNoRecent: '本会话尚无确认的精简引用', reductionSkip: '最近跳过原因', reductionTool: '工具', reductionNoNotes: '无附加说明',
   histUnavailable: '该截面不可用（历史）',
   runConsidered: '已核对', runWouldReduce: '可精简', runSkipped: '已跳过', runUnverified: '未证实',
+  currentUsage: '当前占用', estimateShort: '估算', segmentReduced: '本次替换片段减少', noAppliedSummaryShort: '暂无可比较的已应用压缩',
+  appliedCount: '已应用压缩', recentOnly: '仅近期记录', times: '次', unappliedPrefix: '近期另有', unappliedSuffix: '未应用', noUnapplied: '近期无未应用记录',
+  recentReduction: '最近减少', idleTimer: '空闲计时', idleProgress: '空闲计时进度', idleDisabledHint: '自动压缩关闭时不计时', idleCountingHint: '任务结束后按设定时长检查', idleWaitHint: '任务结束后开始计时', idleCompactingNote: '压缩完成后重新计时', idleNoTimer: '当前没有运行中的计时', windowHint: '窗口来自当前模型与请求路由', minuteShort: '分钟',
+  summaryPanel: '摘要保留了什么', summaryNoEntry: '暂无可查看的已应用摘要', summaryLoading: '正在读取摘要…', readSummary: '读取摘要', structuredSummary: '结构化摘要', rawSummary: '原始摘要', completedCount: '已完成', pendingCount: '待办', uncertaintyCount: '待核实', expandAllFields: '展开全部 7 项', summaryUnparsed: '摘要正文未通过结构校验；原文保留可读。', summaryPartial: '分页未完整读取，当前不是完整摘要。',
+  compositionTitle: '容量与内容组成', reserveDisplayHint: '按输出预留与窗口安全空间估算；不是压缩检查线。', compositionDonutHint: '只统计已占用内容；分类为估算。',
+  contextChange: '上下文变化', contextEstimate: '上下文占用（估算）', compactionEvents: '压缩事件（已记录）', trendScaleHint: '按记录顺序展示宿主投影截面，不是准入计量。当前',
+  latestPanel: '最近一次压缩', segmentNote: '本次替换片段 · 压缩前 = 100%（不是整个窗口）', sourceRecords: '来源记录', duration: '耗时', summaryOutput: '摘要输出',
+  requestPanel: '请求用量', cacheHit: '缓存命中', cacheHitHint: '缓存读取占输入比例，来自宿主记录', cumulativeOutput: '累计输出', cumulativeOutputHint: '宿主投影或事件日志中已回报的输出累计', recentRequests: '近期请求（最多 8 次）', request: '请求', maintenanceUsage: '摘要与修复用量', maintenanceHint: '摘要与修复未拆分用途，这里是已回报用量的合计', cost: '费用', costUnknown: '未提供价格',
+  moreDetails: '更多内容与诊断', filterGroupHint: '查看该分类的内容', unchanged: '未变化', valueUnknown: '未提供', reserveUnknown: '压缩预留：宿主未提供可用参数', freeUnknown: '可用空间：宿主未提供检查线', costPartial: '部分用量未定价', trendOverflowHint: '峰值超过窗口，未截断显示',
 } as const
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
@@ -126,7 +135,7 @@ export const en: Record<InspectorLocaleKey, string> = {
   recoveryUnavailable: 'Single recovery is unavailable', emergencyUnavailable: 'Manual recovery is unavailable', emergencyCheck: 'Check manual recovery (no model call)', emergencyConfirm: 'Accept unknown-cost risk and make one extra call', emergencyCancel: 'Cancel', emergencyBatch: 'Cycle', emergencyInput: 'Estimated input', tokens: 'tokens', authorizationExpires: 'Authorization expires in two minutes.',
   current: 'Current context', contentBasis: 'Active content', windowBasis: 'Full window', basis: 'Composition basis',
   summary: 'Memory summary', tool: 'Tool results', message: 'Conversation', instruction: 'Instructions & definitions', free: 'Unoccupied', other: 'Other occupancy',
-  reserve: 'Compaction reserve', reserveTooltip: 'Reserved for compaction', reserveHint: 'Unoccupied space beyond the admission check is reserved for compaction and subsequent output. It is excluded from usable space. At the check, compaction is evaluated before execution continues.',
+  reserve: 'Output and safety reserve', reserveTooltip: 'Output and safety reserve', reserveHint: 'Space kept beyond the admission check or output cap for subsequent output and compaction. It is excluded from usable space. At the check, compaction is evaluated before execution continues.',
   freeHint: 'Unoccupied space before the current admission check is usable for conversation. The gray reserve is excluded.',
   summaryHint: 'Retained summary text is occupied content. Select to read the summary.',
   capacity: 'Total capacity', used: 'Used', hostOccupancy: 'Host occupancy', unknownWindow: 'Window capacity unavailable',
@@ -203,7 +212,17 @@ export const en: Record<InspectorLocaleKey, string> = {
   reductionNoRecent: 'No confirmed reduced reference in this session yet', reductionSkip: 'Latest skip reason', reductionTool: 'Tool', reductionNoNotes: 'No further notes',
   histUnavailable: 'Unavailable for this cut (historical)',
   runConsidered: 'examined', runWouldReduce: 'reducible', runSkipped: 'skipped', runUnverified: 'unverified',
+  currentUsage: 'Current usage', estimateShort: 'Estimate', segmentReduced: 'Replaced segment reduced', noAppliedSummaryShort: 'No applied compaction to compare',
+  appliedCount: 'Applied compactions', recentOnly: 'Recent only', times: 'times', unappliedPrefix: 'Recent', unappliedSuffix: 'not applied', noUnapplied: 'No recent unapplied attempt',
+  recentReduction: 'Recent reduction', idleTimer: 'Idle timer', idleProgress: 'Idle timer progress', idleDisabledHint: 'No timer while automatic compaction is off', idleCountingHint: 'Checks after the saved delay once the task ends', idleWaitHint: 'The timer starts when the task ends', idleCompactingNote: 'The timer restarts after this compaction', idleNoTimer: 'No running timer', windowHint: 'The window comes from the current model and request route', minuteShort: 'min',
+  summaryPanel: 'What the summary kept', summaryNoEntry: 'No applied summary to read', summaryLoading: 'Reading summary…', readSummary: 'Read summary', structuredSummary: 'Structured summary', rawSummary: 'Original summary', completedCount: 'Completed', pendingCount: 'Pending', uncertaintyCount: 'Uncertainties', expandAllFields: 'Expand all 7 fields', summaryUnparsed: 'The summary body did not pass structure checks; the original text stays readable.', summaryPartial: 'Only part of the stored text was read; this is not the complete summary.',
+  compositionTitle: 'Capacity and composition', reserveDisplayHint: 'Estimated from the output reservation and window safety space; not the compaction check line.', compositionDonutHint: 'Occupied content only; categories are estimates.',
+  contextChange: 'Context change', contextEstimate: 'Context usage (estimate)', compactionEvents: 'Compaction events (recorded)', trendScaleHint: 'Record order of host projections, not admission measurements. Current',
+  latestPanel: 'Latest compaction', segmentNote: 'Replaced segment · before = 100% (not the whole window)', sourceRecords: 'Source records', duration: 'Duration', summaryOutput: 'Summary output',
+  requestPanel: 'Request usage', cacheHit: 'Cache hit', cacheHitHint: 'Cache-read share of input, from host records', cumulativeOutput: 'Cumulative output', cumulativeOutputHint: 'Reported output from the host projection or event log', recentRequests: 'Recent requests (up to 8)', request: 'Request', maintenanceUsage: 'Summary and repair usage', maintenanceHint: 'Summary and repair are not split by purpose; the reported usage is summed', cost: 'Cost', costUnknown: 'Price unavailable',
+  moreDetails: 'More content and diagnostics', filterGroupHint: 'Browse this category', unchanged: 'Unchanged', valueUnknown: 'Not provided', reserveUnknown: 'Reserve: the Host provided no usable parameters', freeUnknown: 'Free space: the Host provided no admission check', costPartial: 'partial usage unpriced', trendOverflowHint: 'the peak exceeds the window and is not clipped',
 }
+
 export type InspectorText = (key: InspectorLocaleKey) => string
 /** Select the panel dictionary from the native locale. */
 export function inspectorText(locale = 'zh'): InspectorText { return key => (locale.startsWith('zh') ? zh : en)[key] }

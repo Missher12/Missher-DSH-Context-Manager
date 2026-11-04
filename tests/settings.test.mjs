@@ -221,7 +221,7 @@ test('inspector cancels stale Session reads, never flashes another Session and r
     assert.match(document.body.textContent, /fixture \/ second-session/)
     assert.match(document.querySelector('.cmv-quick')?.textContent ?? '', /等待完整参数/)
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0, 'all context sections share one panel')
-    for (const title of ['当前上下文', '最近已应用的压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
+    for (const title of ['当前上下文', '最近一次压缩', '展开当前有效内容', '当前有效内容', '上下文变化', '请求用量']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelector('#cmi-content-panel'), null, 'entry shows compact preview without loading bodies')
     assert.ok(!document.body.textContent.includes('预计可继续执行'))
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0)
@@ -326,7 +326,11 @@ test('read-only view hides only its own composer, restores drafts and reads only
     assert.equal(reads, 0, 'compact preview does not fetch bodies')
     await click('展开当前有效内容')
     assert.equal(reads, 1, 'explicit expansion fetches only the selected body')
-    assert.equal(document.querySelectorAll('.cmv-legend > button').length, 4)
+    const readout = document.querySelector('.cmv-capacity-readout')
+    assert.equal(readout.querySelectorAll('span[data-slice]').length, 3, 'one compact readout per capacity bucket')
+    assert.equal(readout.querySelector('[data-slice="free"]').dataset.value, 'unknown')
+    assert.equal(readout.querySelector('[data-slice="reserve"]').dataset.value, 'unknown')
+    assert.equal(document.querySelector('.cmv-legend'), null, 'the duplicated category legend is gone')
     assert.equal(document.querySelectorAll('.cmv-events > li').length, 2)
     assert.match(document.querySelector('.cmv-record-detail').textContent, /减少 10 Token · 50.00%/)
     await click('全部记录'); assert.equal(document.querySelectorAll('.cmv-events > li').length, 4)
@@ -380,7 +384,7 @@ test('compact previews reset per target, stay collapsed on refresh, and cancel s
     assert.equal(content(), null); assert.equal(document.querySelectorAll('.cmv-preview > button').length, 3)
     assert.equal(bodies.length, 0); await click('展开当前有效内容')
     assert.ok(content()); assert.ok(document.querySelector('#cmi-history-panel'))
-    for (const title of ['当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
+    for (const title of ['当前有效内容', '上下文变化', '请求用量']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelectorAll('.cmi-content-list > button[aria-pressed]').length, 4)
     assert.equal(bodies.length, 1, 'opening details does not prefetch all 51 bodies')
     await reply(bodies[0], 'a'.repeat(16000), 16000, 32000)
@@ -659,17 +663,23 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
   try {
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'charts', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
-    assert.equal(document.querySelectorAll('.cmv-bars>button').length, 3)
-    assert.equal(document.querySelectorAll('.cmv-bars>button[data-unknown="true"]').length, 1)
-    assert.equal(document.querySelector('.cmv-bars>button[data-unknown="true"]>span').style.height, '0px')
+    assert.equal(document.querySelectorAll('.cmv-trend-point').length, 2, 'a null projection stays a gap instead of a fabricated point')
+    assert.equal(document.querySelectorAll('.cmv-trend-area').length, 0, 'a projection gap is never filled as one continuous area')
+    assert.match(document.querySelector('.cmv-trend-point').getAttribute('aria-label'), /900/)
     assert.equal(document.querySelectorAll('svg path.cmi-pressure-line').length, 0)
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="read"]').style.width, '35%')
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="write"]').style.width, '5%')
     assert.equal(document.querySelectorAll('.cmv-request-details tbody tr').length, 2)
-    const cards = [...document.querySelector('.cmv-chart-grid').children].map(node => node.querySelector('h3').textContent)
-    assert.deepEqual(cards, ['占用变化', '本会话累计'])
-    assert.ok(document.querySelector('.cmv-compactions').compareDocumentPosition(document.querySelector('.cmv-records')) & 4, 'the recent summary precedes its timeline')
-    assert.ok(document.querySelector('.cmv-content').compareDocumentPosition(document.querySelector('.cmv-chart-grid')) & 2, 'content follows every chart')
+    const page = document.querySelector('.cmv-page')
+    const children = [...page.children]
+    assert.equal(children[0].className.includes('cmv-composition'), true, 'capacity and composition leads the page')
+    assert.equal(children[1].className.includes('cmv-stats'), true, 'the KPI row follows the primary capacity card')
+    const trend = document.querySelector('#cmi-history-panel')
+    assert.ok(trend && trend.compareDocumentPosition(document.querySelector('.cmv-compactions')) & 4, 'the trend sits above the latest compaction')
+    assert.ok(document.querySelector('.cmv-compactions').compareDocumentPosition(document.querySelector('.cmv-usage')) & 4)
+    assert.ok(document.querySelector('.cmv-usage').compareDocumentPosition(document.querySelector('.cmv-summary')) & 4)
+    assert.ok(document.querySelector('.cmv-summary').compareDocumentPosition(document.querySelector('.cmv-records')) & 4)
+    assert.ok(document.querySelector('.cmv-records').compareDocumentPosition(document.querySelector('.cmv-content')) & 4, 'content stays last in the single-column flow')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
@@ -698,28 +708,28 @@ test('current context shows full-window percentages and keeps all original bucke
     assert.equal(card.querySelector('.cmv-number b').textContent,'32.00%', 'the main readout stays Token-first with its real full-window share alongside')
     assert.ok(card.querySelector('.cmv-context-title .cmv-model'))
     assert.equal(card.querySelector('.cmv-capacity-stack').dataset.capacity,'1000000')
-    assert.equal(card.querySelector('[data-color="free"]').style.width,'47%')
+    assert.equal(card.querySelector('.cmv-capacity-stack [data-color="free"]').style.width,'47%')
     assert.equal(card.querySelector('.cmv-capacity-stack').lastElementChild.dataset.color,'reserve')
-    assert.equal(card.querySelector('[data-color="reserve"]').style.width,'21%')
+    assert.equal(card.querySelector('.cmv-capacity-stack [data-color="reserve"]').style.width,'21%')
     assert.match(card.textContent, /输出预留 6\.40%/, 'the footer uses the resolved admission reserve even without an explicit maxTokens header')
     assert.equal(card.querySelector('[data-color="other"]').style.width,'2%')
     assert.equal(card.querySelectorAll('.cmv-capacity-stack').length,1)
     assert.equal(card.querySelectorAll('[aria-pressed]').length,0,'no hidden full-window toggle')
-    assert.deepEqual([...card.querySelectorAll('.cmv-key')].map(node=>[
-      node.dataset.slice, node.querySelector('span')?.textContent, node.querySelector('strong')?.textContent,
-    ]),[
-      ['summary','记忆摘要','30.0K Token · 3.00%'],
-      ['tool','工具结果','200.0K Token · 20.00%'],
-      ['message','对话消息','50.0K Token · 5.00%'],
-      ['instruction','指令与定义','20.0K Token · 2.00%'],
-      ['other','其他占用','20.0K Token · 2.00%'],
-      ['free','未占用','470.0K Token · 47.00%'],
-      ['reserve','压缩预留','210.0K Token · 21.00%'],
+    const readout = card.querySelector('.cmv-capacity-readout')
+    assert.deepEqual([...readout.querySelectorAll('span[data-slice]')].map(node=>[node.dataset.slice,node.dataset.value]),[
+      ['used','320000'],['free','470000'],['reserve','210000'],
     ])
-    assert.equal(card.querySelector('[data-color="summary"]').style.width,'3%','retained memory keeps its actual share of the window')
-    assert.match(card.querySelector('[data-slice="summary"]').title,/属于已用内容/)
+    assert.match(readout.querySelector('[data-slice="free"]').textContent,/470\.0K/)
+    assert.match(readout.querySelector('[data-slice="free"]').textContent,/47\.00%/)
+    assert.match(readout.querySelector('[data-slice="reserve"]').textContent,/210\.0K/)
+    assert.match(readout.querySelector('[data-slice="reserve"]').textContent,/21\.00%/)
+    const rows=[...card.querySelectorAll('.cmv-category-bars>li')]
+    assert.deepEqual(rows.map(row=>row.dataset.cat),['summary','tool','message','instruction','other'])
+    assert.equal(rows.filter(row=>row.hasAttribute('data-color')).length,0,'category rows never use the global colour hook, so no row is filled')
+    assert.equal(card.querySelector('.cmv-category-bars li[data-cat="other"] .cmv-cat-filter').disabled,true,'unclassified usage is not a content filter')
+    assert.equal(card.querySelector('.cmv-category-bars li[data-cat="tool"] .cmv-cat-filter').disabled,false,'classification filtering stays on the category rows')
     assert.match(card.querySelector('[data-slice="reserve"]').title,/检查线 79\.00%/)
-    assert.equal(card.querySelectorAll('.cmv-key:disabled').length,3,'unclassified usage, free space and reserve are not content filters')
+    assert.equal(card.querySelector('.cmv-legend'),null)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
@@ -762,7 +772,7 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.match(status().textContent, /预计先压缩，再执行/)
     assert.equal(status().querySelector('[data-admission-tokens]').dataset.admissionTokens, '170000')
     assert.match(status().textContent, /检查线 79\.00%/)
-    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'), /50\.00%/)
+    assert.ok(document.querySelector('#cmi-history-panel'), 'occupancy history stays reachable in the overview grid')
     assert.equal(document.querySelector('.cmv-run-details').open, false)
     await act(async () => document.querySelector('.cmv-run-details summary').click())
     const automaticPolicy = runFact('已保存策略')
@@ -832,7 +842,7 @@ test('request status uses live admission pressure, leaves unknown cuts unknown a
     assert.match(capacityDetails, /100\.00%/)
     assert.doesNotMatch(capacityDetails, /Token/,'capacity details use percentages while usage ledgers retain Token units')
     await render({...base,admission:{...reading,window:1000000}})
-    assert.match(document.querySelector('.cmv-bars > button').getAttribute('aria-label'),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
+    assert.match([...document.querySelectorAll('.cmv-trend-point')].map(node => node.getAttribute('aria-label')).join(' | '),/50\.00%/,'historical point keeps its original 200K denominator after a model change')
     await render({ ...base, admission: reading })
     await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '检查一次人工恢复（不调用模型）')?.click())
     await act(async () => new Promise(resolve => setTimeout(resolve, 0)))

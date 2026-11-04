@@ -335,6 +335,21 @@ export function parseCheckpoint(raw: string): CheckpointValue {
 }
 
 /**
+ * Read one stored, applied summary. Applied checkpoints may wrap the canonical
+ * body in the Host's summary tag; strip only that paired closing tag and parse
+ * the complete text as stored. A partial page or unknown trailing data returns
+ * null instead of a guessed structure.
+ */
+export function readStoredCheckpoint(text: string): CheckpointValue | null {
+  const marker = text.indexOf('Checkpoint sections: context-manager/3\n')
+  let body = marker < 0 ? text : text.slice(marker)
+  if (marker > 0 && text.slice(0, marker).trimEnd().endsWith('<compacted-summary>')) {
+    body = body.replace(/\n+<\/compacted-summary>\s*$/u, '')
+  }
+  try { return parseCheckpoint(body) } catch { return null }
+}
+
+/**
  * The deterministic repair a repairable checkpoint admits: every array field
  * holding a single string becomes a one-element array of that exact string;
  * everything else stays byte-identical. Returns null when the input is not

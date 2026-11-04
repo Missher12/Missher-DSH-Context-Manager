@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.11",
-  "runtimeDiagnosticVersion": "0.10.11",
+  "candidatePackageVersion": "1.0.0",
+  "runtimeDiagnosticVersion": "1.0.0",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.11 adds a recent applied-compaction card, a chronological attempt timeline and lossless structured summary reading; settings, compaction policy and Host ownership remain unchanged.",
+  "candidateStatus": "1.0.0 puts capacity and composition first in a full-width Context overview. Main cards use natural heights in one column, compact status cards adapt to available width, and the stored summary preview opens a full-width seven-field reader. Compaction policy, budgets, saved settings, sessions and Host ownership are unchanged.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
@@ -130,16 +130,16 @@
       "evidenceScope": "Synthetic component UI only; not natural Host runtime/UI, settings persistence, product-package behavior, release availability, or installation."
     },
     "currentCandidate": {
-      "source": "0.10.11 recent applied-compaction card, timeline and lossless summary reader",
+      "source": "Capacity-first full-width Context overview, aligned composition rows, responsive charts, compact status cards, latest compaction, read-only summary preview, seven-field reader and history timeline",
       "typecheck": "passed: server and client under standard Node.js 24.22.1",
-      "tests": "80 related checks passed, zero failures; the unchanged 0.10.10 baseline separately passed 432 with 31 conditional skips",
+      "tests": "focused 1.0.0 checks: 158 tests, 157 passed, 1 conditional skip, zero failures (view/chart/summary 68/68; checkpoint/summary/cost/compatibility 89 passed + 1 skip). The unchanged core baseline of 432 passed + 31 skips remains historical, not re-run for 1.0.0",
       "build": "passed",
-      "package": "tarball validation and installed artifact are recorded in the acceptance receipt",
-      "hostRuntime": "0.2.1-rc.4; real pre-request automatic compaction and native banner observed",
-      "nativeSettingsUI": "stable x-position and width through advanced-section expansion; original 80% / 15 minutes preserved",
-      "release": "no npm publication or GitHub Release requested",
-      "installation": "native desktop profile; final UI and preservation results are recorded separately",
-      "evidence": "verification/RESULTS-0.10.11-20261104.json"
+      "package": "Final tarball and archive-boundary result are recorded in verification/RESULTS-1.0.0-20261104.json",
+      "hostRuntime": "DSH 0.2.1-rc.4; native 1.0.0 visual acceptance completed. Real pre-request and 15-minute idle compaction were observed earlier on 0.10.11; this UI change does not claim a new real-model compaction run.",
+      "nativeSettingsUI": "80% trigger and 15-minute idle settings retained. Equal 32px controls, centered values, desktop/narrow alignment and stable geometry across 120 animation frames observed.",
+      "release": "Git main and v1.0.0 delivery requested; no npm publication or GitHub Release claimed.",
+      "installation": "Installed locally as 1.0.0. All 87 existing session IDs and the complete Context settings value were retained; final archive replacement is recorded in the acceptance receipt.",
+      "evidence": "verification/RESULTS-1.0.0-20261104.json"
     },
     "acceptanceBoundaries": [
       "Natural Host runtime and upgrade behavior require a separate Host-level validation record; synthetic Loader checks do not substitute.",
