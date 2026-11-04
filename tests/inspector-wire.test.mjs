@@ -98,6 +98,17 @@ test('actual idle codec preserves each compaction phase and accepts old response
   }
 })
 
+test('actual idle codec preserves the compaction trigger and rejects unknown ones', () => {
+  const status = { status: 'compacting', dueAt: null, message: 'Preparing context', compactionPhase: 'summarizing' }
+  for (const compactionTrigger of ['idle', 'pressure', 'overflow', 'manual']) {
+    const value = { ...status, compactionTrigger }
+    assert.deepEqual(roundTrip('idleStatus', value), value)
+  }
+  for (const compactionTrigger of ['', 'auto', 'automatic', null, 1]) {
+    assert.equal(codec('idleStatus').safeParse({ ...status, compactionTrigger }).success, false)
+  }
+})
+
 test('actual inspect codec preserves optional admission measurements and rejects invalid meter metadata', () => {
   const admission = { tokens: 162000, logRevision: 13, baseline: 'usage', window: 200000, outputReserve: 8192 }
   for (const reading of [admission, { ...admission, baseline: 'estimated', window: null, outputReserve: null },

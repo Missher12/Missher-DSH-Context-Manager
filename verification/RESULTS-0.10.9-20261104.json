@@ -1,0 +1,51 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.9",
+  "verifiedAt": "2026-11-04T01:15:02Z",
+  "artifact": {
+    "sha256": "f9880bc19c6ac72fa0c676b5e843dde4f800f016e2417af4fbbb33e728cfef31",
+    "fileCount": 26,
+    "path": "dist/0.10.9/missher-dsh-context-manager-0.10.9.tgz"
+  },
+  "feature": {
+    "surface": "conversation.composer.dock",
+    "zh": "正在压缩上下文，请稍后… / 正在修复压缩摘要，请稍后…",
+    "en": "Compacting context, please wait… / Repairing the compacted summary, please wait…",
+    "shownFor": ["pressure", "overflow"],
+    "hiddenFor": ["idle", "manual"],
+    "statusSource": "contextInspector.idleStatus → compactionPhase + compactionTrigger from the engine's live CompactPhase",
+    "polling": "1s while compacting, 5s otherwise; no model call and no session write",
+    "rationale": "Only the automatic pre-request path is announced by the composer; idle maintenance and confirmed manual runs stay in the Context panel so the line never claims work the reader did not trigger by sending a message."
+  },
+  "verification": {
+    "build": "passed",
+    "serverTypecheck": "passed",
+    "clientTypecheck": "passed",
+    "packageBoundary": "passed",
+    "wireCodecRegression": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0
+    },
+    "fullSuite": {
+      "tests": 463,
+      "passed": 421,
+      "failed": 11,
+      "skipped": 31,
+      "exitCode": 1,
+      "failureCause": "All 11 failures are node-addon-system ERR_DLOPEN_FAILED (local native module code-signature Team ID mismatch). The same failures reproduce on a clean e381e09 worktree (idle-recovery 0/9 pass) with no 0.10.9 changes applied, so they are pre-existing environment failures, not regressions."
+    }
+  },
+  "nativeInstallation": {
+    "version": "0.10.9",
+    "hostVersion": "0.2.1-rc.4",
+    "profile": "desktop",
+    "profileDependency": "file:…/dsh-context-manager/dist/0.10.9/missher-dsh-context-manager-0.10.9.tgz",
+    "installedPackageVersionReadback": "0.10.9",
+    "backupOfPreviousManifest": "~/.dsh/backups/context-manager-0.10.9-install-20261104-091133",
+    "restartRequired": true,
+    "guiObservation": "pending",
+    "note": "Host-side status plumbing is new, so the running Host must restart before the line can appear; a client-only reload would still talk to the old Host status shape."
+  },
+  "scope": "Static and packaged-candidate verification only. The native GUI appearance of the line during a real automatic pre-request compaction has not been observed yet; it remains unverified until the Host restarts and one automatic compaction runs."
+}

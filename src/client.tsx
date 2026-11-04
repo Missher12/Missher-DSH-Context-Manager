@@ -1,4 +1,4 @@
-import { useState, useEffect, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties } from 'react'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, zh, type InspectorLocaleKey } from './inspector-locales.ts'
 import { settingsEn, settingsText, settingsZh, type SettingsLocaleKey, type SettingsText } from './settings-locales.ts'
@@ -17,9 +17,11 @@ import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { ContextInspectorView, type ContextViewInjected } from './inspector-view.tsx'
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
+import { CompactionBanner, type CompactionBannerProps } from './compaction-banner.tsx'
 import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi, SessionUsageReadout } from './inspector-types.ts'
 import type { HostCapabilityReadout } from './compatibility.ts'
 import { TYPERT_REMOTE } from './inspector-wire.ts'
+import { useStableScrollbarGutter } from './stable-gutter.ts'
 import { defaults, normalizePolicy, validatePolicy, type Policy } from './policy.ts'
 import type { IdleStatus } from './idle-types.ts'
 import css from './client.css'
@@ -89,6 +91,14 @@ export async function apply(ctx: Context) {
         }
       },
     }, PeakIndicator))
+    scope.slots.inject('conversation.composer.dock', () => scope.slots.register({
+      name: 'conversation.composer.dock', id: 'context-manager-compaction', order: 10,
+      inject: (sessionId: string): CompactionBannerProps => ({
+        sessionId,
+        readStatus: signal => api.idleStatus({ sessionId }, signal),
+        label: t,
+      }),
+    }, CompactionBanner))
     scope.inject(['remote.contextRecovery'], recovery => {
       api.prepareEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.prepareEmergency(query, signal))
       api.executeEmergency = async (query, signal) => unwrap(await recovery.remote.contextRecovery.executeEmergency(query, signal))
@@ -285,6 +295,8 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [failed, setFailed] = useState(false)
+  const rootRef = useRef<HTMLElement>(null)
+  useStableScrollbarGutter(rootRef)
   useEffect(() => {
     if (!dirty && accepted.value) { setDraft(toDraft(accepted.value.policy)); setRevision(accepted.revision) }
   }, [accepted, dirty])
@@ -319,7 +331,7 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
   const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false) =>
     <div className="cm-native-toggle"><div className="cm-native-copy"><span className="cm-label">{label}</span><ContextHelp label={label} hint={hint}/></div><ContextSwitch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
   const automatic = policy.historyMode === 'automatic'
-  return <section aria-label="上下文压缩设置" className="dsh-context-settings">
+  return <section ref={rootRef} aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
     <div className="cm-settings-form" aria-busy={saving}>
       {accepted.status !== 'ready' && <p className="cm-hint" role="status">{t('waitingSettings')}</p>}

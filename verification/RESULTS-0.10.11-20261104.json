@@ -1,0 +1,83 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.11",
+  "verifiedAt": "2026-11-04T11:38:33.359034+00:00",
+  "change": "Recent applied-compaction card, newest-first history timeline, readable seven-field summaries and exact original-source navigation. Existing automatic-compaction banner and stable settings gutter are retained.",
+  "verification": {
+    "serverTypecheck": "passed",
+    "clientTypecheck": "passed",
+    "build": "passed",
+    "relatedSuite": {
+      "tests": 80,
+      "passed": 80,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 29071.670177
+    },
+    "baselineFullSuite": {
+      "version": "0.10.10",
+      "tests": 463,
+      "passed": 432,
+      "failed": 0,
+      "skipped": 31,
+      "note": "Before the UI extension; not a claim of a separate full 0.10.11 suite."
+    },
+    "regressionFoundAndFixed": "The actual Host checkpoint has a closing compacted-summary tag. The reader now recognizes that paired wrapper before strict parsing, while preserving the full stored text. The added regression failed before the fix and passed after it."
+  },
+  "artifact": {
+    "path": "dist/0.10.11/final/missher-dsh-context-manager-0.10.11.tgz",
+    "sha256": "ad4f2edbd84a205d89a35d3c652df5786aad5caab35dcf8e55ac52822bbc71c7",
+    "fileCount": 26,
+    "packageBoundary": "passed"
+  },
+  "native": {
+    "hostVersion": "0.2.1-rc.4",
+    "profile": "desktop",
+    "installation": "Installed through the native Host plugin manager and restarted normally while no sessions were running.",
+    "preservation": {
+      "version": "0.10.11",
+      "settingsEqual": true,
+      "trigger": 80,
+      "idle": 15,
+      "originalSessions": 86,
+      "missingOriginals": [],
+      "clientMatches": true,
+      "engineMatches": true
+    },
+    "preRequestCompaction": {
+      "history": "A separate clearly labeled fictional test session; 8 synthetic completed turns, no model calls while preparing it.",
+      "model": "deepseek-account/deepseek-flash; existing max reasoning setting retained",
+      "manual": false,
+      "applied": true,
+      "durationMs": 15235,
+      "selectedBeforeEstimatedTokens": 713325,
+      "selectedAfterEstimatedTokens": 373,
+      "selectedMessages": 13,
+      "summaryInputTokens": 534320,
+      "summaryOutputTokens": 944,
+      "nativeBanner": "Observed the progress message while automatic compaction was running, then its removal on completion.",
+      "factsRetained": [
+        "fictional project 澄河 C11",
+        "code NOVA-417",
+        "corrected quantity 27; obsolete value 18"
+      ],
+      "finalReplyCorrect": true,
+      "boundary": "This controlled repetitive-history run does not establish arbitrary-summary semantic quality. The final reader-only patch was verified against this same stored real summary, without another generation."
+    },
+    "idle": "The original 15-minute setting and due-time schedule survived restart. This receipt does not claim a completed 15-minute idle cycle.",
+    "ui": {
+      "recentCard": "trigger, timestamp, before/after bars and summary action verified",
+      "timeline": "record expands with status, trigger, before/after values and summary link",
+      "summary": "all seven actual stored fields rendered; original wrapped text remains available",
+      "originalSources": "record 3 opened from the real checkpoint, with paginated original text and return-to-summary navigation",
+      "desktop": "1449 x 842 live Host browser; native Electron UI also observed",
+      "narrow": "560 x 900 live Host browser; 473px card, single-column hero and summary, no horizontal overflow",
+      "settingsJitter": "0.10.10 geometry checked before upgrade: x 536.5 and width 559 unchanged on expand/collapse; final version inherits that implementation"
+    }
+  },
+  "limits": [
+    "No custom provider routes are currently available in this profile; this turn used the actual DeepSeek route.",
+    "No npm publication or GitHub Release was requested. Git delivery is separate.",
+    "Screenshots and private profile/session logs are kept locally and excluded from Git."
+  ]
+}

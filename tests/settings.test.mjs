@@ -139,9 +139,9 @@ test('client registers the native conversation tab after trajectory and binds it
     slots: { inject: (_slot, callback) => callback(), register: options => { slots.push(options); return () => {} } },
     effect: callback => { disposers.push(callback()) }, inject: (_keys, callback) => callback(ctx) }
   await client.apply(ctx)
-  assert.deepEqual(slots.map(slot => slot.name), ['conversation.input.right', 'settings.section', 'conversation.view'])
-  assert.equal(slots[2].order, 20); assert.equal(slots[2].label(), '上下文')
-  const injected = slots[2].inject('visible-session')
+  assert.deepEqual(slots.map(slot => slot.name), ['conversation.input.right', 'conversation.composer.dock', 'settings.section', 'conversation.view'])
+  assert.equal(slots[3].order, 20); assert.equal(slots[3].label(), '上下文')
+  const injected = slots[3].inject('visible-session')
   assert.equal(injected.target, 'visible-session'); assert.equal(injected.pulse, pulse)
   assert.deepEqual(bindings, ['visible-session'])
   assert.equal(slots[0].inject('visible-session').directory, directory)
@@ -221,7 +221,7 @@ test('inspector cancels stale Session reads, never flashes another Session and r
     assert.match(document.body.textContent, /fixture \/ second-session/)
     assert.match(document.querySelector('.cmv-quick')?.textContent ?? '', /等待完整参数/)
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0, 'all context sections share one panel')
-    for (const title of ['当前上下文', '最近压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
+    for (const title of ['当前上下文', '最近已应用的压缩', '展开当前有效内容', '当前有效内容', '占用变化', '本会话累计']) assert.ok(document.body.textContent.includes(title), title)
     assert.equal(document.querySelector('#cmi-content-panel'), null, 'entry shows compact preview without loading bodies')
     assert.ok(!document.body.textContent.includes('预计可继续执行'))
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0)
@@ -667,7 +667,8 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="write"]').style.width, '5%')
     assert.equal(document.querySelectorAll('.cmv-request-details tbody tr').length, 2)
     const cards = [...document.querySelector('.cmv-chart-grid').children].map(node => node.querySelector('h3').textContent)
-    assert.deepEqual(cards, ['占用变化', '最近压缩', '本会话累计'])
+    assert.deepEqual(cards, ['占用变化', '本会话累计'])
+    assert.ok(document.querySelector('.cmv-compactions').compareDocumentPosition(document.querySelector('.cmv-records')) & 4, 'the recent summary precedes its timeline')
     assert.ok(document.querySelector('.cmv-content').compareDocumentPosition(document.querySelector('.cmv-chart-grid')) & 2, 'content follows every chart')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }

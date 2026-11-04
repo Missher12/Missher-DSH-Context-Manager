@@ -1387,7 +1387,7 @@ export class ContextEngine extends BasicCompactionEngine {
     const source = { sessionId, compactionId }
     const trigger: SummaryTrigger = this.idlePreflights.has(agent) ? 'idle' : this.summaryTriggers.get(agent) ?? 'manual'
     const ledger = this.ctx.contextManager.summaryLedger
-    const phase: CompactPhase = { phase: 'summarizing', message: '正在生成压缩摘要；新消息到达时让出' }
+    const phase: CompactPhase = { phase: 'summarizing', message: '正在生成压缩摘要；新消息到达时让出', trigger }
     this.publishPhase(agent, phase)
     try {
       const baseInstruction = policy.checkpointFormat === 'sections' ? INSTRUCTION_SECTIONS : INSTRUCTION

@@ -1,0 +1,80 @@
+{
+  "package": "@missher/dsh-context-manager",
+  "version": "0.10.10",
+  "verifiedAt": "2026-11-04T01:47:44Z",
+  "artifact": {
+    "sha256": "de6b75fd07253977d02d41d598e19e059bf2051d8a5ecb9d912d92f13d93d613",
+    "fileCount": 26,
+    "path": "dist/0.10.10/missher-dsh-context-manager-0.10.10.tgz"
+  },
+  "fix": {
+    "symptom": "The Host settings page shifts its whole content sideways whenever the vertical scrollbar appears or disappears.",
+    "cause": "The settings pane scrolls in a Host container that does not reserve the scrollbar gutter; only one dropdown in the Host frontend CSS uses scrollbar-gutter: stable.",
+    "change": "While the Context settings section is mounted, src/stable-gutter.ts reserves scrollbar-gutter: stable on the nearest scrolling ancestor and restores the previous inline value on unmount. Host stylesheets are untouched; the reservation is skipped when the Host already gutters the container or the view exposes no getComputedStyle resolver.",
+    "scope": "Settings section only; the Context inspector view is unchanged."
+  },
+  "verification": {
+    "build": "passed",
+    "serverTypecheck": "passed",
+    "clientTypecheck": "passed",
+    "packageBoundary": "passed",
+    "settingsSuite": {
+      "tests": 26,
+      "passed": 26,
+      "failed": 0,
+      "note": "Includes the first-run failure of the hook on a stubbed window (getComputedStyle missing) that the guard now tolerates."
+    },
+    "fullSuite": {
+      "tests": 463,
+      "passed": 432,
+      "failed": 0,
+      "skipped": 31,
+      "exitCode": 0,
+      "runtime": "standard Node.js 24.22.1 (Codex runtime)",
+      "durationMs": 229073.107834,
+      "note": "Rerun before the 0.10.11 UI changes; all 11 signed-runtime native-addon failures are absent. A representative failure was separately reproduced under the signed DSH Node runtime; native persistence/idle checks passed 25/25 under standard Node."
+    },
+    "initialSignedRuntimeRun": {
+      "tests": 463,
+      "passed": 421,
+      "failed": 11,
+      "skipped": 31,
+      "exitCode": 1,
+      "failureCause": "All 11 failures are node-addon-system ERR_DLOPEN_FAILED (local native module code-signature Team ID mismatch), reproduced on a clean e381e09 worktree without these changes; not regressions."
+    }
+  },
+  "nativeInstallation": {
+    "version": "0.10.10",
+    "hostVersion": "0.2.1-rc.4",
+    "profile": "desktop",
+    "profileDependency": "file:…/dsh-context-manager/dist/0.10.10/missher-dsh-context-manager-0.10.10.tgz",
+    "installedPackageVersionReadback": "0.10.10",
+    "installedBundleContainsHook": true,
+    "backupOfPreviousManifest": "~/.dsh/backups/context-manager-0.10.10-install-20261104-094406",
+    "restartRequired": true,
+    "guiObservation": "pending",
+    "note": "The client bundle is loaded per Host start; the running Host still exposes 0.10.9 until it restarts."
+  },
+  "scope": "The original installation and signed-runtime result are historical. Follow-up validation resolves the 11 environment failures and verifies 0.10.10 settings geometry. The separately versioned 0.10.11 adds the visual history UI.",
+  "followUp": {
+    "verifiedAt": "2026-11-04T11:37:29.583819+00:00",
+    "nativeVersionBeforeUpgrade": "0.10.10",
+    "settingsGeometry": {
+      "before": {
+        "x": 536.5,
+        "width": 559
+      },
+      "advancedExpanded": {
+        "x": 536.5,
+        "width": 559
+      },
+      "collapsed": {
+        "x": 536.5,
+        "width": 559
+      },
+      "nearestScrollerGutter": "stable"
+    },
+    "nativeObservation": "Native settings controls remained aligned while expanding advanced settings. No settings mutation was performed.",
+    "autoBanner": "Inherited banner behavior was exercised with a real pre-request compaction on the subsequent 0.10.11 build; see RESULTS-0.10.11-20261104.json."
+  }
+}

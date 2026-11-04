@@ -20,13 +20,13 @@ const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url))
 // wire/fold helpers stay in memory because they are not standalone package entries.
 const { default: Inspector, contextGrowth } = await import('../lib/inspector.js')
 const internalsBuild = await build({
-  stdin: { contents: "export { indexContext } from './inspector-fold.ts'; export { contentQuerySchema, contentPageSchema, inspectionSchema } from './inspector-wire.ts'", resolveDir: sourceRoot },
+  stdin: { contents: "export { indexContext } from './inspector-fold.ts'; export { contentQuerySchema, contentPageSchema, inspectionSchema } from './inspector-wire.ts'; export { formatCheckpointValue } from './checkpoint.ts'", resolveDir: sourceRoot },
   write: false, bundle: true, platform: 'node', format: 'esm', target: 'es2022',
   plugins: [{ name: 'published-package-dependencies', setup(builder) {
     builder.onResolve({ filter: /^[^./]/ }, args => ({ path: import.meta.resolve(args.path), external: true }))
   } }],
 })
-const { indexContext, contentQuerySchema, contentPageSchema, inspectionSchema } = await import(`data:text/javascript;base64,${Buffer.from(internalsBuild.outputFiles[0].text).toString('base64')}`)
+const { indexContext, contentQuerySchema, contentPageSchema, inspectionSchema, formatCheckpointValue } = await import(`data:text/javascript;base64,${Buffer.from(internalsBuild.outputFiles[0].text).toString('base64')}`)
 const primitivesBuild = await build({
   stdin: { contents: "export { Button, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'", resolveDir: sourceRoot },
   outfile: '/virtual/summary-source-primitives.cjs', write: false, bundle: true, platform: 'node', format: 'cjs',
@@ -41,7 +41,7 @@ for (const name of ['window', 'document', 'Node']) Object.defineProperty(scope, 
 scope.getComputedStyle = element => globalThis.window.getComputedStyle(element)
 vm.runInNewContext(primitivesBuild.outputFiles.find(file => file.path.endsWith('.cjs')).text, scope)
 const uiBuild = await build({
-  stdin: { contents: "export { ContextInspectorView } from './inspector-view.tsx'; export { CompactionRecords } from './inspector-charts.tsx'; export { inspectorText } from './inspector-locales.ts'", resolveDir: sourceRoot },
+  stdin: { contents: "export * from './inspector-view.tsx'; export { CompactionRecords, CompactionChart } from './inspector-charts.tsx'; export { inspectorText } from './inspector-locales.ts'", resolveDir: sourceRoot },
   write: false, bundle: true, platform: 'browser', format: 'cjs', jsx: 'automatic', target: 'es2022',
   external: ['react', 'react/*', 'react-dom', 'react-dom/*', '@deepseek-ai/dsh-client-ui-primitives'], loader: { '.css': 'text' },
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } },
@@ -49,7 +49,7 @@ const uiBuild = await build({
 const uiScope = { module: { exports: {} }, AbortController, setTimeout, clearTimeout,
   require: name => name === '@deepseek-ai/dsh-client-ui-primitives' ? scope.module.exports : require(name) }
 vm.runInNewContext(uiBuild.outputFiles[0].text, uiScope)
-const { ContextInspectorView, CompactionRecords, inspectorText } = uiScope.module.exports
+const { ContextInspectorView, CompactionRecords, CompactionChart, CheckpointBody, inspectorText } = uiScope.module.exports
 
 const text = value => [{ type: 'text', text: value }]
 const user = value => createUserMessage({ content: text(value), source: { kind: 'user' } })
@@ -303,6 +303,57 @@ test('historical inspection omits current growth and only replays events through
 
 const summaryRow = { id: 'event:20', seq: 20, title: 'retained summary', category: 'summary', current: true, source: 'compact-checkpoint', tokens: 10, images: 0 }
 const sourceRows = Array.from({ length: 6 }, (_, index) => ({ ...summaryRow, id: `event:${index + 1}`, seq: index + 1, title: `original ${index + 1}`, category: 'user', current: false }))
+
+test('latest summary card keeps the applied checkpoint reachable after a failed attempt and tool cleanup', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const root = createRoot(document.getElementById('root')); const opened = []
+  const applied = { id: 'kept', kind: 'compact', startedAt: 1000, status: 'completed', manual: false, applied: true, trigger: 'idle', beforeTokens: 20000, afterTokens: 2000, checkpoint: summaryRow }
+  const compactions = [applied, { ...applied, id: 'failed', status: 'failed', applied: false, checkpoint: undefined, beforeTokens: undefined, afterTokens: undefined }, { ...applied, id: 'prune', kind: 'prune', checkpoint: undefined }]
+  try {
+    const render = entries => act(async () => root.render(React.createElement(CompactionChart, { data: { historical: false, compactions: entries }, t: inspectorText('zh'), onRecord() {}, onInspect: row => opened.push(row.id) })))
+    await render(compactions)
+    assert.equal(document.querySelector('.cmv-compactions').dataset.compactionId, 'kept')
+    assert.match(document.body.textContent, /90(?:\.0+)?%/)
+    const button = [...document.querySelectorAll('button')].find(b => b.textContent === '查看摘要与原文')
+    assert.ok(button)
+    await act(async () => button.click()); assert.deepEqual(opened, [summaryRow.id])
+    await render([compactions[1]])
+    assert.equal(document.querySelector('.cmv-compare'), null, 'failed attempts have no invented before/after chart')
+    assert.equal([...document.querySelectorAll('button')].some(b => b.textContent === '查看摘要与原文'), false)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('summary reading shows exact structured fields and preserves raw or partial text', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const root = createRoot(document.getElementById('root'))
+  const value = { goal: '验证压缩界面', constraints: ['保留 80% 和 15 分钟', '<script>不执行</script>'], completed: ['已有摘要'], pending: ['查看原文'], evidence: [], next: '继续验收', uncertainties: [] }
+  const raw = JSON.stringify(value)
+  try {
+    assert.equal(typeof CheckpointBody, 'function')
+    const render = (text, complete) => act(async () => root.render(React.createElement(CheckpointBody, { text, complete, t: inspectorText('zh') })))
+    await render(raw, true)
+    assert.equal(document.querySelectorAll('.cmv-checkpoint-fields > section').length, 7)
+    assert.match(document.querySelector('.cmv-checkpoint-fields').textContent, /保留 80% 和 15 分钟/)
+    assert.equal(document.querySelector('script'), null)
+    assert.equal(document.querySelector('.cmi-body').textContent, raw, 'original text remains available verbatim')
+    const checkpoint = formatCheckpointValue(value, { sessionId: 'reader-test', compactionId: 'applied-test' })
+    const wrapped = `This is an automatically generated checkpoint.\n\n<compacted-summary>\n\n${checkpoint}\n\n</compacted-summary>`
+    await render(wrapped, true)
+    assert.equal(document.querySelectorAll('.cmv-checkpoint-fields > section').length, 7, 'actual applied checkpoints include the Host wrapper')
+    assert.equal(document.querySelector('[data-field="goal"] p').textContent, value.goal)
+    assert.deepEqual([...document.querySelectorAll('[data-field="constraints"] li')].map(item => item.textContent), value.constraints)
+    assert.equal(document.querySelector('.cmi-body').textContent, wrapped, 'the full stored wrapper remains in the original text')
+    await render(wrapped + '\nUnexpected trailing text', true)
+    assert.equal(document.querySelector('.cmv-checkpoint-fields'), null, 'unknown trailing data is not silently discarded')
+    await render(raw, false)
+    assert.equal(document.querySelector('.cmv-checkpoint-fields'), null, 'a page fragment is never presented as the complete summary')
+    assert.equal(document.querySelector('.cmi-body').textContent, raw)
+    await render('a legacy summary', true)
+    assert.equal(document.querySelector('.cmi-body').textContent, 'a legacy summary')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
 
 test('real DOM distinguishes verified compaction triggers while legacy and historical rows use their original classification', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })

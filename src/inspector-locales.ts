@@ -1,6 +1,10 @@
 /** Copy owned by the context panel. Native settings retain their existing copy. */
 export const zh = {
-  latestCompaction: '最近压缩', recordList: '压缩记录', recordDetails: '查看记录与原因', dataBasis: '数据口径与详情', knownBound: '已知用量下界',
+  latestCompaction: '最近压缩', recordList: '压缩时间线', recordDetails: '查看记录与原因', dataBasis: '数据口径与详情', knownBound: '已知用量下界',
+  latestApplied: '最近已应用的压缩', latestAttempt: '最近尝试', noAppliedSummary: '暂无可查看的已应用摘要，压缩记录仍可在下方查看。',
+  viewSummarySources: '查看摘要与原文', sourceMessages: '条原文记录', summaryReadHint: '查看保留的目标、约束和待办，并追溯对应原文。',
+  timelineHint: '近期尝试从新到旧排列；失败、未应用的结果也会保留。', originalSummaryText: '原始摘要文本', noRecordedFacts: '未记录事项',
+  summaryGoal: '当前目标', summaryConstraints: '约束与纠正', summaryCompleted: '已完成', summaryPending: '待完成', summaryEvidence: '证据与引用', summaryNext: '下一步', summaryUncertainties: '尚未核实',
   viewCheckpoint: '查看摘要', checkpointContent: '压缩摘要与来源', closeCheckpoint: '关闭摘要',
   title: '上下文', readonly: '只读', refresh: '刷新', settingsHint: '设置 → 上下文管理', settingsLink: '设置',
   runDetails: '运行详情', bindingDiagnostic: '压缩方式', cooperationDiagnostic: '功能状态', timeoutDiagnostic: '整理时限', policyDiagnostic: '已保存策略', idleDiagnostic: '空闲整理详情', goalDiagnostic: '任务停止详情',
@@ -78,6 +82,7 @@ export const zh = {
   automaticWorkingSetNote: '保留必要任务、近期原文和摘要；压缩后目标由实际工作集规划，不采用固定占用百分比。',
   gateAbsolute: '绝对软预算', gatePercent: '百分比预算', gateHard: '硬上限',
   absoluteTrigger: '绝对软预算', repairing: '摘要格式修复中',
+  autoCompacting: '正在压缩上下文，请稍后…', autoCompactingRepair: '正在修复压缩摘要，请稍后…',
   goalStop: '任务停止原因（Goal）', goalIndependent: '该限制与上下文占用无关，压缩不会解除', goalRounds: '轮',
   details: '数值明细', requests: '逐次请求', turn: '轮', step: '步', noCalls: '暂无回复记录',
   effLine: '用量归因', effHostSource: '宿主投影为准', effEventSource: '仅事件日志', effEventHint: '该截面没有可用的宿主投影，这里只按事件日志折算；分量不完整时是下界，不是账单。',
@@ -98,7 +103,11 @@ export const zh = {
 } as const
 export type InspectorLocaleKey = keyof typeof zh
 export const en: Record<InspectorLocaleKey, string> = {
-  latestCompaction: 'Latest compaction', recordList: 'Compaction records', recordDetails: 'Record and reason', dataBasis: 'Data basis and details', knownBound: 'Known usage lower bound',
+  latestCompaction: 'Latest compaction', recordList: 'Compaction timeline', recordDetails: 'Record and reason', dataBasis: 'Data basis and details', knownBound: 'Known usage lower bound',
+  latestApplied: 'Latest applied compaction', latestAttempt: 'Latest attempt', noAppliedSummary: 'No applied summary is available to read. Recent attempts remain below.',
+  viewSummarySources: 'View summary and originals', sourceMessages: 'source records', summaryReadHint: 'Read the retained goal, constraints and pending work, then trace the original messages.',
+  timelineHint: 'Recent attempts, newest first, including failed and unapplied results.', originalSummaryText: 'Original summary text', noRecordedFacts: 'None recorded',
+  summaryGoal: 'Current goal', summaryConstraints: 'Constraints and corrections', summaryCompleted: 'Completed', summaryPending: 'Pending', summaryEvidence: 'Evidence', summaryNext: 'Next action', summaryUncertainties: 'Uncertainties',
   viewCheckpoint: 'View summary', checkpointContent: 'Compaction summary and sources', closeCheckpoint: 'Close summary',
   title: 'Context', readonly: 'Read only', refresh: 'Refresh', settingsHint: 'Settings → Context manager', settingsLink: 'Settings',
   runDetails: 'Run details', bindingDiagnostic: 'Compaction method', cooperationDiagnostic: 'Feature status', timeoutDiagnostic: 'Timing limits', policyDiagnostic: 'Saved settings', idleDiagnostic: 'Idle compaction details', goalDiagnostic: 'Task stop details',
@@ -176,6 +185,7 @@ export const en: Record<InspectorLocaleKey, string> = {
   automaticWorkingSetNote: 'Keeps essential tasks, recent text and summaries; the working-set plan determines post-compaction occupancy instead of a fixed percentage.',
   gateAbsolute: 'Absolute soft budget', gatePercent: 'Percentage budget', gateHard: 'Hard envelope',
   absoluteTrigger: 'Absolute soft budget', repairing: 'Repairing summary format',
+  autoCompacting: 'Compacting context, please wait…', autoCompactingRepair: 'Repairing the compacted summary, please wait…',
   goalStop: 'Goal stop reason', goalIndependent: 'Unrelated to context occupancy; compaction does not lift this limit', goalRounds: 'rounds',
   details: 'Values', requests: 'Requests', turn: 'turn', step: 'step', noCalls: 'No reply records',
   effLine: 'Usage attribution', effHostSource: 'Host projection is authoritative', effEventSource: 'Event log only', effEventHint: 'No host projection is available for this cut, so it is folded from the event log alone; with missing components these are lower bounds, not a bill.',

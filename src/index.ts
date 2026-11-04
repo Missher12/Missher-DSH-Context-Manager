@@ -571,6 +571,7 @@ export default class ContextManager extends Service {
   private readIdleStatus(sessionId: string): IdleStatus {
     const compact = this.compactReaders.get(sessionId)?.()
     if (compact) return { status: 'compacting', dueAt: null, message: compact.message, compactionPhase: compact.phase,
+      ...(compact.trigger === undefined ? {} : { compactionTrigger: compact.trigger }),
       ...(compact.capacity === undefined ? {} : { capacity: compact.capacity }) }
     const policy = this.snapshot()
     if (!policy.enabled || !policy.idleEnabled) return { status: 'off', dueAt: null, message: '闲置自动压缩已关闭' }

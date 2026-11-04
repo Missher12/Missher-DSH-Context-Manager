@@ -1,0 +1,5 @@
+.dsh-context-compaction-banner { box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 0 auto; padding: 0 16px 2px; color: var(--dsw-alias-label-secondary); font-family: var(--dsw-font-family); font-size: var(--dsh-content-font-size-secondary, 12px); line-height: 18px; white-space: nowrap; }
+.dsh-context-compaction-banner .dsh-context-compaction-spinner { flex: none; width: 10px; height: 10px; border: 1.5px solid var(--dsw-alias-border-l2); border-top-color: var(--dsw-alias-state-business-primary); border-radius: 999px; animation: dsh-context-compaction-spin 900ms linear infinite; }
+.dsh-context-compaction-banner[data-phase='repairing'] { color: var(--dsw-alias-label-tertiary); }
+@media (prefers-reduced-motion: reduce) { .dsh-context-compaction-banner .dsh-context-compaction-spinner { animation: none; } }
+@keyframes dsh-context-compaction-spin { to { transform: rotate(360deg); } }

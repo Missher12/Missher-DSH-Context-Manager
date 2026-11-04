@@ -13,6 +13,7 @@ import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import type { CompactionReadout, ContextCooperationReadout } from './compatibility.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
 import css from './inspector.css'
+import { parseCheckpoint } from './checkpoint.ts'
 
 export interface ContextViewInjected {
   target: string
@@ -278,6 +279,25 @@ function ContentDetail(props: ContentDetailProps) {
   </article>
 }
 
+/** Display validated fields without generating or rewriting the stored summary. */
+export function CheckpointBody({ text, complete, t }: { text: string; complete: boolean; t: InspectorText }) {
+  const value = useMemo(() => {
+    if (!complete) return null
+    const marker = text.indexOf('Checkpoint sections: context-manager/3\n')
+    let body = marker < 0 ? text : text.slice(marker)
+    // Applied checkpoints wrap the canonical body in the Host's summary tag.
+    // Strip only that paired closing tag; the complete stored text stays below.
+    if (marker > 0 && text.slice(0, marker).trimEnd().endsWith('<compacted-summary>')) {
+      body = body.replace(/\n+<\/compacted-summary>\s*$/u, '')
+    }
+    try { return parseCheckpoint(body) } catch { return null }
+  }, [text, complete])
+  const raw = <pre className="cmi-body" tabIndex={0}>{text || t('noText')}</pre>
+  if (!value) return raw
+  const fields = [['goal', 'summaryGoal'], ['constraints', 'summaryConstraints'], ['completed', 'summaryCompleted'], ['pending', 'summaryPending'], ['evidence', 'summaryEvidence'], ['next', 'summaryNext'], ['uncertainties', 'summaryUncertainties']] as const
+  return <><div className="cmv-checkpoint-fields">{fields.map(([key, label]) => <section key={key} data-field={key}><h4>{t(label)}</h4>{typeof value[key] === 'string' ? <p>{value[key]}</p> : (value[key] as string[]).length ? <ul>{(value[key] as string[]).map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="cmv-muted">{t('noRecordedFacts')}</p>}</section>)}</div><details className="cmv-raw-summary"><summary>{t('originalSummaryText')}</summary>{raw}</details></>
+}
+
 function ContentReader({ target, cutSeq, row, api, t, window, onSource }: ContentDetailProps & { onSource: (row: ContentRow) => void }) {
   const [offsets, setOffsets] = useState([0])
   const [sourceOffset, setSourceOffset] = useState(0)
@@ -294,7 +314,7 @@ function ContentReader({ target, cutSeq, row, api, t, window, onSource }: Conten
     return () => controller.abort()
   }, [api, target, cutSeq, row.id, row.category, offset, sourceOffset, retry, t])
   return <><div className="cmv-heading"><h3>{row.title}</h3><span className="cmv-muted">≈ {formatTokens(row.tokens)} {t('tokens')} · {formatPercent(row.tokens,window)}</span></div><div className="cmv-muted cmv-reader-meta">{t(row.category)} · {t('record')} {row.seq}{row.current ? '' : ` · ${t('replaced')}`}{row.images ? ` · ${row.images} ${t('images')}` : ''}</div><div className="cmv-muted cmv-source">{row.source}</div>
-    {error ? <div role="alert"><p>{error}</p><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div> : !page ? <Loading/> : <><pre className="cmi-body" tabIndex={0}>{page.text || t('noText')}</pre>{(offset > 0 || page.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={offsets.length === 1} onClick={() => setOffsets(value => value.slice(0, -1))}>{t('previousText')}</Button><span>{t('characters')} {exactTokens(offset + 1)}–{exactTokens(offset + page.text.length)} / {exactTokens(page.totalChars)}</span><Button size="sm" disabled={page.nextOffset === null} onClick={() => { if (page.nextOffset !== null) setOffsets(value => [...value, page.nextOffset!]) }}>{t('nextText')}</Button></div>}</>}
+    {error ? <div role="alert"><p>{error}</p><Button size="sm" onClick={() => setRetry(retry + 1)}>{t('retry')}</Button></div> : !page ? <Loading/> : <>{row.category === 'summary' ? <CheckpointBody text={page.text} complete={page.offset === 0 && page.nextOffset === null && page.text.length === page.totalChars} t={t}/> : <pre className="cmi-body" tabIndex={0}>{page.text || t('noText')}</pre>}{(offset > 0 || page.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={offsets.length === 1} onClick={() => setOffsets(value => value.slice(0, -1))}>{t('previousText')}</Button><span>{t('characters')} {exactTokens(offset + 1)}–{exactTokens(offset + page.text.length)} / {exactTokens(page.totalChars)}</span><Button size="sm" disabled={page.nextOffset === null} onClick={() => { if (page.nextOffset !== null) setOffsets(value => [...value, page.nextOffset!]) }}>{t('nextText')}</Button></div>}</>}
     {row.category === 'summary' && page && <section className="cmv-summary-source" aria-label={t('sourceOriginals')}><h3>{t('sourceOriginals')}</h3><p className="cmv-muted">{t('sourceHint')}</p>
       {page.sources?.rows.length ? <><div className="cmi-content-list">{page.sources.rows.map(source => <button type="button" key={source.id} onClick={() => onSource(source)}><span className="cmv-row-title"><strong>{source.title}</strong></span><span className="cmv-muted">{t('record')} {source.seq} · {t(source.category)}</span></button>)}</div>
         {(sourceOffset > 0 || page.sources.nextOffset !== null) && <div className="cmv-pagination"><Button size="sm" disabled={sourceOffset === 0} onClick={() => setSourceOffset(value => Math.max(0, value - 4))}>{t('previousSources')}</Button><span>{sourceOffset + 1}–{sourceOffset + page.sources.rows.length} / {exactTokens(page.sources.total)}</span><Button size="sm" disabled={page.sources.nextOffset === null} onClick={() => { if (page.sources?.nextOffset != null) setSourceOffset(page.sources.nextOffset) }}>{t('nextSources')}</Button></div>}</>
@@ -331,6 +351,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const [copyFeedback, setCopyFeedback] = useState('')
   const [copyFailed, setCopyFailed] = useState(false)
   const recordsRef = useRef<HTMLDivElement>(null)
+  const checkpointRef = useRef<HTMLElement>(null)
   const copyGeneration = useRef(0)
   const copyTarget = useRef(target)
   copyTarget.current = target
@@ -457,6 +478,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   function change(patch: Partial<InspectQuery>) { setQuery({ ...effective, offset: 0, ...patch }) }
   function showGroup(group: ContextGroup) { setExpanded(true); scrollToContent.current = true; change({ group, category: 'all', archived: false, search: '' }) }
   function showCut(seq: number) { change({ ...defaultQuery, group: undefined, atSeq: seq }) }
+  useEffect(() => { if (selectedCompaction) checkpointRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [selectedCompaction])
   return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
     <div className="cmv-inner"><header className="cmv-header"><div className="cmv-heading"><h2>{t('title')}</h2><span className="cmv-muted">{t('readonly')}</span><span className="cmv-binding-status" data-mode={binding.mode} role="status" title={binding.title}>{binding.text}</span>{refreshing && <span className="cmv-binding-refresh">{t('runRefreshing')}</span>}</div><Tooltip label={t('settingsHint')}><span className="cmv-muted" tabIndex={0}>{t('settingsLink')}</span></Tooltip><Button size="sm" variant="outline" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button></header>
@@ -485,12 +507,13 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></div>}
       {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
         <div id="cmi-overview-panel" className="cmv-metrics"><ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={requestStale} t={t} onGroup={showGroup}/><RequestStatus data={safeData} policy={accepted.value?.policy} stale={requestStale} bindingMode={binding.mode} t={t}/></div>
-        <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><CompactionChart key={target + ':compactions'} data={safeData} t={t} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/><UsageComposition data={safeData} t={t}/></div>
-        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest} onInspect={setSelectedCompaction}/></div>
-        {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article className="cmv-card cmv-checkpoint-reader">
+        <CompactionChart key={target + ':compactions'} data={safeData} t={t} onInspect={setSelectedCompaction} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/>
+        {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article ref={checkpointRef} className="cmv-card cmv-checkpoint-reader">
           <div className="cmv-heading"><h3>{t('checkpointContent')}</h3><Button size="sm" variant="ghost" onClick={() => setSelectedCompaction(null)}>{t('closeCheckpoint')}</Button></div>
           <ContentDetail key={`${target}:${safeData.cutSeq}:${selectedCompaction.id}`} target={target} cutSeq={safeData.cutSeq} row={selectedCompaction} api={api} t={t} window={contextWindow(safeData)}/>
         </article>}
+        <div ref={recordsRef}><CompactionRecords key={target} data={safeData} t={t} openLatest={openLatest} onInspect={setSelectedCompaction}/></div>
+        <div id="cmi-history-panel" className="cmv-chart-grid"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/><UsageComposition data={safeData} t={t}/></div>
         <div ref={contentRef} className="cmv-card cmv-content"><div className="cmv-heading"><h3>{t(safeData.historical ? 'historicalContent' : 'content')} <span className="cmv-muted">{exactTokens(safeData.total)} {t('items')}</span></h3><Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapseDetails' : 'expandDetails')}</Button></div>
           {!expanded && <div className="cmi-content-list cmv-preview">{safeData.rows.slice(0, 3).map(row => <button type="button" key={row.id} onClick={() => { setSelectedContent(row.id); setExpanded(true) }}><span className="cmv-row-title"><i data-category={row.category}/><strong>{row.title}</strong><span className="cmv-muted">{t(row.category)}</span><b>{formatTokens(row.tokens)} <small>{t('tokens')} · {formatPercent(row.tokens,contextWindow(safeData))}</small></b></span></button>)}{!safeData.rows.length && <p className="cmv-muted">{t('emptyContents')}</p>}</div>}
           {expanded && <div id="cmi-content-panel"><ContentBrowser key={`${target}:${key}`} initialSelected={selectedContent} data={safeData} query={effective} change={change} api={api} target={target} loading={loading} t={t}/></div>}

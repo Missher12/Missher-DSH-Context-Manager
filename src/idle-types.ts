@@ -15,6 +15,8 @@ export interface IdleStatus {
   minimumTokens?: number
   /** Live phase of an in-flight compaction, from either request or idle path. */
   compactionPhase?: 'summarizing' | 'repairing'
+  /** Ledger trigger of that in-flight compaction, so a status surface can tell automatic pre-request work from idle or manual runs. */
+  compactionTrigger?: 'idle' | 'pressure' | 'overflow' | 'manual'
   owner?: 'context-manager' | 'other' | 'unknown'
   compression?: CompactionReadout
   emergency?: {eligible:boolean;used:boolean;message:string}
@@ -30,6 +32,8 @@ export interface IdleStatus {
 export interface CompactPhase {
   phase: 'summarizing' | 'repairing'
   message: string
+  /** Ledger trigger for this in-flight summary; absent when the caller does not know it. */
+  trigger?: 'idle' | 'pressure' | 'overflow' | 'manual'
   /** Read-only plan numbers for the same in-flight transaction, when available. */
   capacity?: CompactCapacity
 }

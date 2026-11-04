@@ -1,3 +1,11 @@
+# Context 0.10.11: recent summaries and visual history
+
+The Context page now shows the latest applied compaction as a card, followed by a timeline. Complete checkpoints expose seven readable fields, the full stored text and original-source links. Later failed attempts remain visible without hiding the last applied summary. The UI uses the existing bounded read APIs and makes no model calls.
+
+Server/client typechecks, build and 80 related checks passed. The preceding 0.10.10 full suite passed 432 checks with 31 conditional skips and zero failures under standard Node 24; the 11 signed-runtime native-addon failures were environmental. Native DSH 0.2.1-rc.4 ran a real automatic pre-request compaction, displayed and removed its progress banner, and preserved the controlled test facts. The installed final reader renders that actual summary correctly on desktop and narrow layouts. Saved settings (80%, 15 minutes) and all 86 original sessions remain. See `verification/RESULTS-0.10.11-20261104.json` for the artifact and exact scope.
+
+This is a local installation and source delivery; no npm publication or GitHub Release is implied.
+
 # Context 0.10.7: reserve recovery after reload and centered controls
 
 The inspector recovers a missing in-memory output reservation from exact-route Host model metadata without generation or session writes. Lookup failure, route/window mismatch and concurrent session changes remain unknown; historical cuts do not resolve current metadata. The reserve footer uses the same resolved admission value as the chart. Settings controls use a compact 180px desktop column with centered text. Current validation and native installation evidence are recorded separately in `verification/RESULTS-0.10.7-20261030.json`.

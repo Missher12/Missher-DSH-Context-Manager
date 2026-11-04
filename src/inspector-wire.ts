@@ -43,6 +43,7 @@ export function idleStatusSchema() { return z.object({
     authorizationToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     riskAcceptanceRequired: z.boolean().optional() }).strict().optional(),
   compactionPhase: z.enum(['summarizing', 'repairing']).optional(),
+  compactionTrigger: z.enum(['idle', 'pressure', 'overflow', 'manual']).optional(),
   capacity: z.object({ windowTokens: count(), admission: count(), upper: count(), resumeHeadroom: count(), requiredResumeHeadroom: count(),
     resumeHeadroomLimit: count(), recentGrowth: count(), protectedTokens: count(), totalTokens: count(), incomingTokens: count() }).strict().optional(),
 }) }

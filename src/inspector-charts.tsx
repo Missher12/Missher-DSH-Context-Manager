@@ -14,6 +14,7 @@ export const formatCapacity = (value: number | null) => value === null ? '—' :
 export const formatTokenK = (value: number) => `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })}K`
 export const exactTokens = (value: number | null | undefined) => value == null ? '—' : Math.round(value).toLocaleString()
 export const formatTime = (value: number) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+const recordTime = (value: number) => new Date(value).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 
 /** A percentage donut retains unknown input as an empty track. */
 export function CacheDonut({ value, t }: { value: number | null; t: InspectorText }) {
@@ -62,20 +63,28 @@ function compactionSource(entry: CompactionEntry, historical: boolean) {
   const sources = { idle: 'triggerIdle', pressure: 'triggerPressure', overflow: 'triggerOverflow', manual: 'triggerManual' } as const
   return entry.kind === 'prune' ? 'toolCleanup' : !historical && entry.trigger ? sources[entry.trigger] : entry.manual ? 'betweenTurns' : 'duringTask'
 }
-/** Compare only the latest replaced region; records below retain all attempts. */
-export function CompactionChart({ data, t, onRecord }: { data: Inspection; t: InspectorText; onRecord: () => void }) {
-  const entry = data.compactions.at(-1)
+/** A failed attempt or tool cleanup must not hide the last applied summary. */
+export function CompactionChart({ data, t, onRecord, onInspect }: { data: Inspection; t: InspectorText; onRecord: () => void; onInspect?: (row: ContentRow) => void }) {
+  const entry = data.compactions.findLast(item => item.kind === 'compact' && item.applied && item.checkpoint)
+  const latestAttempt = data.compactions.at(-1)
   const known = entry?.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined
   const window=entry?.beforeTokens && entry.beforeTokens>0 ? entry.beforeTokens : null
   const maximum = Math.max(window ?? 1, entry?.beforeTokens ?? 0, entry?.afterTokens ?? 0)
   const delta = known ? entry.beforeTokens! - entry.afterTokens! : null
-  return <article className="cmv-card cmv-compactions"><div className="cmv-heading"><h3>{t('latestCompaction')}</h3><span className="cmv-muted">{t('segment')}</span></div>
-    {!entry ? <div className="cmv-empty">{t('noCompaction')}</div> : <>
-      <div className="cmv-between cmv-muted"><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span></div>
-      {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: window===null?'0%':`${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.beforeTokens)} {t('tokens')} <small>{formatPercent(entry.beforeTokens,entry.beforeTokens)}</small></b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: window===null?'0%':`${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.afterTokens)} {t('tokens')} <small>{formatPercent(entry.afterTokens,entry.beforeTokens)}</small></b></div><div className="cmv-caption"><span>{delta! >= 0 ? t('reduced') : t('increased')}</span><strong>{formatTokens(Math.abs(delta!))} {t('tokens')} <small>{formatPercent(Math.abs(delta!),window)}</small></strong></div></> : <p className="cmv-muted cmv-summary-usage">{entry.modelCallStatus==='not_dispatched'?t('notDispatched'):t('unknownUsage')}</p>}
-      {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}
-      <Button size="sm" variant="ghost" onClick={onRecord}>{t('recordDetails')}</Button>
+  return <article className="cmv-card cmv-compactions" data-compaction-id={entry?.id}><div className="cmv-heading"><h3>{t('latestApplied')}</h3><span className="cmv-muted">{t('segment')}</span></div>
+    {!entry ? <div className="cmv-empty">{t('noAppliedSummary')}</div> : <>
+      <div className="cmv-compaction-hero"><div>
+        <div className="cmv-compaction-meta"><span className="cmv-trigger">{t(compactionSource(entry, data.historical))}</span><time dateTime={new Date(entry.startedAt).toISOString()}>{recordTime(entry.startedAt)}</time></div>
+        <div className="cmv-savings"><strong>{known ? formatPercent(Math.abs(delta!), window) : '—'}</strong><span>{known && delta! < 0 ? t('increased') : t('reduced')}</span></div>
+        <p className="cmv-muted">{known ? `${formatTokens(Math.abs(delta!))} ${t('tokens')}` : t('unknownUsage')}{entry.messages === undefined ? '' : ` · ${entry.messages} ${t('sourceMessages')}`}</p>
+      </div><div>
+        {known ? <><div className="cmv-compare"><span>{t('before')}</span><div><i data-color="tool" style={{ width: window===null?'0%':`${entry.beforeTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.beforeTokens)} <small>{t('tokens')}</small></b></div><div className="cmv-compare"><span>{t('after')}</span><div><i data-color="summary" style={{ width: window===null?'0%':`${entry.afterTokens! / maximum * 100}%` }}/></div><b>{formatTokens(entry.afterTokens)} <small>{t('tokens')}</small></b></div></> : <p className="cmv-muted">{t('unknownUsage')}</p>}
+        <p className="cmv-muted">{t('summaryReadHint')}</p>
+      </div></div>
+      {entry.status === 'failed' && <p role="status">{t('committedFailure')}</p>}
     </>}
+    {latestAttempt && latestAttempt.id !== entry?.id && <p className="cmv-muted cmv-latest-attempt" role="status">{t('latestAttempt')} · {t(latestAttempt.status)}{latestAttempt.modelCallStatus === 'not_dispatched' ? ` · ${t('notDispatched')}` : ''}</p>}
+    <div className="cmv-compaction-actions">{entry?.checkpoint && onInspect && <Button size="sm" variant="outline" onClick={() => entry.checkpoint && onInspect(entry.checkpoint)}>{t('viewSummarySources')}</Button>}<Button size="sm" variant="ghost" onClick={onRecord}>{t('recordDetails')}</Button></div>
   </article>
 }
 
@@ -83,8 +92,9 @@ export function CompactionRecords({ data, t, openLatest, onInspect }: { data: In
   const [expanded, setExpanded] = useState(false)
   const entries = [...data.compactions].reverse()
   return <article className="cmv-card cmv-records"><div className="cmv-heading"><h3>{t('recordList')}</h3>{entries.length > 2 && <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'collapse' : 'allRecords')}</Button>}</div>
-    {!entries.length ? <p className="cmv-muted">{t('noCompaction')}</p> : <ol className="cmv-events">{(expanded ? entries : entries.slice(0, 2)).map((entry, index) => <li key={entry.id}><details key={`${entry.id}:${index === 0 ? openLatest : 0}`} open={index === 0 && openLatest > 0 ? true : undefined}>
-      <summary><span>{formatTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span>{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} ${t('tokens')} → ${formatTokens(entry.afterTokens)} ${t('tokens')} · ${formatPercent(entry.afterTokens,entry.beforeTokens)}` : entry.modelCallStatus==='not_dispatched'?t('notDispatched'):t('unknownUsage')}</span></summary>
+    <p className="cmv-muted cmv-timeline-hint">{t('timelineHint')}</p>
+    {!entries.length ? <p className="cmv-muted">{t('noCompaction')}</p> : <ol className="cmv-events">{(expanded ? entries : entries.slice(0, 2)).map((entry, index) => <li key={entry.id} data-status={entry.status} data-applied={entry.applied}><details key={`${entry.id}:${index === 0 ? openLatest : 0}`} open={index === 0 && openLatest > 0 ? true : undefined}>
+      <summary><span>{recordTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span className="cmv-event-status">{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} ${t('tokens')} → ${formatTokens(entry.afterTokens)} ${t('tokens')} · ${formatPercent(entry.afterTokens,entry.beforeTokens)}` : entry.modelCallStatus==='not_dispatched'?t('notDispatched'):t('unknownUsage')}</span></summary>
       <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {formatTokens(Math.abs(entry.beforeTokens - entry.afterTokens))} {t('tokens')} · {formatPercent(Math.abs(entry.beforeTokens - entry.afterTokens),entry.beforeTokens)}</p>}<p>{t('segment')} · {t('compactions')} {formatTokens(entry.beforeTokens)} → {formatTokens(entry.afterTokens)} {t('tokens')}</p><p>{t('input')} {formatTokens(entry.inputTokens)} · {t('output')} {formatTokens(entry.outputTokens)} {t('tokens')}{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
         {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}{entry.error && <p className="cmv-error">{entry.error}</p>}{entry.execution && <p>{entry.execution}</p>}
         {entry.checkpoint && onInspect && <Button size="sm" variant="outline" onClick={() => entry.checkpoint && onInspect(entry.checkpoint)}>{t('viewCheckpoint')}</Button>}

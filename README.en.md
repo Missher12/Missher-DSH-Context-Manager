@@ -1,4 +1,18 @@
-# Context 0.10.8: report the active compaction path clearly
+# Context 0.10.11: recent compaction card and summary timeline
+
+The Context page highlights the latest applied summary with its trigger, timestamp and before/after segment comparison. Open the summary and its exact original sources directly; a later failed attempt or tool cleanup does not hide it. The timeline retains recent successful, failed and unapplied attempts. Complete seven-field checkpoints are displayed as readable sections with the original text still available; legacy or paginated text is preserved without inventing content or making model calls.
+
+This includes the automatic pre-request banner from 0.10.9 and stable settings gutter from 0.10.10. Existing policies and sessions are preserved. On macOS, use standard Node.js 24 for development tests: the DSH App's signed runtime can reject project native modules with a Team ID mismatch.
+
+## Context 0.10.10: the settings scrollbar no longer shifts the page (historical)
+
+While the Context settings section is mounted it reserves the scrollbar gutter (`scrollbar-gutter: stable`) on the nearest scrolling ancestor and restores the previous value on unmount. The Host settings page does not reserve that gutter itself, so an appearing or disappearing scrollbar moved the whole page sideways. The change is active only while this section is visible, leaves Host stylesheets alone and does not touch other plugins. It is skipped when the Host already manages the gutter, and does nothing when the view exposes no style resolver.
+
+## Context 0.10.9: show a progress line during automatic pre-request compaction (historical)
+
+While an automatic pre-request compaction runs, a line under the composer reads “Compacting context, please wait…”; the repair phase reads “Repairing the compacted summary, please wait…”, and it disappears when compaction ends. The line follows only the automatic pre-request path (compaction after the configured trigger); idle maintenance and confirmed manual runs keep reporting in the Context panel. Text follows the active locale, status refreshes every second while compacting and every five seconds otherwise, and reads call no model and write no session events.
+
+## Context 0.10.8: report the active compaction path clearly (historical)
 
 A ready before-request integration enables Context pressure compaction and configured idle maintenance. The optional Host engine replacement API is separate: DSH 0.2.1-rc.4 does not expose it, and the active integration requires no provider registration. Startup and safety-check failures remain visible.
 

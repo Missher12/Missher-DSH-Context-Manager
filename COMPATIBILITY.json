@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "0.10.8",
-  "runtimeDiagnosticVersion": "0.10.8",
+  "candidatePackageVersion": "0.10.11",
+  "runtimeDiagnosticVersion": "0.10.11",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "0.10.8 distinguishes the active compaction path from optional Host engine replacement, removes duplicate diagnostics, and preserves actionable startup failures. Compaction behavior and Host Basic ownership remain unchanged.",
+  "candidateStatus": "0.10.11 adds a recent applied-compaction card, a chronological attempt timeline and lossless structured summary reading; settings, compaction policy and Host ownership remain unchanged.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
@@ -130,15 +130,16 @@
       "evidenceScope": "Synthetic component UI only; not natural Host runtime/UI, settings persistence, product-package behavior, release availability, or installation."
     },
     "currentCandidate": {
-      "source": "prepared",
-      "typecheck": "not-run",
-      "tests": "not-run",
-      "build": "not-run",
-      "package": "not-built",
-      "hostRuntime": "not-run",
-      "nativeSettingsUI": "not-run",
-      "release": "not-run",
-      "installation": "not-run"
+      "source": "0.10.11 recent applied-compaction card, timeline and lossless summary reader",
+      "typecheck": "passed: server and client under standard Node.js 24.22.1",
+      "tests": "80 related checks passed, zero failures; the unchanged 0.10.10 baseline separately passed 432 with 31 conditional skips",
+      "build": "passed",
+      "package": "tarball validation and installed artifact are recorded in the acceptance receipt",
+      "hostRuntime": "0.2.1-rc.4; real pre-request automatic compaction and native banner observed",
+      "nativeSettingsUI": "stable x-position and width through advanced-section expansion; original 80% / 15 minutes preserved",
+      "release": "no npm publication or GitHub Release requested",
+      "installation": "native desktop profile; final UI and preservation results are recorded separately",
+      "evidence": "verification/RESULTS-0.10.11-20261104.json"
     },
     "acceptanceBoundaries": [
       "Natural Host runtime and upgrade behavior require a separate Host-level validation record; synthetic Loader checks do not substitute.",
