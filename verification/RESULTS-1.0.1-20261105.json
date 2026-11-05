@@ -1,0 +1,54 @@
+{
+  "version": "1.0.1",
+  "date": "2026-11-05",
+  "scope": "Startup precheck false-block fix only; the 1.0.0 Context overview UI is unchanged.",
+  "changes": [
+    "Configuration patch edits no longer count as an executable code generation.",
+    "Metadata-only changes on bytes already verified within the same startup boundary reuse that evidence, including cache-busted module reloads.",
+    "Replaced files, late ASAR containers, switched links and unusable clocks still fail closed; verification rechecks file identity before publishing evidence.",
+    "Unfinished transports, unknown-cost records and the no-auto-replay rule are unchanged."
+  ],
+  "checks": {
+    "electronStartupGuard": {
+      "result": "7/7 passed, no skips",
+      "source": "Codex run with the real DeepSeek Harness app.asar anchor via ELECTRON_RUN_AS_NODE=1; reused"
+    },
+    "startupGuardNode": {
+      "result": "6 passed, 1 conditional skip, 0 failures",
+      "source": "this session, standard Node.js 24.22.1"
+    },
+    "serverTypecheck": {
+      "result": "passed",
+      "source": "this session"
+    },
+    "clientTypecheck": {
+      "result": "unchanged from 1.0.0; reused",
+      "source": "1.0.0 evidence"
+    },
+    "build": {
+      "result": "passed",
+      "source": "this session"
+    },
+    "compatibilityAndInspectorWire": {
+      "result": "22/22 passed",
+      "source": "Codex run, reused"
+    },
+    "reusedUiEvidence": {
+      "result": "1.0.0 focused 158 checks: 157 passed + 1 conditional skip, zero failures; core baseline 432 passed + 31 skips remains historical",
+      "source": "1.0.0 evidence, not re-run"
+    }
+  },
+  "package": {
+    "path": "dist/1.0.1/missher-dsh-context-manager-1.0.1.tgz",
+    "sha256": "7a2b5716d1769e79a9aaca5bf46f861ddde9f2a97347d316be7c1da4621375ca",
+    "fileCount": 28,
+    "packagedVersion": "1.0.1",
+    "runtimeDiagnosticVersion": "1.0.1",
+    "boundary": "passed"
+  },
+  "boundaries": [
+    "This is Electron file/startup-boundary verification, not a new paid-model compaction acceptance.",
+    "The running Host still has the historical 1.0.0 build; 1.0.1 was not installed or restarted in this session.",
+    "No full-repository, all-real-model or native 1.0.1 UI acceptance is claimed."
+  ]
+}
