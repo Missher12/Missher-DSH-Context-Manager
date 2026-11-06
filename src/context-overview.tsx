@@ -82,14 +82,17 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
     if (idle.status === 'waiting') note = t('idleWaitHint')
     else if (idle.status === 'off') note = t('idleDisabledHint')
     else if (idle.status === 'compacting') note = t('idleCompactingNote')
-    else if (idle.updatedAt) note = `${t('updated')} ${formatTime(idle.updatedAt)}`
+    else if (idle.status === 'completed' && idle.updatedAt != null) {
+      value = formatTime(idle.updatedAt)
+      note = new Date(idle.updatedAt).toLocaleDateString()
+    } else if (idle.updatedAt) note = `${t('updated')} ${formatTime(idle.updatedAt)}`
     else if (idle.status === 'scheduled') note = t('idleNoTimer')
   }
   return <article className="cmv-card cmv-stat" data-stat="idle" data-idle-state={state}>
     <div className="cmv-stat-head"><span className="cmv-stat-icon" aria-hidden="true">◷</span><h3>{t('idleTimer')}</h3><span className="cmv-chip" data-tone={state === 'counting' ? 'active' : undefined}>{label}</span></div>
     <div className="cmv-stat-value">{value}{suffix && <span className="cmv-stat-suffix"> {suffix}</span>}</div>
-    {progress !== null ? <div className="cmv-meter" role="img" aria-label={`${t('idleProgress')} ${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`} data-idle-progress={Math.round(Math.max(0, Math.min(1, progress)) * 100)}><span style={{ width: `${Math.max(2, Math.min(100, progress * 100))}%` }}/></div>
-      : <div className="cmv-meter" data-idle-progress="none" aria-hidden="true"><span style={{ width: '0%' }}/></div>}
+    {progress !== null && <div className="cmv-meter" role="img" aria-label={`${t('idleProgress')} ${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`} data-idle-progress={Math.round(Math.max(0, Math.min(1, progress)) * 100)}><span style={{ width: `${Math.max(2, Math.min(100, progress * 100))}%` }}/></div>
+    }
     {note && <p className="cmv-stat-note">{note}</p>}
   </article>
 }

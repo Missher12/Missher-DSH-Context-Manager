@@ -432,7 +432,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   function showGroup(group: ContextGroup) { setExpanded(true); scrollToContent.current = true; change({ group, category: 'all', archived: false, search: '' }) }
   function showCut(seq: number) { change({ ...defaultQuery, group: undefined, atSeq: seq }) }
   useEffect(() => { if (selectedCompaction) checkpointRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [selectedCompaction])
-  return <section ref={viewRef} className="dsh-context-settings cmv-view" aria-label={t('title')}>
+  return <section ref={viewRef} className="cmv-view" aria-label={t('title')}>
     <style data-plugin="dsh-context-manager" data-plugin-css="dsh-context-manager/inspector">{css}</style>
     <div className="cmv-inner">
       <header className="cmv-hero">

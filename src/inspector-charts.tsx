@@ -93,6 +93,7 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
   const scale = Math.max(window ?? 0, peak, 1)
   const first = points[0]?.time ?? 0
   const last = points.at(-1)?.time ?? 0
+  const axisTime = new Date(first).toDateString() === new Date(last).toDateString() ? formatTime : recordTime
   const span = Math.max(1, last - first)
   const [width, setWidth] = useState(900)
   const plot = useRef<HTMLDivElement>(null)
@@ -141,7 +142,7 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
           {points.filter(point => point.tokens !== null).map(point => <circle key={point.seq} cx={x(point.time).toFixed(1)} cy={y(point.tokens!).toFixed(1)} r="2.6" className="cmv-trend-point" role="button" tabIndex={0} aria-label={`${t('record')} ${point.seq} ${t(point.kind === 'reply' ? 'reply' : point.kind === 'replace' ? 'replacement' : 'cut')} ${formatTokens(point.tokens)} ${t('tokens')} · ${formatPercent(point.tokens, point.window ?? window)}`} onClick={() => onCut(point.seq)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onCut(point.seq) } }}/>)}
         </svg>
       </div>
-      <div className="cmv-trend-axis"><span>{formatTime(first)}</span><span>{formatTime(last)}</span></div>
+      <div className="cmv-trend-axis"><span>{axisTime(first)}</span><span>{axisTime(last)}</span></div>
       <div className="cmv-trend-legend"><span data-kind="used"><i data-color="used"/>{t('contextEstimate')}</span><span data-kind="event"><i data-color="marker"/>{t('compactionEvents')}</span>{latestMarker && <span className="cmv-muted">{triggerLabel(latestMarker)}{markerDelta === null ? '' : ` · ${markerDelta > 0 ? '-' : markerDelta < 0 ? '+' : ''}${formatTokens(Math.abs(markerDelta))}`}</span>}</div>
       <p className="cmv-muted cmv-trend-hint">{t('trendScaleHint')} {formatTokens(peak)} / {window === null ? t('unknownWindow') : formatCapacity(window)}{window !== null && peak > window ? ` · ${t('trendOverflowHint')}` : ''}</p>
     </>}

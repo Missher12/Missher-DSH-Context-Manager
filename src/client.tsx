@@ -146,9 +146,12 @@ export function ContextPage({ form, compatibility, t = settingsText() }: { form:
   const statusFailed = status === 'statusFailed' || status === 'statusSidecarFailed' || status === 'statusSidecarBlocked'
   return <section aria-label="上下文管理" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">{t('title')}</h2>
-    {status !== 'statusAvailable' && <p className="cm-intro" role={statusFailed ? 'alert' : 'status'}>{t(status)}</p>}
+    {!host && <p className="cm-intro" role="status">{t(status)}</p>}
     {host && <details className="cm-detail">
-      <summary>{t('technicalDetails')}</summary>
+      <summary>
+        <span className="cm-readiness" role={statusFailed ? 'alert' : 'status'}>{t(status)}</span>
+        <span className="cm-disclosure-label">{t('technicalDetails')}</span>
+      </summary>
       <dl className="cm-facts">
         <dt>{t('hostVersion')}</dt><dd>{host.hostRuntime?.state === 'available' && host.hostRuntime.version ? host.hostRuntime.version : t('hostVersionUnknown')}</dd>
         <dt>{t('hostCapability')}</dt><dd>{t(host.state === 'supported' ? 'capabilitySupported' : host.state === 'unsupported' ? 'capabilityUnsupported' : 'capabilityUnknown')}</dd>
@@ -249,7 +252,11 @@ function ContextHelp({ label, hint }: { label: string; hint: string }) {
 }
 function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, onEdit, onReset }: ContextValueFieldProps) {
   return <div className="cm-native-value">
-    <div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label><ContextHelp label={label} hint={hint}/></div>
+    <div className="cm-native-copy">
+      <label htmlFor={id} className="cm-label">{label}</label><ContextHelp label={label} hint={hint}/>
+      {overridden && <Button type="button" className="cm-field-reset" size="sm" variant="ghost" disabled={disabled}
+        aria-label={`${label} · ${overriddenLabel} · ${resetLabel}`} onClick={onReset}>{resetLabel}</Button>}
+    </div>
     <div className="cm-native-value-control">
       {multiline
         ? <textarea id={id} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={event => onEdit(event.currentTarget.value)}/>
@@ -257,7 +264,6 @@ function ContextValueField({ id, label, hint, text, disabled, invalid, overridde
           <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} aria-describedby={unit ? `${id}-unit` : undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>
           {unit && <span id={`${id}-unit`} className="cm-native-unit">{unit}</span>}
         </div>}
-      {overridden && <><span className="cm-native-overridden">{overriddenLabel}</span><Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onReset}>{resetLabel}</Button></>}
     </div>
     {invalid && <p className="cm-error" role="alert">{invalidLabel}</p>}
   </div>
@@ -282,7 +288,7 @@ function safeSaveReason(error: unknown, t: SettingsText) {
 type ContextSelectOption = { value: string; label: string }
 function ContextSelect({ id, label, hint, value, options, disabled, onChange }: { id: string; label: string; hint: string; value: string; options: readonly ContextSelectOption[]; disabled: boolean; onChange: (value: string) => void }) {
   return <div className="cm-native-select-row"><div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label><ContextHelp label={label} hint={hint}/></div>
-    <select id={id} value={value} disabled={disabled} onChange={event => onChange(event.currentTarget.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+    <div className="cm-native-select"><select id={id} value={value} disabled={disabled} onChange={event => onChange(event.currentTarget.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
   </div>
 }
 
@@ -328,8 +334,14 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
     text={draft[key]} disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])}
     overridden={draft[key] !== String(defaults[key])} overriddenLabel={t('customValue')} resetLabel={t('resetValue')} invalidLabel={t('invalidNumber')}
     onEdit={text => edit({ [key]: text })} onReset={() => edit({ [key]: String(defaults[key]) })}/>
-  const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false) =>
-    <div className="cm-native-toggle"><div className="cm-native-copy"><span className="cm-label">{label}</span><ContextHelp label={label} hint={hint}/></div><ContextSwitch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/></div>
+  const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false, note?: string) =>
+    <div className="cm-native-toggle">
+      <div>
+        <div className="cm-native-copy"><span className="cm-label">{label}</span><ContextHelp label={label} hint={hint}/></div>
+        {note && <p className="cm-native-cost-note" role="note">{note}</p>}
+      </div>
+      <ContextSwitch label={label} checked={draft[key]} disabled={disabled || blocked} onChange={value => edit({ [key]: value })}/>
+    </div>
   const automatic = policy.historyMode === 'automatic'
   return <section ref={rootRef} aria-label="上下文压缩设置" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style>
@@ -337,20 +349,24 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
       {accepted.status !== 'ready' && <p className="cm-hint" role="status">{t('waitingSettings')}</p>}
       {accepted.status === 'ready' && !accepted.writable && <p className="cm-hint" role="status">{t('readonlySettings')}</p>}
       <fieldset disabled={disabled} className="cm-native-fields">
-        {toggle('enabled', t('autoLabel'), t('autoHint'))}
-        {numeric('triggerPercent', t('thresholdLabel'), t('thresholdHint'), '%')}
-        <ContextSelect id="context-manager-historyMode" label={t('historyGroup')} hint={automatic ? t('historyAutomaticHint') : t('historyCustomHint')}
-          value={draft.historyMode} disabled={disabled || !draft.enabled} onChange={value => edit({ historyMode: value as Policy['historyMode'] })}
-          options={[{ value: 'automatic', label: t('historyAutomatic') }, { value: 'custom', label: t('historyCustom') }]}/>
-        {!automatic && numeric('targetPercent', t('targetLabel'), t('targetHint'), '%', !draft.enabled)}
-        {draft.capacityMode !== 'percent' && <div className="cm-native-legacy" role="status"><span>{t('legacyConfigNote')}</span><Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>{t('switchPercent')}</Button><p className="cm-hint">{t('capacitySavedNote')}</p></div>}
-        {draft.capacityMode === 'percent' && <p className="cm-native-note">{t('capacityPercentHint')}</p>}
-        {toggle('idleEnabled', t('idleLabel'), t('idleHint'), !draft.enabled)}
-        {draft.idleEnabled && <p className="cm-native-cost-note" role="note">{t('idleCostNote')}</p>}
-        {numeric('idleMinutes', t('idleMinutesLabel'), t('idleMinutesHint'), t('unitMinutes'), !draft.enabled || !draft.idleEnabled)}
-        <ContextSelect id="context-manager-toolResultsMode" label={t('toolGroup')} hint={t('toolResultsHint')} value={draft.toolResultsMode}
-          disabled={disabled || !draft.enabled} onChange={value => edit({ toolResultsMode: value as Policy['toolResultsMode'] })}
-          options={[{ value: 'off', label: t('toolOff') }, { value: 'observe', label: t('toolObserve') }, { value: 'reduce', label: t('toolReduce') }]}/>
+        <section className="cm-native-group">
+          <h3>{t('compressionGroup')}</h3>
+          {toggle('enabled', t('autoLabel'), t('autoHint'))}
+          {numeric('triggerPercent', t('thresholdLabel'), t('thresholdHint'), '%')}
+          <ContextSelect id="context-manager-historyMode" label={t('historyGroup')} hint={automatic ? t('historyAutomaticHint') : t('historyCustomHint')}
+            value={draft.historyMode} disabled={disabled || !draft.enabled} onChange={value => edit({ historyMode: value as Policy['historyMode'] })}
+            options={[{ value: 'automatic', label: t('historyAutomatic') }, { value: 'custom', label: t('historyCustom') }]}/>
+          {!automatic && numeric('targetPercent', t('targetLabel'), t('targetHint'), '%', !draft.enabled)}
+          {draft.capacityMode !== 'percent' && <div className="cm-native-legacy" role="status"><span>{t('legacyConfigNote')}</span><Button size="sm" disabled={disabled} onClick={() => edit({ capacityMode: 'percent' })}>{t('switchPercent')}</Button><p className="cm-hint">{t('capacitySavedNote')}</p></div>}
+          <ContextSelect id="context-manager-toolResultsMode" label={t('toolGroup')} hint={t('toolResultsHint')} value={draft.toolResultsMode}
+            disabled={disabled || !draft.enabled} onChange={value => edit({ toolResultsMode: value as Policy['toolResultsMode'] })}
+            options={[{ value: 'off', label: t('toolOff') }, { value: 'observe', label: t('toolObserve') }, { value: 'reduce', label: t('toolReduce') }]}/>
+        </section>
+        <section className="cm-native-group">
+          <h3>{t('idleGroup')}</h3>
+          {toggle('idleEnabled', t('idleLabel'), t('idleHint'), !draft.enabled, draft.idleEnabled ? t('idleCostNote') : undefined)}
+          {numeric('idleMinutes', t('idleMinutesLabel'), t('idleMinutesHint'), t('unitMinutes'), !draft.enabled || !draft.idleEnabled)}
+        </section>
         <details className="cm-native-advanced"><summary>{t('advanced')}</summary>
           {toggle('prefixDiagnosticsEnabled', t('prefixLabel'), t('prefixHint'), !draft.enabled)}
           {draft.capacityMode === 'percent' && numeric('recentPercent', t('recentPercentLabel'), t('recentPercentHint'), '%', !draft.enabled)}
@@ -381,11 +397,14 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
           </>}
 
         </details>
-        {invalid && <p role="alert" className="cm-error">{invalid}</p>}
-        <div className="cm-actions"><Button size="sm" disabled={!dirty || disabled} onClick={reload}>{t('cancelChanges')}</Button><Button size="sm" disabled={disabled} onClick={() => edit(toDraft(defaults))}>{t('restoreDefaults')}</Button></div>
+        {invalid && <p role="alert" className="cm-error">{invalid.replace('triggerPercent', t('thresholdLabel'))}</p>}
       </fieldset>
       {feedback && <p role={failed ? 'alert' : 'status'} className={failed ? 'cm-error cm-feedback' : 'cm-hint cm-feedback'}>{feedback}</p>}
-      <div className="cm-native-save"><Button type="button" size="sm" variant="primary" disabled={disabled || !dirty || !!invalid} onClick={() => { void save() }}>{saving ? t('saving') : t('save')}</Button></div>
+      <div className="cm-native-save">
+        <Button size="sm" disabled={!dirty || disabled} onClick={reload}>{t('cancelChanges')}</Button>
+        <Button size="sm" disabled={disabled} onClick={() => edit(toDraft(defaults))}>{t('restoreDefaults')}</Button>
+        <Button type="button" size="sm" variant="primary" disabled={disabled || !dirty || !!invalid} onClick={() => { void save() }}>{saving ? t('saving') : t('save')}</Button>
+      </div>
     </div>
   </section>
 }

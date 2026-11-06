@@ -1,6 +1,8 @@
 /** Bilingual copy changed by the Context settings polish. */
 export const settingsZh = {
   title: '上下文管理',
+  compressionGroup: '压缩策略',
+  idleGroup: '空闲整理',
   intro: '设置压缩时机与保留内容。用量见会话的“上下文”。',
   statusChecking: '正在检查可用功能…',
   statusAvailable: '增强压缩已就绪。',
@@ -86,7 +88,7 @@ export const settingsZh = {
   capacitySavedNote: '保存后切换；旧值保留。额度随模型窗口变化。',
   idleLabel: '空闲时压缩',
   idleHint: '任务正常结束后，空闲达到等待时长即尝试压缩，不设占用门槛；新消息会取消。',
-  idleCostNote: '空闲到时自动整理，不设占用门槛；压缩会增加模型用量。',
+  idleCostNote: '整理时会额外调用模型。',
   idleMinutesLabel: '等待时长',
   idleMinutesHint: '1–1440 分钟；关闭应用后不执行。',
   toolResultsHint: '安全精简会缩短工具结果；原文保留在本机。',
@@ -123,6 +125,8 @@ export const settingsZh = {
 } as const
 export type SettingsLocaleKey = keyof typeof settingsZh
 export const settingsEn: Record<SettingsLocaleKey, string> = {
+  compressionGroup: 'Compaction policy',
+  idleGroup: 'Idle compaction',
   title: 'Context manager',
   intro: 'Set when to compact and what to retain. View usage in the conversation’s Context tab.',
   statusChecking: 'Checking available features…',
@@ -209,7 +213,7 @@ export const settingsEn: Record<SettingsLocaleKey, string> = {
   capacitySavedNote: 'Switches after saving; old values remain. Allowance follows the model window.',
   idleLabel: 'Compact while idle',
   idleHint: 'After normal task completion, attempts compaction when the idle wait expires, with no occupancy threshold. New messages cancel it.',
-  idleCostNote: 'Compacts when the idle wait expires, with no occupancy threshold; adds model usage.',
+  idleCostNote: 'Compacting uses an additional model call.',
   idleMinutesLabel: 'Wait time',
   idleMinutesHint: '1–1,440 minutes; does not run after the app closes.',
   toolResultsHint: 'Safe reduce shortens tool results; originals stay on this device.',

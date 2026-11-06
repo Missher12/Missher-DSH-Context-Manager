@@ -654,7 +654,7 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     pressure: null, official: null, usage: { input: 110, uncached: 30, cacheRead: 70, cacheWrite: 10, output: 90 }, model: null,
     parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0,
     requests: [{ seq: 1, time: 1000, turn: 1, step: 1, provider: 'fixture', model: 'offline', input: 900, output: 30, cacheRead: 0 }, { seq: 3, time: 2000, turn: 2, step: 1, provider: 'fixture', model: 'offline', input: 400, output: 60, cacheRead: 0 }],
-    requestCount: 2, compactions: [], pressureHistory: [{ seq: 1, time: 1000, kind: 'reply', tokens: 900, window: 1000 }, { seq: 2, time: 2000, kind: 'reply', tokens: null, window: null }, { seq: 3, time: 3000, kind: 'replace', tokens: 300, window: 1000 }] }
+    requestCount: 2, compactions: [], pressureHistory: [{ seq: 1, time: 1000, kind: 'reply', tokens: 900, window: 1000 }, { seq: 2, time: 2000, kind: 'reply', tokens: null, window: null }, { seq: 3, time: 86_403_000, kind: 'replace', tokens: 300, window: 1000 }] }
   const formValue = { revision: 1, value: { policy: defaults } }
   const form = { subscribe: () => () => {}, getSnapshot: () => formValue }
   const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
@@ -663,6 +663,9 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
   try {
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'charts', form, api, pulse })))
     await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.match(document.querySelector('.cmv-trend-hint').textContent, /区间峰值 900/)
+    const axisEnd = document.querySelector('.cmv-trend-axis').lastElementChild.textContent
+    assert.equal(axisEnd, new Date(86_403_000).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }))
     assert.equal(document.querySelectorAll('.cmv-trend-point').length, 2, 'a null projection stays a gap instead of a fabricated point')
     assert.equal(document.querySelectorAll('.cmv-trend-area').length, 0, 'a projection gap is never filled as one continuous area')
     assert.match(document.querySelector('.cmv-trend-point').getAttribute('aria-label'), /900/)

@@ -1,5 +1,5 @@
 /* Scoped to this view. All color and surface choices use native DSH aliases. */
-.dsh-context-settings.cmv-view {
+.cmv-view {
   --cmv-gray: var(--dsw-alias-label-tertiary);
   --cmv-blue: var(--dsw-alias-state-business-primary);
   --cmv-green: color-mix(in srgb, var(--dsw-alias-state-success-primary) 72%, var(--dsw-alias-label-secondary));
@@ -9,14 +9,14 @@
 .cmv-view .cmv-inner { width: 100%; margin: 0; padding: 16px 20px 12px; box-sizing: border-box; }
 .cmv-view :is(h2,h3,p,dl,dd) { margin: 0; }
 .cmv-view :is(h2,h3,strong,b) { font-weight: 500; }
-.cmv-view h2 { font-size: 16px; }
-.cmv-view h3 { font-size: 13px; line-height: 20px; }
+.cmv-view h2 { font-size: 20px; line-height: 28px; font-weight: 600; }
+.cmv-view h3 { font-size: 15px; line-height: 22px; font-weight: 600; }
 .cmv-view .cmv-muted { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .cmv-view .cmv-summary-source { display: grid; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: .5px solid var(--dsw-alias-settings-card-stroke); }
 .cmv-view .cmv-summary-usage { margin-top: 8px; overflow-wrap: anywhere; }
 .cmv-view .cmv-growth { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .cmv-view .cmv-header, .cmv-view .cmv-heading, .cmv-view .cmv-between, .cmv-view .cmv-meta, .cmv-view .cmv-footer { display: flex; align-items: center; gap: 10px; justify-content: space-between; min-width: 0; }
-.cmv-view .cmv-header { margin-bottom: 8px; }
+.cmv-view .cmv-header { margin-bottom: 24px; padding: 0; flex-wrap: wrap; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .cmv-view .cmv-header>.cmv-heading { margin-right: auto; justify-content: flex-start; }
 .cmv-view .cmv-heading { margin-bottom: 8px; flex-wrap: wrap; }
 .cmv-view .cmv-header .cmv-heading { margin-bottom: 0; }
@@ -149,7 +149,7 @@
 
 .cmv-view .cmv-request-details { font-size: 12px; color: var(--dsw-alias-label-secondary); margin-top: 10px; }
 .cmv-view .cmv-request-details>div { padding-top: 8px; overflow-wrap: anywhere; }
-.cmv-view .cmv-run-details { border: .5px solid var(--dsw-alias-settings-card-stroke); border-radius: var(--dsw-radius-md); padding: 8px 12px; background: var(--dsw-alias-bg-layer-1); }
+.cmv-view .cmv-run-details { border: 0; border-top: .5px solid var(--dsw-alias-settings-card-stroke); border-radius: 0; padding: 12px 0 0; background: transparent; }
 .cmv-view .cmv-run-details>summary { cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .cmv-view .cmv-run-panel { display: grid; gap: 8px; margin-top: 8px; min-width: 0; }
 .cmv-view .cmv-run-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 6px; border-bottom: .5px solid var(--dsw-alias-settings-card-stroke); }
@@ -201,7 +201,7 @@
 .cmv-view .cmv-content-value { grid-area: value; justify-self: end; display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 6px; white-space: nowrap; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .cmv-view .cmv-content-value small { color: var(--dsw-alias-label-secondary); font-size: 11px; font-weight: 400; }
 .cmv-view .cmv-row-title { flex-wrap: wrap; }
-.cmv-view .cmv-header { flex-wrap: wrap; }
+.cmv-view .cmv-header { flex-wrap: wrap; padding: 0; margin-bottom: 24px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .cmv-view :is(button,summary,select):focus-visible { outline: 2px solid var(--cmv-blue); outline-offset: 2px; }
 @container (max-width: 900px) {
   .cmv-view .cmv-quick { grid-template-columns: repeat(2,minmax(0,1fr)); }
