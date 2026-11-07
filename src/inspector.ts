@@ -13,9 +13,10 @@ import { pressureHistory } from './pressure-history.ts'
 export { pressureHistory } from './pressure-history.ts'
 import { indexContext, MAX_EVENTS } from './inspector-fold.ts'
 import { attributeSession } from './efficiency.ts'
-import { inspectQuerySchema, contentQuerySchema, sessionUsageQuerySchema } from './inspector-wire.ts'
-import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout, SessionUsageQuery, SessionUsageReadout } from './inspector-types.ts'
+import { inspectQuerySchema, contentQuerySchema, sessionUsageQuerySchema, teamUsageQuerySchema } from './inspector-wire.ts'
+import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout, SessionUsageQuery, SessionUsageReadout, TeamUsageQuery, TeamUsageReadout, TeamUsageMemberReadout } from './inspector-types.ts'
 import { estimateSessionCost } from './session-cost.ts'
+import { aggregateTeamUsage, attributeOwnedSession, resolveSummaryCoverage, resolveVerifiedTeam, type TeamRoster } from './team-usage.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type ContextManager from './index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -223,13 +224,26 @@ export class ContextInspector extends TypertRemoteService {
       }
       cancel.throwIfAborted()
       const triggers = new Map((summary?.recent ?? []).map(attempt => [attempt.compactionId, attempt.trigger]))
+      const summaryOperations = query.atSeq === null ? manager?.summaryOperations?.records(query.sessionId) ?? [] : []
+      const summaryCoverage = query.atSeq === null && summary
+        ? resolveSummaryCoverage(index.diagnostics.compactions.filter(entry => entry.kind === 'compact'), summary)
+        : undefined
       const compactions = index.diagnostics.compactions.map(entry => {
         const checkpoint = entry.checkpointSeq === undefined ? undefined
           : index.indexed.find(item => item.row.seq === entry.checkpointSeq && item.row.category === 'summary')?.row
         const trigger = entry.kind === 'compact' ? triggers.get(entry.id) : undefined
         const run=query.atSeq===null?manager?.summaryOperations?.run(query.sessionId,entry.id):undefined
         const modelCallStatus=run?.endedAt!==undefined?((run.actualDispatched??run.dispatched)===0?'not_dispatched' as const:'dispatched' as const):undefined
-        return { ...entry, ...(checkpoint ? { checkpoint } : {}), ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}) }
+        const attempts = entry.kind === 'compact' ? (summary?.recent ?? []).filter(attempt => attempt.compactionId === entry.id) : []
+        const summaryCalls = attempts.map(attempt => {
+          const operation = summaryOperations.find(row => row.attemptId === attempt.id)
+          return { purpose: operation?.purpose ?? 'unknown' as const, status: attempt.status,
+            input: attempt.input, output: attempt.output, cacheRead: attempt.cacheRead, cacheWrite: attempt.cacheWrite }
+        })
+        const summaryCallCoverage = entry.kind !== 'compact' || query.atSeq !== null ? undefined
+          : !summary ? 'unknown' as const : summaryCoverage === 'complete' ? 'complete' as const
+            : attempts.length > 0 ? 'partial' as const : 'unknown' as const
+        return { ...entry, ...(checkpoint ? { checkpoint } : {}), ...(run?{execution:`Context ${run.version} · 总限${run.totalMs/1000}s/首输出${run.firstOutputMs/1000}s/停滞${run.stallMs/1000}s · 调用准入${run.dispatched}/实际派发${run.actualDispatched??'未知'} · ${run.reasonCode ?? '执行中'}`} : {}), ...(run?.reasonCode==='prepared'?{status:'unapplied' as const,error:'人工急救预检完成，未调用模型'}:{}), ...(trigger===undefined?{}:{trigger}),...(modelCallStatus?{modelCallStatus}:{}), ...(summaryCalls.length ? { summaryCalls, summaryCallCoverage } : summaryCallCoverage === undefined ? {} : { summaryCallCoverage }) }
       })
       const needle = query.search.trim().toLocaleLowerCase()
       const matched = index.indexed.map(item => item.row).filter(row => (query.archived || row.current)
@@ -288,6 +302,148 @@ export class ContextInspector extends TypertRemoteService {
       cancel.throwIfAborted()
       return { ...estimateSessionCost(attribution), sessionId: query.sessionId, sampledAt: Date.now(), status: 'ready' }
     } finally { observation[Symbol.dispose]() }
+  }
+  @Remote('teamUsage')
+  async teamUsage(input: TeamUsageQuery, signal: AbortSignal): Promise<TeamUsageReadout> {
+    const query = teamUsageQuerySchema().parse(input)
+    const cancel = AbortSignal.any([signal, this.lifetime.signal, AbortSignal.timeout(12000)])
+    const observations = new Map<string, SessionObservation>()
+    let disposed = false
+    const read = async (sessionId: string, projectionMode: 'all' | 'none') => {
+      cancel.throwIfAborted()
+      const key = JSON.stringify([projectionMode, sessionId])
+      const existing = observations.get(key)
+      if (existing) return existing
+      const observation = await this.ctx.sessionQuery.observeSession(SessionId(sessionId), { signal: cancel, projectionMode })
+      if (disposed || cancel.aborted) {
+        observation[Symbol.dispose]()
+        cancel.throwIfAborted()
+        throw new DOMException('Team usage read ended', 'AbortError')
+      }
+      observations.set(key, observation)
+      return observation
+    }
+    const rosterOf = (rootId: string, value: unknown): { roster: TeamRoster | null; available: boolean } => {
+      if (!value || typeof value !== 'object') return { roster: null, available: false }
+      const view = value as { failure?: unknown; members?: unknown }
+      if (view.failure !== undefined || !Array.isArray(view.members)) return { roster: null, available: false }
+      const members: TeamRoster['members'][number][] = []
+      for (const item of view.members) {
+        if (!item || typeof item !== 'object') return { roster: null, available: false }
+        const member = item as Record<string, unknown>
+        if (typeof member.id !== 'string' || typeof member.name !== 'string'
+          || (member.role !== 'lead' && member.role !== 'teammate')
+          || (member.phase !== 'provisioning' && member.phase !== 'active' && member.phase !== 'failed')) return { roster: null, available: false }
+        members.push({ id: member.id, name: member.name, role: member.role, phase: member.phase })
+      }
+      return { roster: { rootId, members }, available: members.some(member => member.role === 'lead' && member.id === rootId) }
+    }
+    const unavailable = (member: TeamRoster['members'][number]): TeamUsageMemberReadout => ({
+      sessionId: member.id, name: member.name, role: member.role, phase: member.phase, status: 'unavailable', cutSeq: null,
+      provider: null, model: null, requestTokens: null, requestTokensPartial: true, settledAttempts: null, retries: null,
+      uncachedInput: null, cacheRead: null, cacheWrite: null, output: null,
+      summaryInput: null, summaryOutput: null, summaryTokens: null, summaryCacheRead: null, summaryCacheWrite: null,
+      summaryAttempts: null, summaryUnknownAttempts: null,
+      summarySince: null, summaryCoverage: 'unknown', maintenanceSuspects: 0,
+      totalTokens: null, tokensPartial: true, referenceCost: null, costPartial: true,
+    })
+    const empty = (status: TeamUsageReadout['status'], targetSessionId: string): TeamUsageReadout => ({
+      targetSessionId, teamId: null, sampledAt: Date.now(), status, members: [], knownTokens: 0,
+      unknownMembers: 0, tokensPartial: false, shareBasis: 'complete', referenceCost: null, costPartial: false,
+    })
+    try {
+      cancel.throwIfAborted()
+      const lineage = await this.ctx.sessionQuery.traceSession(SessionId(query.sessionId), cancel)
+      const targetId = String(lineage.target.header.id)
+      const parentId = lineage.target.header.parentSession === undefined ? undefined : String(lineage.target.header.parentSession)
+      let targetRoster: ReturnType<typeof rosterOf> = { roster: null, available: false }
+      let parentRoster: ReturnType<typeof rosterOf> | undefined
+      let targetProjectionReadable = false
+      let targetReadFailed = false
+      try {
+        const target = await read(targetId, 'all')
+        targetProjectionReadable = target.projections !== undefined
+        const targetValues = target.projections?.values as unknown as Record<string, unknown> | undefined
+        targetRoster = rosterOf(targetId, targetValues?.agentTeam)
+      } catch (error) {
+        if (cancel.aborted) throw error
+        targetReadFailed = true
+      }
+      const ancestors = lineage.ancestors.map(record => String(record.header.id))
+      let team = targetProjectionReadable ? resolveVerifiedTeam(targetId, ancestors, [targetRoster.roster].filter((value): value is TeamRoster => value !== null)) : null
+      if (!team && parentId && parentId !== targetId) {
+        try {
+          const parent = await read(parentId, 'all')
+          const parentValues = parent.projections?.values as unknown as Record<string, unknown> | undefined
+          parentRoster = rosterOf(parentId, parentValues?.agentTeam)
+          // A parent is accepted only when its durable roster names this exact child.
+          const listedByParent = parentRoster.roster?.members.some(member => member.role === 'teammate' && member.id === targetId) === true
+          if (listedByParent) {
+            ancestors.push(parentId)
+            team = resolveVerifiedTeam(targetId, ancestors, [parentRoster.roster!])
+          }
+        } catch (error) {
+          if (cancel.aborted) throw error
+        }
+      }
+      if (!team) {
+        const readable = !targetReadFailed && (targetRoster.available || parentRoster?.available === true)
+        return empty(readable ? 'not-team' : 'unavailable', targetId)
+      }
+      const rows = await Promise.all(team.members.map(async member => {
+        let observation: SessionObservation
+        try { observation = await read(member.id, member.id === team.teamId ? 'all' : 'none') }
+        catch (error) { if (cancel.aborted) throw error; return unavailable(member) }
+        const isLead = member.role === 'lead' && member.id === team.teamId
+        if (!isLead && (member.role !== 'teammate' || observation.header.parentSession !== team.teamId)) return unavailable(member)
+        if (observation.events.length > MAX_EVENTS) return { ...unavailable(member), status: 'analysis-limit' as const, cutSeq: observation.cursor }
+        cancel.throwIfAborted()
+        const owned = observation.events.slice(observation.inheritedEventCount)
+        const stats = this.getManager()?.summaryLedger?.stats(member.id)
+        const summary = stats === undefined ? undefined : { source: 'summary-ledger', input: stats.input, output: stats.output,
+          cacheRead: stats.cacheRead, cacheWrite: stats.cacheWrite, attempts: stats.attempts, unknownAttempts: stats.unknownAttempts }
+        const attribution = attributeOwnedSession(observation.events, observation.inheritedEventCount, summary)
+        const compactions = owned.flatMap(event => event.type === 'compaction/start' ? [{ id: event.data.compactionId, startedAt: event.time }] : [])
+        const summaryCoverage = resolveSummaryCoverage(compactions, stats)
+        const summaryTokens = stats ? stats.input + stats.output : summaryCoverage === 'complete' ? 0 : null
+        const maintenanceSuspects = attribution.attribution.maintenanceSuspects
+        // Summary and event-log settlements may describe the same maintenance call.
+        const totalTokens = maintenanceSuspects > 0 ? null
+          : summaryTokens === null ? attribution.cost.requestTokens : attribution.cost.requestTokens + summaryTokens
+        const tokensPartial = attribution.cost.requestTokensPartial || summaryCoverage !== 'complete' || maintenanceSuspects > 0
+        const request = attribution.attribution.requests.at(-1)
+        const lastHeader = owned.findLast(event => event.type === 'request/header')
+        const config = lastHeader?.type === 'request/header' ? lastHeader.data.header.config : undefined
+        const provider = config?.provider ?? request?.provider ?? null
+        const model = config?.model ?? request?.model ?? null
+        const noUsage = !attribution.cost.hasRecords && summaryTokens === 0 && summaryCoverage === 'complete'
+        return {
+          sessionId: member.id, name: member.name, role: member.role, phase: member.phase, status: 'ready' as const,
+          cutSeq: observation.cursor, provider, model,
+          requestTokens: attribution.cost.requestTokens, requestTokensPartial: attribution.cost.requestTokensPartial,
+          settledAttempts: attribution.attribution.mirrored.settledAttempts,
+          retries: attribution.attribution.mirrored.retries,
+          uncachedInput: { ...attribution.attribution.mirrored.uncachedInput }, cacheRead: { ...attribution.attribution.mirrored.cacheRead },
+          cacheWrite: { ...attribution.attribution.mirrored.cacheWrite }, output: { ...attribution.attribution.mirrored.output },
+          summaryInput: stats?.input ?? (summaryCoverage === 'complete' ? 0 : null),
+          summaryOutput: stats?.output ?? (summaryCoverage === 'complete' ? 0 : null),
+          summaryCacheRead: stats?.cacheRead ?? (summaryCoverage === 'complete' ? 0 : null),
+          summaryCacheWrite: stats?.cacheWrite ?? (summaryCoverage === 'complete' ? 0 : null),
+          summaryTokens, summaryAttempts: stats?.attempts ?? (summaryCoverage === 'complete' ? 0 : null),
+          summaryUnknownAttempts: stats?.unknownAttempts ?? (summaryCoverage === 'complete' ? 0 : null),
+          summarySince: stats?.since ?? null, summaryCoverage, maintenanceSuspects,
+          totalTokens, tokensPartial, referenceCost: noUsage ? 0 : attribution.cost.total,
+          costPartial: !noUsage && (attribution.cost.partial || attribution.cost.total === null || summaryCoverage !== 'complete' || (stats?.attempts ?? 0) > 0),
+        } satisfies TeamUsageMemberReadout
+      }))
+      const aggregate = aggregateTeamUsage(rows.map(row => ({ status: row.status, totalTokens: row.totalTokens,
+        tokensPartial: row.tokensPartial, referenceCost: row.referenceCost, costPartial: row.costPartial })))
+      cancel.throwIfAborted()
+      return { targetSessionId: targetId, teamId: team.teamId, sampledAt: Date.now(), status: 'ready', members: rows, ...aggregate }
+    } finally {
+      disposed = true
+      for (const observation of observations.values()) observation[Symbol.dispose]()
+    }
   }
   @Remote('content')
   async content(input: ContentQuery, signal: AbortSignal): Promise<ContentPage> {

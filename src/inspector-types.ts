@@ -108,7 +108,15 @@ export interface ReductionReadout {
   /** Why the archive is unavailable for this run; absent when it opened. */
   archiveError?: string
 }
-export type InspectedCompaction = CompactionEntry & { checkpoint?: ContentRow; execution?:string; modelCallStatus?: 'not_dispatched'|'dispatched'; trigger?: 'idle' | 'pressure' | 'overflow' | 'manual' }
+export interface InspectedSummaryCall {
+  purpose: 'summary' | 'repair' | 'recovery' | 'unknown'
+  status: 'started' | 'generated' | 'failed' | 'cancelled' | 'not_dispatched'
+  input: number | null; output: number | null; cacheRead: number | null; cacheWrite: number | null
+}
+export type InspectedCompaction = CompactionEntry & {
+  checkpoint?: ContentRow; execution?: string; modelCallStatus?: 'not_dispatched'|'dispatched'; trigger?: 'idle' | 'pressure' | 'overflow' | 'manual'
+  summaryCalls?: InspectedSummaryCall[]; summaryCallCoverage?: 'complete' | 'partial' | 'unknown'
+}
 /** Read-only host goal projection; the context page never mutates it. */
 export interface GoalReadout { phase: string; blockedReason: { code: string; message: string } | null; roundsStarted: number; maxGoalRounds: number }
 export interface Inspection {
@@ -145,6 +153,28 @@ export interface Inspection {
 export interface ContentQuery { sessionId: string; cutSeq: number; id: string; offset: number; sourceOffset?: number }
 export interface SessionUsageQuery { sessionId: string }
 export type SessionUsageReadout = SessionCostReadout & { sessionId: string; sampledAt: number; status: 'ready' | 'analysis-limit' }
+export interface TeamUsageQuery { sessionId: string }
+export interface TeamUsageMemberReadout {
+  sessionId: string; name: string; role: 'lead' | 'teammate'; phase: 'provisioning' | 'active' | 'failed'
+  status: 'ready' | 'analysis-limit' | 'unavailable'; cutSeq: number | null
+  provider: string | null; model: string | null
+  requestTokens: number | null; requestTokensPartial: boolean; settledAttempts: number | null; retries: number | null
+  uncachedInput: FieldTotalReadout | null; cacheRead: FieldTotalReadout | null
+  cacheWrite: FieldTotalReadout | null; output: FieldTotalReadout | null
+  summaryInput: number | null; summaryOutput: number | null; summaryTokens: number | null
+  summaryCacheRead: number | null; summaryCacheWrite: number | null
+  summaryAttempts: number | null; summaryUnknownAttempts: number | null
+  summarySince: number | null; summaryCoverage: 'complete' | 'partial' | 'unknown'
+  maintenanceSuspects: number
+  totalTokens: number | null; tokensPartial: boolean
+  referenceCost: number | null; costPartial: boolean
+}
+export interface TeamUsageReadout {
+  targetSessionId: string; teamId: string | null; sampledAt: number
+  status: 'ready' | 'not-team' | 'unavailable'; members: TeamUsageMemberReadout[]
+  knownTokens: number; unknownMembers: number; tokensPartial: boolean; shareBasis: 'complete' | 'known-subtotal'
+  referenceCost: number | null; costPartial: boolean
+}
 /** Direct, recorded inputs; a source may itself be an earlier summary. */
 export interface ContentSources { rows: ContentRow[]; offset: number; total: number; nextOffset: number | null }
 export interface ContentPage { sessionId: string; cutSeq: number; id: string; text: string; offset: number; totalChars: number; nextOffset: number | null; sources?: ContentSources }
@@ -156,6 +186,7 @@ export interface InspectorApi {
   idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<IdleStatus>
   inspect(query: InspectQuery, signal: AbortSignal): Promise<Inspection>
   sessionUsage(query: SessionUsageQuery, signal: AbortSignal): Promise<SessionUsageReadout>
+  teamUsage?(query: TeamUsageQuery, signal: AbortSignal): Promise<TeamUsageReadout>
   content(query: ContentQuery, signal: AbortSignal): Promise<ContentPage>
 }
 export const defaultQuery = { atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false } as const

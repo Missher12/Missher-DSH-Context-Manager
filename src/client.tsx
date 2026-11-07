@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { ContextInspectorView, type ContextViewInjected } from './inspector-view.tsx'
 import { PeakIndicator, type PeakIndicatorProps } from './peak-indicator.tsx'
 import { CompactionBanner, type CompactionBannerProps } from './compaction-banner.tsx'
-import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi, SessionUsageReadout } from './inspector-types.ts'
+import type { ContentPage, ContentQuery, Inspection, InspectQuery, InspectorApi, SessionUsageReadout, TeamUsageReadout } from './inspector-types.ts'
 import type { HostCapabilityReadout } from './compatibility.ts'
 import { TYPERT_REMOTE } from './inspector-wire.ts'
 import { useStableScrollbarGutter } from './stable-gutter.ts'
@@ -42,6 +42,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
       idleStatus(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<IdleStatus>>
       inspect(query: InspectQuery, signal: AbortSignal): Promise<RemoteResult<Inspection>>
       sessionUsage(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<SessionUsageReadout>>
+      teamUsage(query: { sessionId: string }, signal: AbortSignal): Promise<RemoteResult<TeamUsageReadout>>
       content(query: ContentQuery, signal: AbortSignal): Promise<RemoteResult<ContentPage>>
     }
   }
@@ -76,6 +77,7 @@ export async function apply(ctx: Context) {
       idleStatus: async (query, signal) => unwrap(await scope.remote.contextInspector.idleStatus(query, signal)),
       inspect: async (query, signal) => unwrap(await scope.remote.contextInspector.inspect(query, signal)),
       sessionUsage: async (query, signal) => unwrap(await scope.remote.contextInspector.sessionUsage(query, signal)),
+      teamUsage: async (query, signal) => unwrap(await scope.remote.contextInspector.teamUsage(query, signal)),
       content: async (query, signal) => unwrap(await scope.remote.contextInspector.content(query, signal)),
     }
     scope.slots.inject('conversation.input.right', () => scope.slots.register({

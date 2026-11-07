@@ -1,4 +1,4 @@
-import { isOfficialDeepSeek, modelPrice, type Period } from './deepseek-period.ts'
+import { isOfficialDeepSeek, modelPrice, periodAt, type Period } from './deepseek-period.ts'
 import type { Attribution, CostUsageGroup } from './efficiency.ts'
 
 export type SessionCostIssue = 'missing-usage' | 'unknown-route' | 'unknown-period' | 'cache-write'
@@ -17,6 +17,32 @@ export interface SessionCostReadout {
   total: number | null
   partial: boolean
   issues: SessionCostIssue[]
+}
+
+export interface RequestReferenceCostInput {
+  time: number
+  provider: string
+  model: string
+  routeKnown: boolean
+  uncachedInput: number | null
+  cacheRead: number | null
+  cacheWrite: number | null
+  output: number | null
+  maintenanceSuspect: boolean
+}
+
+/** Price one recorded settlement with the same route, period, and cache-write caveats as the session estimate. */
+export function estimateRequestReferenceCost(row: RequestReferenceCostInput, includeMaintenance = false): { total: number | null; partial: boolean } {
+  if (row.maintenanceSuspect && !includeMaintenance) return { total: null, partial: true }
+  if (!row.routeKnown || !isOfficialDeepSeek({ provider: row.provider, model: row.model })) return { total: null, partial: true }
+  const price = modelPrice(row.model)
+  const period = periodAt(row.time)
+  if (!price || period === 'unknown') return { total: null, partial: true }
+  const known = [row.uncachedInput, row.cacheRead, row.output].some(value => value !== null)
+  if (!known) return { total: null, partial: true }
+  const scale = period === 'offpeak' ? 0.5 : 1
+  const total = ((row.cacheRead ?? 0) * price.cache + (row.uncachedInput ?? 0) * price.input + (row.output ?? 0) * price.output) * scale / 1_000_000
+  return { total, partial: row.uncachedInput === null || row.cacheRead === null || row.output === null || row.cacheWrite === null || row.cacheWrite > 0 }
 }
 
 const BUCKETS = ['uncachedInput', 'cacheRead', 'cacheWrite', 'output'] as const

@@ -10,6 +10,7 @@ import { formatPercent } from './policy.ts'
 import { formatCapacity, formatTokens, formatTime, exactTokens } from './inspector-charts.tsx'
 import { errorText } from './content-reader.tsx'
 import { readStoredCheckpoint } from './checkpoint.ts'
+import { compareCheckpointValues, reviewRetentionEvidence, type CheckpointField, type RetentionEvidenceItem } from './summary-review.ts'
 
 const clock = (ms: number) => {
   const total = Math.max(0, Math.round(ms / 1000))
@@ -67,6 +68,7 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
   let progress: number | null = null
   let label = t('idleUnknown')
   let state = 'unknown'
+  let fullMessage: string | null = null
   if (policy && !policy.idleEnabled) { label = t('idleOff'); note = t('idleDisabledHint'); state = 'off' }
   else if (idle === null) { label = t('idleUnknown'); note = t('idleUnknown') }
   else if (scheduled && minutes !== null) {
@@ -79,13 +81,17 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
   } else {
     state = idle.status
     label = t(statusKey(idle))
-    if (idle.status === 'waiting') note = t('idleWaitHint')
+    if (idle.status === 'waiting') { note = idle.message || t('idleWaitHint'); fullMessage = idle.message || null }
     else if (idle.status === 'off') note = t('idleDisabledHint')
     else if (idle.status === 'compacting') note = t('idleCompactingNote')
     else if (idle.status === 'completed' && idle.updatedAt != null) {
       value = formatTime(idle.updatedAt)
       note = new Date(idle.updatedAt).toLocaleDateString()
-    } else if (idle.updatedAt) note = `${t('updated')} ${formatTime(idle.updatedAt)}`
+    } else if (idle.status === 'skipped' || idle.status === 'failed' || idle.status === 'cancelled') {
+      note = idle.message || t('unknownUsage')
+      fullMessage = idle.message || null
+    }
+    else if (idle.updatedAt) note = `${t('updated')} ${formatTime(idle.updatedAt)}`
     else if (idle.status === 'scheduled') note = t('idleNoTimer')
   }
   return <article className="cmv-card cmv-stat" data-stat="idle" data-idle-state={state}>
@@ -93,7 +99,7 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
     <div className="cmv-stat-value">{value}{suffix && <span className="cmv-stat-suffix"> {suffix}</span>}</div>
     {progress !== null && <div className="cmv-meter" role="img" aria-label={`${t('idleProgress')} ${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`} data-idle-progress={Math.round(Math.max(0, Math.min(1, progress)) * 100)}><span style={{ width: `${Math.max(2, Math.min(100, progress * 100))}%` }}/></div>
     }
-    {note && <p className="cmv-stat-note">{note}</p>}
+    {note && <p className="cmv-stat-note">{fullMessage ? <Tooltip label={fullMessage}><span className="cmv-idle-reason" tabIndex={0} aria-label={fullMessage}>{fullMessage.length > 96 ? `${fullMessage.slice(0, 96)}…` : fullMessage}</span></Tooltip> : note}</p>}
   </article>
 }
 
@@ -143,12 +149,121 @@ export function WindowChips({ data, policy, t }: { data: Inspection; policy: Pol
   </div>
 }
 
+const MAX_REVIEW_CHARS = 64_000
+const MAX_REVIEW_SOURCES = 24
+const MAX_SOURCE_CHARS = 96_000
+async function readContentForReview(api: InspectorApi, target: string, cutSeq: number, id: string, signal: AbortSignal, maxChars: number) {
+  let page = await api.content({ sessionId: target, cutSeq, id, offset: 0 }, signal)
+  const first = page
+  const chunks = [page.text]
+  let offset = page.nextOffset
+  let readChars = page.text.length
+  while (offset !== null && readChars < maxChars) {
+    signal.throwIfAborted()
+    page = await api.content({ sessionId: target, cutSeq, id, offset }, signal)
+    if (page.offset !== offset) break
+    chunks.push(page.text); readChars += page.text.length; offset = page.nextOffset
+  }
+  const text = chunks.join('')
+  return { text, first, complete: offset === null && text.length === first.totalChars }
+}
+
+type SummaryReview = {
+  changes: ReturnType<typeof compareCheckpointValues> | null
+  anchors: ReturnType<typeof reviewRetentionEvidence>
+  sourceRows: ContentRow[]
+  sourceLimit: boolean
+}
+function summaryFieldLabel(field: CheckpointField, t: InspectorText) {
+  const keys = { goal: 'summaryGoal', constraints: 'summaryConstraints', completed: 'summaryCompleted', pending: 'summaryPending', evidence: 'summaryEvidence', next: 'summaryNext', uncertainties: 'summaryUncertainties' } as const
+  return t(keys[field])
+}
+
+function SummaryReviewPanel({ entry, previous, target, cutSeq, api, t, onOpen }: { entry: ContentRow; previous: ContentRow | undefined; target: string; cutSeq: number; api: InspectorApi; t: InspectorText; onOpen: (row: ContentRow) => void }) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [review, setReview] = useState<SummaryReview | null>(null)
+  const identity = `${target}:${entry.id}:${previous?.id ?? ''}`
+  const identityRef = useRef(identity)
+  identityRef.current = identity
+  useEffect(() => {
+    if (!open) { setLoading(false); setReview(null); setError(''); return }
+    const controller = new AbortController()
+    const identityAtStart = identity
+    const cutAtStart = cutSeq
+    setLoading(true); setReview(null); setError('')
+    void (async () => {
+      const currentContent = await readContentForReview(api, target, cutAtStart, entry.id, controller.signal, MAX_REVIEW_CHARS)
+      if (!currentContent.complete) throw new Error('partial')
+      const currentValue = readStoredCheckpoint(currentContent.text)
+      if (!currentValue) throw new Error('unparsed')
+      let changes: ReturnType<typeof compareCheckpointValues> | null = null
+      if (previous) {
+        try {
+          const previousContent = await readContentForReview(api, target, cutAtStart, previous.id, controller.signal, MAX_REVIEW_CHARS)
+          const previousValue = previousContent.complete ? readStoredCheckpoint(previousContent.text) : null
+          if (previousValue) changes = compareCheckpointValues(previousValue, currentValue)
+        } catch { controller.signal.throwIfAborted() }
+      }
+      const firstSources = await api.content({ sessionId: target, cutSeq: cutAtStart, id: entry.id, offset: 0, sourceOffset: 0 }, controller.signal)
+      const sourceTotal = firstSources.sources?.total ?? 0
+      const sourceRows: ContentRow[] = []
+      let sourceComplete = firstSources.sources !== undefined
+      let sourceLimit = sourceTotal > MAX_REVIEW_SOURCES
+      for (let offset = 0; offset < Math.min(sourceTotal, MAX_REVIEW_SOURCES); offset += 4) {
+        controller.signal.throwIfAborted()
+        const page = offset === 0 ? firstSources : await api.content({ sessionId: target, cutSeq: cutAtStart, id: entry.id, offset: 0, sourceOffset: offset }, controller.signal)
+        if (!page.sources || page.sources.offset !== offset) { sourceComplete = false; break }
+        sourceRows.push(...page.sources.rows)
+      }
+      let remainingChars = MAX_SOURCE_CHARS
+      const sourceTexts: { id: string; text: string }[] = []
+      for (const row of sourceRows) {
+        if (remainingChars <= 0) { sourceComplete = false; sourceLimit = true; break }
+        const source = await readContentForReview(api, target, cutAtStart, row.id, controller.signal, remainingChars)
+        sourceTexts.push({ id: row.id, text: source.text })
+        remainingChars -= source.text.length
+        if (!source.complete) { sourceComplete = false; sourceLimit = true }
+      }
+      const anchors = reviewRetentionEvidence(currentValue, sourceTexts, sourceComplete)
+      if (!controller.signal.aborted && identityRef.current === identityAtStart) setReview({ changes, anchors, sourceRows, sourceLimit })
+    })().catch(reason => { if (!controller.signal.aborted && identityRef.current === identityAtStart) setError(reason instanceof Error && reason.message === 'partial' ? t('summaryPartial') : t('summaryCompareUnavailable')) })
+      .finally(() => { if (!controller.signal.aborted && identityRef.current === identityAtStart) setLoading(false) })
+    return () => controller.abort()
+  }, [api, identity, open, t])
+  return <div className="cmv-summary-review">
+    <div className="cmv-summary-review-actions">
+      <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(value => !value)}>{t(previous ? 'summaryCompare' : 'summaryReviewCurrent')}</Button>
+      {previous && <Button size="sm" variant="ghost" onClick={() => onOpen(previous)}>{t('viewSummarySources')}</Button>}
+    </div>
+    {open && <div className="cmv-summary-review-body">
+      {loading ? <p className="cmv-muted">{t('summaryCompareLoading')}</p> : error ? <p className="cmv-muted" role="status">{error}</p> : review && <>
+        {review.changes ? <>
+          <p className="cmv-muted">{t('summaryRetained')} {review.changes.retained.length} · {t('summaryMoved')} {review.changes.moved.length} · {t('summaryAdded')} {review.changes.added.length} · {t('summaryChanged')} {review.changes.missing.length}</p>
+          {review.changes.moved.map((item, index) => <p key={`move:${index}`}><span className="cmv-muted">{t('summaryMoved')} · {summaryFieldLabel(item.from, t)} → {summaryFieldLabel(item.to, t)}</span><br/>{item.text}</p>)}
+          {review.changes.added.map((item, index) => <p key={`add:${index}`}><span className="cmv-muted">{t('summaryAdded')} · {summaryFieldLabel(item.field, t)}</span><br/>{item.text}</p>)}
+          {review.changes.missing.map((item, index) => <p key={`missing:${index}`}><span className="cmv-muted">{t('summaryChanged')} · {summaryFieldLabel(item.field, t)}</span><br/>{item.text}</p>)}
+          {(review.changes.missing.length > 0 || review.changes.added.length > 0) && <p className="cmv-muted">{t('summaryManualReview')}</p>}
+        </> : <p className="cmv-muted">{t(previous ? 'summaryCompareUnavailable' : 'summaryNoPrevious')}</p>}
+        <div className="cmv-summary-anchor-review"><strong>{t('summaryAnchorReview')}</strong><p className="cmv-muted">{t('summaryAnchorScope')}</p>
+          {review.anchors.items.length === 0 ? <p className="cmv-muted">{t('summaryNoAnchors')}</p> : review.anchors.items.map((item: RetentionEvidenceItem, index) => <div key={`${item.text}:${index}`} data-anchor-status={item.status}>
+            <span>{item.status === 'found' ? t('summaryAnchorFound') : t('summaryAnchorMissing')}</span><p>{item.text}</p>
+            {item.sourceIds.map(id => { const source = review.sourceRows.find(row => row.id === id); return source ? <Button key={id} size="sm" variant="ghost" onClick={() => onOpen(source)}>{source.title} · {t('record')} {source.seq}</Button> : null })}
+          </div>)}
+          {(!review.anchors.scanComplete || review.sourceLimit) && <p className="cmv-muted">{t('summarySourceLimit')}</p>}
+        </div>
+      </>}
+    </div>}
+  </div>
+}
+
 /**
  * Read the newest applied summary once from this cut. The request is keyed by
  * session and checkpoint identity, so cut polling keeps the same stored summary
  * visible and a stale response can never replace a newer one.
  */
-export function SummaryCard({ entry, target, cutSeq, api, t, onOpen }: { entry: ContentRow | undefined; target: string; cutSeq: number; api: InspectorApi; t: InspectorText; onOpen: (row: ContentRow) => void }) {
+export function SummaryCard({ entry, previous, target, cutSeq, api, t, onOpen }: { entry: ContentRow | undefined; previous?: ContentRow; target: string; cutSeq: number; api: InspectorApi; t: InspectorText; onOpen: (row: ContentRow) => void }) {
   const [mode, setMode] = useState<'structured' | 'raw' | 'sources'>('structured')
   const [page, setPage] = useState<ContentPage | null>(null)
   const [offsets, setOffsets] = useState([0])
@@ -206,6 +321,7 @@ export function SummaryCard({ entry, target, cutSeq, api, t, onOpen }: { entry: 
         </div>
         <Button size="sm" variant="ghost" onClick={() => onOpen(entry)}>{t('viewSummarySources')}</Button>
       </div>
+      <SummaryReviewPanel key={`${target}:${entry.id}:${previous?.id ?? ''}`} entry={entry} previous={previous} target={target} cutSeq={cutSeq} api={api} t={t} onOpen={onOpen}/>
       {error && <p className="cmv-error" role="alert">{error}</p>}
       {page === null && !error && <p className="cmv-muted">{loading ? t('summaryLoading') : t('summaryNoEntry')}</p>}
       {page !== null && mode === 'structured' && (value

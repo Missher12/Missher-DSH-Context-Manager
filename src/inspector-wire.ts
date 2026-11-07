@@ -49,6 +49,23 @@ export function idleStatusSchema() { return z.object({
 }) }
 export function inspectQuerySchema() { return z.object({ sessionId: sessionId(), atSeq: seq().nullable(), offset: count(), category: z.union([category(), z.literal('all')]), group: z.enum(['summary', 'tool', 'message', 'instruction']).optional(), search: z.string().max(200), sort: z.enum(['size', 'position']), archived: z.boolean() }).strict() }
 export function sessionUsageQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
+export function teamUsageQuerySchema() { return z.object({ sessionId: sessionId() }).strict() }
+export function teamUsageReadoutSchema() { return z.object({
+  targetSessionId: sessionId(), teamId: sessionId().nullable(), sampledAt: count(), status: z.enum(['ready', 'not-team', 'unavailable']),
+  members: z.array(z.object({ sessionId: sessionId(), name: z.string().min(1).max(128), role: z.enum(['lead', 'teammate']),
+    phase: z.enum(['provisioning', 'active', 'failed']), status: z.enum(['ready', 'analysis-limit', 'unavailable']), cutSeq: seq().nullable(),
+    provider: z.string().max(200).nullable(), model: z.string().max(200).nullable(), requestTokens: count().nullable(), requestTokensPartial: z.boolean(),
+    settledAttempts: count().nullable(), retries: count().nullable(), uncachedInput: fieldTotalSchema().nullable(),
+    cacheRead: fieldTotalSchema().nullable(), cacheWrite: fieldTotalSchema().nullable(), output: fieldTotalSchema().nullable(),
+    summaryInput: count().nullable(), summaryOutput: count().nullable(), summaryTokens: count().nullable(),
+    summaryCacheRead: count().nullable(), summaryCacheWrite: count().nullable(),
+    summaryAttempts: count().nullable(), summaryUnknownAttempts: count().nullable(), totalTokens: count().nullable(),
+    summarySince: count().nullable(), summaryCoverage: z.enum(['complete', 'partial', 'unknown']),
+    maintenanceSuspects: count(), tokensPartial: z.boolean(), referenceCost: z.number().min(0).max(Number.MAX_SAFE_INTEGER).nullable(), costPartial: z.boolean(),
+  }).strict()).max(128),
+  knownTokens: count(), unknownMembers: count(), tokensPartial: z.boolean(), shareBasis: z.enum(['complete', 'known-subtotal']),
+  referenceCost: z.number().min(0).max(Number.MAX_SAFE_INTEGER).nullable(), costPartial: z.boolean(),
+}).strict() }
 export function sessionUsageReadoutSchema() { return z.object({
   sessionId: sessionId(), sampledAt: count(), status: z.enum(['ready', 'analysis-limit']), hasRecords: z.boolean(), settledAttempts: count(), retries: count(),
   requestTokens: count(), requestTokensPartial: z.boolean(),
@@ -126,7 +143,7 @@ export function inspectionSchema() { return z.object({
   total: count(), offset: count(), pageSize: count(), activeCount: count(), archivedCount: count(),
   requests: z.array(z.object({ seq: seq(), time: count(), turn: count(), step: count(), provider: z.string(), model: z.string(), input: count().nullable(), output: count().nullable(), cacheRead: count().nullable() })).max(200),
   requestCount: count(),
-  compactions: z.array(z.object({ id: z.string(), kind: z.enum(['compact', 'prune']), startedAt: count(), endedAt: count().optional(), status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']), manual: z.boolean(), execution:z.string().max(400).optional(), checkpointSeq:seq().optional(), checkpoint:contentRowSchema().optional(), modelCallStatus:z.enum(['not_dispatched','dispatched']).optional(), applied: z.boolean(), beforeTokens: count().optional(), afterTokens: count().optional(), messages: count().optional(), inputTokens: count().optional(), outputTokens: count().optional(), error: z.string().max(300).optional(), trigger: z.enum(['idle', 'pressure', 'overflow', 'manual']).optional() })).max(12),
+  compactions: z.array(z.object({ id: z.string(), kind: z.enum(['compact', 'prune']), startSeq: seq().optional(), endSeq: seq().optional(), startedAt: count(), endedAt: count().optional(), status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']), manual: z.boolean(), execution:z.string().max(400).optional(), checkpointSeq:seq().optional(), checkpoint:contentRowSchema().optional(), modelCallStatus:z.enum(['not_dispatched','dispatched']).optional(), applied: z.boolean(), beforeTokens: count().optional(), afterTokens: count().optional(), messages: count().optional(), inputTokens: count().optional(), outputTokens: count().optional(), error: z.string().max(300).optional(), trigger: z.enum(['idle', 'pressure', 'overflow', 'manual']).optional(), summaryCalls: z.array(z.object({ purpose: z.enum(['summary', 'repair', 'recovery', 'unknown']), status: z.enum(['started', 'generated', 'failed', 'cancelled', 'not_dispatched']), input: count().nullable(), output: count().nullable(), cacheRead: count().nullable(), cacheWrite: count().nullable() }).strict()).max(32).optional(), summaryCallCoverage: z.enum(['complete', 'partial', 'unknown']).optional() })).max(12),
 }) }
 export function contentPageSchema() { return z.object({ sessionId: sessionId(), cutSeq: seq(), id: z.string(), text: z.string().max(16000), offset: count(), totalChars: count(), nextOffset: count().nullable(),
   sources: z.object({ rows: z.array(contentRowSchema()).max(4), offset: count(), total: count(), nextOffset: count().nullable() }).strict().optional(),
@@ -156,6 +173,9 @@ export const TYPERT_REMOTE = {
     { id: '@missher/dsh-context-manager#contextInspector/sessionUsage', service: 'contextInspector', namespace: 'contextInspector', method: 'sessionUsage', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#SessionUsageQuery', create: sessionUsageQuerySchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#SessionUsageReadout', create: sessionUsageReadoutSchema } },
+    { id: '@missher/dsh-context-manager#contextInspector/teamUsage', service: 'contextInspector', namespace: 'contextInspector', method: 'teamUsage', invocation: { kind: 'direct' },
+      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#TeamUsageQuery', create: teamUsageQuerySchema } }],
+      cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#TeamUsageReadout', create: teamUsageReadoutSchema } },
     { id: '@missher/dsh-context-manager#contextInspector/content', service: 'contextInspector', namespace: 'contextInspector', method: 'content', invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#ContentQuery', create: contentQuerySchema } }],
       cancellation: { parameter: 'signal' }, result: { mode: 'strict', typeSymbol: '@missher/dsh-context-manager#ContentPage', create: contentPageSchema } },

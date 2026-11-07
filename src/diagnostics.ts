@@ -15,7 +15,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 }
 const count = z.number().finite().nonnegative()
 const entrySchema = z.object({
-  id: z.string(), kind: z.enum(['compact', 'prune']), startedAt: count, endedAt: count.optional(),
+  id: z.string(), kind: z.enum(['compact', 'prune']), startSeq: count.optional(), endSeq: count.optional(), startedAt: count, endedAt: count.optional(),
   status: z.enum(['running', 'completed', 'failed', 'interrupted', 'unapplied']),
   manual: z.boolean(), applied: z.boolean(), beforeTokens: count.optional(), afterTokens: count.optional(),
   messages: count.optional(), error: z.string().max(300).optional(),
@@ -53,10 +53,10 @@ export function foldDiagnostics(previous: State, event: SessionEvent): State {
       state = update(state, pending.id, { applied: true, afterTokens: estimateMessage(event.data),
         ...(checkpointSeq === undefined ? {} : { checkpointSeq }) })
       if (state.view.compactions.find(entry => entry.id === pending.id)?.kind === 'prune') {
-        state = update(state, pending.id, { status: 'completed', endedAt: event.time })
+        state = update(state, pending.id, { status: 'completed', endedAt: event.time, endSeq: event.seq })
       }
     } else if (state.view.compactions.find(entry => entry.id === pending.id)?.kind === 'prune') {
-      state = update(state, pending.id, { status: 'unapplied', endedAt: event.time })
+      state = update(state, pending.id, { status: 'unapplied', endedAt: event.time, endSeq: event.seq })
     }
   }
   switch (event.type) {
@@ -83,7 +83,7 @@ export function foldDiagnostics(previous: State, event: SessionEvent): State {
       }].slice(-HISTORY_LIMIT) } }
     }
     case 'compaction/start':
-      return append(state, { id: event.data.compactionId, kind: 'compact', startedAt: event.time,
+      return append(state, { id: event.data.compactionId, kind: 'compact', startSeq: event.seq, startedAt: event.time,
         status: 'running', manual: event.data.turn === null, applied: false })
     case 'compaction/summary': {
       const { compactionId, shadowedRange, shadowedTokenCount, shadowedSeqs } = event.data
@@ -95,20 +95,20 @@ export function foldDiagnostics(previous: State, event: SessionEvent): State {
     case 'compaction/prune': {
       const { shadowedRange, shadowedTokenCount, shadowedSeqs } = event.data
       const id = `prune:${event.seq}`
-      state = append(state, { id, kind: 'prune', startedAt: event.time, status: 'running', manual: false,
+      state = append(state, { id, kind: 'prune', startSeq: event.seq, startedAt: event.time, status: 'running', manual: false,
         applied: false, beforeTokens: shadowedTokenCount, messages: shadowedSeqs.length })
       return { ...state, pending: { id, seq: event.seq, start: shadowedRange.start, end: shadowedRange.end } }
     }
     case 'compaction/end': {
       const entry = state.view.compactions.find(item => item.id === event.data.compactionId)
-      return update(state, event.data.compactionId, { endedAt: event.time,
+      return update(state, event.data.compactionId, { endedAt: event.time, endSeq: event.seq,
         status: event.data.error ? 'failed' : entry?.applied ? 'completed' : 'unapplied',
         ...(event.data.error ? { error: event.data.error.slice(0, 300) } : {}) })
     }
     case 'session/end-seed':
       return state.view.compactions.some(entry => entry.status === 'running') ? { ...state,
         view: { ...state.view, compactions: state.view.compactions.map(entry => entry.status === 'running'
-          ? { ...entry, status: 'interrupted' as const } : entry) } } : state
+          ? { ...entry, endSeq: event.seq, status: 'interrupted' as const } : entry) } } : state
     default: return state
   }
 }

@@ -42,12 +42,15 @@ function harness(api, policyValue = policy) {
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 1, value: { policy: policyValue } }
   const form = { subscribe: () => () => {}, getSnapshot: () => snapshot }
-  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const subscribers = new Set()
+  let revision = 1
+  const pulse = { subscribe: callback => { subscribers.add(callback); return () => subscribers.delete(callback) }, getSnapshot: () => revision }
   const root = createRoot(document.getElementById('root'))
   const settle = () => act(async () => new Promise(resolve => setTimeout(resolve, 240)))
   const render = target => act(async () => root.render(React.createElement(client.ContextInspectorView, { target, form, api, pulse })))
   const close = async () => { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
-  return { render, settle, close }
+  const tick = () => { revision++; for (const callback of subscribers) callback() }
+  return { render, settle, close, tick }
 }
 
 test('summary preview reads only the newest applied checkpoint and drops a stale response', async () => {
@@ -84,6 +87,40 @@ test('summary preview reads only the newest applied checkpoint and drops a stale
   } finally { await h.close() }
 })
 
+test('a single applied summary can run literal source-anchor review without a previous summary', async () => {
+  const source = { id: 'event:1', seq: 1, title: '原始任务说明', category: 'user', current: true, source: 'fixture', tokens: 8, images: 0 }
+  const reads = []
+  let currentCut = 5
+  const api = {
+    idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }),
+    inspect: async query => ({ ...base, ...query, cutSeq: currentCut, compactions: [applied({ checkpointSeq: 4 })] }),
+    content: async query => {
+      reads.push(query)
+      if (query.id === 'event:1') return { sessionId: 's1', cutSeq: query.cutSeq, id: query.id, text: '请保留配置路径，阈值为 80%。', offset: 0, totalChars: 16, nextOffset: null }
+      if (query.sourceOffset !== undefined) return { sessionId: 's1', cutSeq: query.cutSeq, id: 'cp:1', text: checkpointText, offset: 0, totalChars: checkpointText.length, nextOffset: null,
+        sources: { rows: [source], offset: 0, total: 1, nextOffset: null } }
+      return { sessionId: 's1', cutSeq: query.cutSeq, id: 'cp:1', text: checkpointText, offset: 0, totalChars: checkpointText.length, nextOffset: null }
+    },
+  }
+  const h = harness(api)
+  try {
+    await h.render('s1'); await h.settle()
+    const button = [...document.querySelectorAll('button')].find(item => item.textContent === '核对当前摘要与来源')
+    assert.ok(button, 'the current summary has an independent review action')
+    await act(async () => button.click())
+    await h.settle()
+    assert.ok(reads.some(query => query.id === 'event:1'), 'the original source is read on demand')
+    assert.ok(document.querySelector('[data-anchor-status="found"]'), 'the literal 80% anchor is visible even without a prior summary')
+    assert.doesNotMatch(document.querySelector('.cmv-summary-review-body').textContent, /无法完整解析/)
+    const count = reads.length
+    currentCut++
+    await act(async () => h.tick())
+    await h.settle()
+    assert.equal(reads.length, count, 'a new cut with the same summary IDs does not rescan the source')
+    assert.ok(document.querySelector('[data-anchor-status="found"]'), 'the finished review stays visible across an ordinary pulse')
+  } finally { await h.close() }
+})
+
 test('reduction card keeps the newest applied entry and reports an increase or unknown honestly', async () => {
   const increasing = { ...base, compactions: [applied({ id: 'grow', beforeTokens: 100, afterTokens: 150 })] }
   const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => ({ ...increasing, ...query }), content: () => new Promise(() => {}) }
@@ -105,6 +142,68 @@ test('reduction card keeps the newest applied entry and reports an increase or u
     assert.equal(value.dataset.delta, 'unknown', 'the newest applied entry decides the card')
     assert.equal(value.textContent, '—')
   } finally { await h2.close() }
+})
+
+test('long idle failure reasons stay compact while remaining fully keyboard-readable', async () => {
+  const message = `失败原因：${'模型路由暂不可用，系统保留当前会话并等待下一次检查；'.repeat(12)}`
+  const api = {
+    idleStatus: async () => ({ status: 'failed', dueAt: null, message, reasonCode: 'fixture' }),
+    inspect: async query => ({ ...base, ...query }),
+  }
+  const h = harness(api)
+  try {
+    await h.render('s1'); await h.settle()
+    const reason = document.querySelector('.cmv-stat[data-stat="idle"] .cmv-idle-reason')
+    assert.ok(reason)
+    assert.ok(reason.textContent.length <= 97, 'the card shows a short, bounded reason')
+    assert.equal(reason.getAttribute('aria-label'), message, 'keyboard users can read the full reason')
+  } finally { await h.close() }
+})
+
+test('team usage stays idle until selected and aborts when the view switches back', async () => {
+  const reads = []
+  const api = {
+    idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }),
+    inspect: async query => ({ ...base, ...query }),
+    teamUsage: (query, signal) => { reads.push({ query, signal }); return new Promise(() => {}) },
+  }
+  const h = harness(api)
+  try {
+    await h.render('s1'); await h.settle()
+    assert.equal(reads.length, 0, 'the default session view makes no aggregate request')
+    const team = [...document.querySelectorAll('button')].find(item => item.textContent === '包含团队')
+    assert.ok(team)
+    await act(async () => team.click()); await h.settle()
+    assert.equal(reads.length, 1)
+    assert.equal(reads[0].query.sessionId, 's1')
+    const session = [...document.querySelectorAll('button')].find(item => item.textContent === '本会话')
+    await act(async () => session.click()); await h.settle()
+    assert.equal(reads[0].signal.aborted, true, 'switching modes cancels the outstanding aggregate')
+  } finally { await h.close() }
+})
+
+test('team phase labels describe readiness and creation outcome without implying active work', async () => {
+  const member = (sessionId, name, role, phase) => ({
+    sessionId, name, role, phase, status: 'ready', cutSeq: 1, provider: null, model: null,
+    requestTokens: 0, requestTokensPartial: false, settledAttempts: 0, retries: 0,
+    uncachedInput: null, cacheRead: null, cacheWrite: null, output: null,
+    summaryInput: 0, summaryOutput: 0, summaryTokens: 0, summaryCacheRead: 0, summaryCacheWrite: 0,
+    summaryAttempts: 0, summaryUnknownAttempts: 0, summarySince: 0, summaryCoverage: 'complete',
+    maintenanceSuspects: 0, totalTokens: 0, tokensPartial: false, referenceCost: 0, costPartial: false,
+  })
+  const result = { targetSessionId: 's1', teamId: 's1', sampledAt: 1, status: 'ready',
+    members: [member('s1', 'Lead', 'lead', 'active'), member('s2', 'Starting', 'teammate', 'provisioning'), member('s3', 'Failed', 'teammate', 'failed')],
+    knownTokens: 0, unknownMembers: 0, tokensPartial: false, shareBasis: 'complete', referenceCost: 0, costPartial: false }
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => ({ ...base, ...query }), teamUsage: async () => result }
+  const h = harness(api)
+  try {
+    await h.render('s1'); await h.settle()
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '包含团队').click())
+    await h.settle()
+    const text = document.querySelector('.cmv-team-members').textContent
+    assert.match(text, /已就绪/); assert.match(text, /创建中/); assert.match(text, /创建失败/)
+    assert.doesNotMatch(text, /进行中|已结束/)
+  } finally { await h.close() }
 })
 
 test('capacity legend keeps an unknown reserve without inventing free space', async () => {

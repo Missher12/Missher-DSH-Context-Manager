@@ -2,6 +2,9 @@
 export interface CompactionEntry {
   id: string
   kind: 'compact' | 'prune'
+  /** Immutable sequence of compaction/start (or compaction/prune), used for event-log ranges. */
+  startSeq?: number
+  endSeq?: number
   startedAt: number
   endedAt?: number
   status: 'running' | 'completed' | 'failed' | 'interrupted' | 'unapplied'

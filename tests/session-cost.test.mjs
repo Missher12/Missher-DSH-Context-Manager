@@ -14,6 +14,7 @@ for (const file of compiled.outputFiles) {
 }
 const { attributeSession } = modules.get('efficiency.js')
 const { estimateSessionCost } = modules.get('session-cost.js')
+const { estimateRequestReferenceCost } = modules.get('session-cost.js')
 const { sessionUsageQuerySchema, sessionUsageReadoutSchema, TYPERT_REMOTE } = modules.get('inspector-wire.js')
 
 const peak = Date.parse('2026-09-28T01:00:00Z')
@@ -36,6 +37,16 @@ test('empty sessions stay empty, while reported zero usage stays a real zero', (
   assert.equal(zero.requestTokens, 0)
   assert.equal(zero.total, 0)
   assert.equal(zero.partial, false)
+})
+
+test('per-request reference prices use the recorded route and period, and keep unknown components visible', () => {
+  const row = { time: Date.parse('2026-11-07T04:00:00Z'), provider: 'deepseek-official', model: 'deepseek-flash', routeKnown: true,
+    uncachedInput: 1_000_000, cacheRead: 1_000_000, cacheWrite: 0, output: 1_000_000, maintenanceSuspect: false }
+  assert.deepEqual(estimateRequestReferenceCost(row), { total: 5.02, partial: false })
+  assert.deepEqual(estimateRequestReferenceCost({ ...row, provider: 'custom' }), { total: null, partial: true })
+  assert.deepEqual(estimateRequestReferenceCost({ ...row, maintenanceSuspect: true }), { total: null, partial: true })
+  assert.deepEqual(estimateRequestReferenceCost({ ...row, maintenanceSuspect: true }, true), { total: 5.02, partial: false })
+  assert.deepEqual(estimateRequestReferenceCost({ ...row, cacheWrite: null }), { total: 5.02, partial: true })
 })
 
 test('prices mixed peak/offpeak records by each historical model and disjoint token bucket', () => {

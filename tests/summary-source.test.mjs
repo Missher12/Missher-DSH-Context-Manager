@@ -214,7 +214,8 @@ test('summary source wire and service reject invalid offsets, extra fields, stal
 test('current inspection adds bounded summary accounting independently; historical cuts never inherit latest ledger totals', async t => {
   const f = fixture(); const ledgerReads = []
   const stats = { input: 2300, output: 200, attempts: 3, unknownAttempts: 1, since: 1000, cacheRead: 300, cacheWrite: 0,
-    recent: [{ id: 'internal-attempt', compactionId: 'first', trigger: 'idle' }] }
+    recent: [{ id: 'internal-attempt', compactionId: 'first', trigger: 'idle', startedAt: 900, endedAt: 950,
+      status: 'generated', input: 2300, output: 200, cacheRead: 300, cacheWrite: 0 }] }
   const host = await service(t, f.events, { stats: sessionId => { ledgerReads.push(sessionId); return stats } })
   const query = { sessionId: 'read-only', atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false }
   const current = await host.api.inspect(query, new AbortController().signal)
@@ -238,7 +239,9 @@ test('compaction sources require matching current-session ledger evidence and ne
   const host = await service(t, f.events, { stats: sessionId => sessionId === 'read-only' ? stats : undefined })
   const query = { sessionId: 'read-only', atSeq: null, offset: 0, category: 'all', search: '', sort: 'size', archived: false }
   for (const trigger of ['idle', 'pressure', 'overflow', 'manual']) {
-    stats.recent = [{ compactionId: 'first', trigger }, { compactionId: 'unrelated', trigger }, { compactionId: `prune:${prune}`, trigger }]
+    stats.recent = ['first', 'unrelated', `prune:${prune}`].map((compactionId, index) => ({ id: `attempt-${index}`,
+      compactionId, trigger, startedAt: 900 + index, endedAt: 950 + index, status: 'generated',
+      input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }))
     const current = await host.api.inspect(query, new AbortController().signal)
     assert.equal(current.compactions.find(entry => entry.id === 'first').trigger, trigger)
     assert.equal(current.compactions.find(entry => entry.id === 'second').trigger, undefined)
@@ -374,6 +377,30 @@ test('real DOM distinguishes verified compaction triggers while legacy and histo
   } finally {
     await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document
   }
+})
+
+test('post-checkpoint requests do not show a token subtotal when the next compaction boundary is missing', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const root = createRoot(document.getElementById('root'))
+  const checkpoint = { ...summaryRow, seq: 11 }
+  const entries = [
+    { id: 'applied', kind: 'compact', startedAt: 1000, status: 'completed', manual: false, applied: true, beforeTokens: 100, afterTokens: 10, checkpointSeq: 11, checkpoint },
+    { id: 'legacy-next', kind: 'compact', startedAt: 2000, status: 'completed', manual: false, applied: false },
+  ]
+  try {
+    await act(async () => root.render(React.createElement(CompactionRecords, {
+      data: { historical: false, cutSeq: 20, compactions: entries, efficiency: { requests: [] } },
+      t: inspectorText('zh'), openLatest: 0,
+    })))
+    const previousCompaction = document.querySelectorAll('.cmv-events > li')[1]
+    await act(async () => previousCompaction.querySelector('summary').click())
+    const following = [...previousCompaction.querySelectorAll('.cmv-request-details')]
+      .find(details => details.querySelector('summary').textContent.includes('checkpoint 后'))
+    assert.ok(following)
+    assert.match(following.textContent, /缺少下一次整理的起始序号/)
+    assert.doesNotMatch(following.textContent, /可读请求 Token 小计|0 Token/)
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
 test('real DOM reads four source links on demand in the same panel, cancels old bodies and resets on target change', async () => {

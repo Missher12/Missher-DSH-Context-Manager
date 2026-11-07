@@ -15,6 +15,7 @@ import { admissionBudget, type ContextGroup } from './chart-data.ts'
 import { ContentDetail, Loading, errorText } from './content-reader.tsx'
 export { CheckpointBody } from './content-reader.tsx'
 import { StatCards, SummaryCard, WindowChips } from './context-overview.tsx'
+import { previousAppliedCheckpoint } from './summary-review.ts'
 import css from './inspector.css'
 
 export interface ContextViewInjected {
@@ -334,7 +335,10 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
   const historical = effective.atSeq !== null || !!safeData?.historical
   const binding = bindingBadge(safeData, idleBinding, target, historical, loading || !!error, !!error, t)
   const latestRun = safeData?.compactions.at(-1)
-  const latestCheckpoint = safeData?.compactions.findLast(entry => entry.kind === 'compact' && entry.applied && entry.checkpoint)?.checkpoint
+  const latestCheckpointEntry = safeData?.compactions.findLast(entry => entry.kind === 'compact' && entry.applied && entry.checkpoint)
+  const latestCheckpoint = latestCheckpointEntry?.checkpoint
+  const previousCheckpoint = latestCheckpointEntry?.checkpointSeq === undefined || !safeData ? undefined
+    : previousAppliedCheckpoint(safeData.compactions, latestCheckpointEntry.checkpointSeq)?.checkpoint
   const idleRun = idleDiagnostics?.target === target ? idleDiagnostics.value : null
   const autoRunLabel = historical ? safeData?.compression ? `${t(compressionLabel(safeData.compression.mode))} · ${t('historical')}` : t('unknown') : binding.text
   const toolRun = safeData?.cooperation?.toolResults.state
@@ -460,8 +464,9 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
           <StatCards data={safeData} policy={accepted.value?.policy} idle={idleStatus?.target === target ? idleStatus.value : null} t={t}/>
           <div id="cmi-history-panel"><PressureTrend key={target} data={safeData} t={t} onCut={showCut}/></div>
           <CompactionChart key={target + ':compactions'} data={safeData} t={t} onInspect={setSelectedCompaction} onRecord={() => { setOpenLatest(value => value + 1); recordsRef.current?.scrollIntoView?.({ block: 'start' }) }}/>
-          <UsageComposition data={safeData} t={t} api={api} target={target}/>
-          <SummaryCard entry={latestCheckpoint} target={target} cutSeq={safeData.cutSeq} api={api} t={t} onOpen={setSelectedCompaction}/>
+          <UsageComposition data={safeData} t={t} api={api} target={target}
+            renderMemberContent={(memberData, row) => <ContentDetail key={`${memberData.sessionId}:${memberData.cutSeq}:${row.id}`} target={memberData.sessionId} cutSeq={memberData.cutSeq} row={row} api={api} t={t} window={contextWindow(memberData)}/>}/>
+          <SummaryCard entry={latestCheckpoint} previous={previousCheckpoint} target={target} cutSeq={safeData.cutSeq} api={api} t={t} onOpen={setSelectedCompaction}/>
           {selectedCompaction && selectedCompaction.seq <= safeData.cutSeq && <article ref={checkpointRef} className="cmv-card cmv-checkpoint-reader">
             <div className="cmv-heading"><h3>{t('checkpointContent')}</h3><Button size="sm" variant="ghost" onClick={() => setSelectedCompaction(null)}>{t('closeCheckpoint')}</Button></div>
             <ContentDetail key={`${target}:${safeData.cutSeq}:${selectedCompaction.id}`} target={target} cutSeq={safeData.cutSeq} row={selectedCompaction} api={api} t={t} window={contextWindow(safeData)}/>

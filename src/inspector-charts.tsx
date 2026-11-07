@@ -1,11 +1,13 @@
 /** Native-theme charts for one immutable session cut. */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ContentRow, EfficiencyReadout, FieldTotalReadout, Inspection, InspectorApi, ReductionReadout, SessionUsageReadout } from './inspector-types.ts'
+import { defaultQuery, type ContentRow, type EfficiencyReadout, type FieldTotalReadout, type Inspection, type InspectorApi, type ReductionReadout, type SessionUsageReadout, type TeamUsageMemberReadout, type TeamUsageReadout } from './inspector-types.ts'
 import type { CompactCapacity } from './idle-types.ts'
 import { contextWindow, composition, contextGroups, usageSlices, usageCompleteness, type ContextGroup } from './chart-data.ts'
 import type { InspectorLocaleKey, InspectorText } from './inspector-locales.ts'
 import { capacityPercent, formatPercent, type Policy } from './policy.ts'
+import { compactionRequestRange, postCheckpointRequestRange } from './compaction-usage.ts'
+import { estimateRequestReferenceCost } from './session-cost.ts'
 
 export { contextWindow } from './chart-data.ts'
 
@@ -155,6 +157,68 @@ function compactionSource(entry: CompactionEntry, historical: boolean) {
   return entry.kind === 'prune' ? 'toolCleanup' : !historical && entry.trigger ? sources[entry.trigger] : entry.manual ? 'betweenTurns' : 'duringTask'
 }
 const entryStatus = (entry: CompactionEntry) => entry.status === 'completed' ? 'completed' : entry.status === 'failed' ? 'failed' : entry.status === 'interrupted' ? 'interrupted' : entry.status === 'unapplied' ? 'unapplied' : 'running'
+const callPurposeKey = (purpose: 'summary' | 'repair' | 'recovery' | 'unknown') => purpose === 'summary' ? 'compactionCallSummary' : purpose === 'repair' ? 'compactionCallRepair' : purpose === 'recovery' ? 'compactionCallRecovery' : 'compactionCallUnknown'
+const callStatusKey = (status: 'started' | 'generated' | 'failed' | 'cancelled' | 'not_dispatched') => status === 'started' ? 'compactionCallStarted' : status === 'generated' ? 'compactionCallGenerated' : status === 'failed' ? 'compactionCallFailed' : status === 'cancelled' ? 'compactionCallCancelled' : 'compactionCallNotDispatched'
+function requestParts(row: NonNullable<Inspection['efficiency']>['requests'][number]) {
+  const fields = [row.uncachedInput, row.cacheRead, row.cacheWrite, row.output]
+  const known = fields.filter((value): value is number => value !== null)
+  return { total: known.reduce((sum, value) => sum + value, 0), missing: fields.length - known.length }
+}
+function RecordedRequest({ row, t, includeMaintenance = false }: { row: NonNullable<Inspection['efficiency']>['requests'][number]; t: InspectorText; includeMaintenance?: boolean }) {
+  const parts = requestParts(row)
+  const price = estimateRequestReferenceCost(row, includeMaintenance)
+  return <div className="cmv-compaction-request-row">
+    <div><strong>{row.provider} · {row.model}</strong><span>seq {row.seq} · {row.turn}/{row.step}{row.retry > 0 ? ` · ${t('teamRetries')} ${row.retry}` : ''}</span></div>
+    <span>{parts.missing > 0 ? '≥ ' : ''}{formatTokens(parts.total)} Token · {t('uncached')} {formatTokens(row.uncachedInput)} · {t('read')} {formatTokens(row.cacheRead)} · {t('write')} {formatTokens(row.cacheWrite)} · {t('output')} {formatTokens(row.output)}</span>
+    <small>{t('requestRangeReferenceCost')} {price.total === null ? `— · ${t('costUnknown')}` : `${price.partial ? '≥ ' : ''}${money(price.total)}`}</small>
+  </div>
+}
+
+function CompactionUsageDetails({ entry, data, t }: { entry: CompactionEntry; data: Inspection; t: InspectorText }) {
+  const efficiency = data.efficiency
+  const requests = efficiency?.requests ?? []
+  const calls = 'summaryCalls' in entry ? entry.summaryCalls : undefined
+  const callCoverage = 'summaryCallCoverage' in entry ? entry.summaryCallCoverage : undefined
+  const compression = compactionRequestRange(data.compactions, entry.id, requests)
+  const following = postCheckpointRequestRange(data.compactions, entry.id, data.cutSeq, requests)
+  const summarize = (rows: typeof requests, includeMaintenance = false) => {
+    let total = 0, missing = 0, costTotal = 0, priced = 0, costPartial = false
+    for (const row of rows) {
+      const parts = requestParts(row); total += parts.total; missing += parts.missing
+      const cost = estimateRequestReferenceCost(row, includeMaintenance)
+      if (cost.total !== null) { costTotal += cost.total; priced++ }
+      if (cost.partial || cost.total === null) costPartial = true
+    }
+    return { total, missing, costTotal: priced > 0 ? costTotal : null, costPartial }
+  }
+  const compressionTotal = compression ? summarize(compression.rows, true) : null
+  const followingTotal = following ? summarize(following.rows) : null
+  const compactionSourceRows = compression?.rows ?? []
+  return <div className="cmv-compaction-usage-details">
+    <details className="cmv-request-details"><summary>{t('compactionCalls')}</summary><div>
+      {calls?.length ? <>
+        {calls.map((call, index) => <p key={index}>{t(callPurposeKey(call.purpose))} · {t(callStatusKey(call.status))} · {t('input')} {call.input === null ? '—' : formatTokens(call.input)} · {t('read')} {call.cacheRead === null ? '—' : formatTokens(call.cacheRead)} · {t('write')} {call.cacheWrite === null ? '—' : formatTokens(call.cacheWrite)} · {t('output')} {call.output === null ? '—' : formatTokens(call.output)}</p>)}
+        <p className="cmv-muted">{t('teamSummaryCacheNote')}</p>
+      </> : <p className="cmv-muted">{t('unknownUsage')}</p>}
+      {callCoverage !== undefined && callCoverage !== 'complete' && <p className="cmv-muted">{t('compactionUsageCoverage')}</p>}
+    </div></details>
+    <details className="cmv-request-details"><summary>{t('compactionRange')}{compression ? ` · ${compression.startSeq}–${compression.endSeq}` : ''}</summary><div>
+      {!compression ? <p className="cmv-muted">{t('requestRangeNoCheckpoint')}</p> : <>
+        <p>{t('requestRangeTotal')} {compressionTotal!.missing > 0 || compression.truncated ? '≥ ' : ''}{formatTokens(compressionTotal!.total)} Token · {t('requestRangeReferenceCost')} {compressionTotal!.costTotal === null ? `— · ${t('costUnknown')}` : `${compressionTotal!.costPartial || compression.truncated ? '≥ ' : ''}${money(compressionTotal!.costTotal)}`}</p>
+        {compression.truncated && <p className="cmv-muted">{t('requestRangeTruncated')}</p>}
+        {compactionSourceRows.length ? compactionSourceRows.map(row => <RecordedRequest key={row.seq} row={row} t={t} includeMaintenance/>) : <p className="cmv-muted">{t('requestRangeNoRecords')}</p>}
+      </>}
+    </div></details>
+    {entry.applied && <details className="cmv-request-details"><summary>{t('postCheckpointRequests')}</summary><div>
+      {!following ? <p className="cmv-muted">{t('requestRangeNoCheckpoint')}</p> : !following.boundaryKnown
+        ? <p className="cmv-muted">{t('requestRangeBoundaryUnknown')}</p> : <>
+        <p>{t('compactionRange')} · {following.startSeq}–{Math.max(following.startSeq, following.endSeq - 1)} · {t('requestRangeTotal')} {followingTotal!.missing > 0 || following.truncated ? '≥ ' : ''}{formatTokens(followingTotal!.total)} Token · {t('requestRangeReferenceCost')} {followingTotal!.costTotal === null ? `— · ${t('costUnknown')}` : `${followingTotal!.costPartial || following.truncated ? '≥ ' : ''}${money(followingTotal!.costTotal)}`}</p>
+        {following.truncated && <p className="cmv-muted">{t('requestRangeTruncated')}</p>}
+        {following.rows.length ? following.rows.map(row => <RecordedRequest key={row.seq} row={row} t={t}/>) : <p className="cmv-muted">{t('requestRangeNoRecords')}</p>}
+      </>}
+    </div></details>}
+  </div>
+}
 /** A failed attempt or tool cleanup must not hide the last applied summary. */
 export function CompactionChart({ data, t, onRecord, onInspect }: { data: Inspection; t: InspectorText; onRecord: () => void; onInspect?: (row: ContentRow) => void }) {
   const entry = data.compactions.findLast(item => item.kind === 'compact' && item.applied && item.checkpoint)
@@ -194,6 +258,7 @@ export function CompactionRecords({ data, t, openLatest, onInspect }: { data: In
       <summary><span>{recordTime(entry.startedAt)} · {t(compactionSource(entry, data.historical))}</span><span className="cmv-event-status">{t(entry.status)}</span><span>{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined ? `${formatTokens(entry.beforeTokens)} ${t('tokens')} → ${formatTokens(entry.afterTokens)} ${t('tokens')} · ${formatPercent(entry.afterTokens,entry.beforeTokens)}` : entry.modelCallStatus==='not_dispatched'?t('notDispatched'):t('unknownUsage')}</span></summary>
       <div className="cmv-record-detail">{entry.applied && entry.beforeTokens !== undefined && entry.afterTokens !== undefined && <p>{t(entry.beforeTokens >= entry.afterTokens ? 'reduced' : 'increased')} {formatTokens(Math.abs(entry.beforeTokens - entry.afterTokens))} {t('tokens')} · {formatPercent(Math.abs(entry.beforeTokens - entry.afterTokens),entry.beforeTokens)}</p>}<p>{t('segment')} · {t('compactions')} {formatTokens(entry.beforeTokens)} → {formatTokens(entry.afterTokens)} {t('tokens')}</p><p>{t('input')} {formatTokens(entry.inputTokens)} · {t('output')} {formatTokens(entry.outputTokens)} {t('tokens')}{entry.endedAt === undefined ? '' : ` · ${((entry.endedAt - entry.startedAt) / 1000).toFixed(1)}s`}</p>
         {entry.status === 'failed' && entry.applied && <p role="status">{t('committedFailure')}</p>}{entry.error && <p className="cmv-error">{entry.error}</p>}{entry.execution && <p>{entry.execution}</p>}
+        {entry.kind === 'compact' && <CompactionUsageDetails entry={entry} data={data} t={t}/>}
         {entry.checkpoint && onInspect && <Button size="sm" variant="outline" onClick={() => entry.checkpoint && onInspect(entry.checkpoint)}>{t('viewCheckpoint')}</Button>}
       </div></details></li>)}</ol>}
   </article>
@@ -289,20 +354,120 @@ function ReductionLine({ reduction, t }: { reduction: ReductionReadout; t: Inspe
 
 const money = (value: number) => `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}`
 
+function TeamMemberDetails({ member, api, t, renderContent }: { member: TeamUsageMemberReadout; api: InspectorApi; t: InspectorText; renderContent?: (data: Inspection, row: ContentRow) => ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [inspection, setInspection] = useState<Inspection | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    if (!open || member.status !== 'ready') { setInspection(null); setLoading(false); setError(''); return }
+    const controller = new AbortController()
+    setLoading(true); setError('')
+    void api.inspect({ sessionId: member.sessionId, ...defaultQuery }, controller.signal).then(value => {
+      if (!controller.signal.aborted) setInspection(value)
+    }).catch(() => { if (!controller.signal.aborted) setError(t('error')) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [api, member.sessionId, member.status, open, retry, t])
+  const checkpoint = inspection?.compactions.findLast(entry => entry.kind === 'compact' && entry.applied && entry.checkpoint)?.checkpoint
+  const parts = inspection?.parts ?? []
+  return <>
+    <button type="button" className="cmv-team-member-more" aria-expanded={open} disabled={member.status !== 'ready'} onClick={() => setOpen(value => !value)}>{t('teamDetails')}</button>
+    {open && <div className="cmv-team-member-detail">
+      {loading ? <p className="cmv-muted">{t('summaryLoading')}</p> : error ? <div className="cmv-error" role="alert"><p>{error}</p><Button size="sm" onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></div> : inspection && <>
+        <div className="cmv-team-detail-usage"><div className="cmv-team-detail-block"><strong>{t('teamComponents')}</strong>
+          <dl className="cmv-team-breakdown"><div><dt>{t('uncached')}</dt><dd>{teamField(member.uncachedInput, t)}</dd></div><div><dt>{t('read')}</dt><dd>{teamField(member.cacheRead, t)}</dd></div><div><dt>{t('write')}</dt><dd>{teamField(member.cacheWrite, t)}</dd></div><div><dt>{t('output')}</dt><dd>{teamField(member.output, t)}</dd></div></dl>
+        </div><div className="cmv-team-summary"><strong>{t('teamSummary')}</strong><span>{t('input')} {member.summaryInput === null ? '—' : formatTokens(member.summaryInput)} · {t('read')} {member.summaryCacheRead === null ? '—' : formatTokens(member.summaryCacheRead)} · {t('write')} {member.summaryCacheWrite === null ? '—' : formatTokens(member.summaryCacheWrite)} · {t('output')} {member.summaryOutput === null ? '—' : formatTokens(member.summaryOutput)} · {teamSummaryAmount(member, t)}</span>
+          <small>{member.summaryCoverage !== 'complete' ? `${t('teamSummaryCoverage')}${member.summarySince === null ? '' : ` · ${t('teamSummarySince')} ${new Date(member.summarySince).toLocaleDateString()}`} · ${member.summaryAttempts ?? '—'} ${t('summaryCalls')}` : t('teamSummaryCacheNote')}{member.maintenanceSuspects > 0 ? ` · ${t('teamMaintenanceOverlap')}` : ''}</small>
+        </div>
+        </div>
+        <div className="cmv-team-context"><strong>{t('teamContext')}</strong><span>{inspection.model ? `${inspection.model.provider} · ${inspection.model.model}` : t('teamNoModel')}</span>
+          {inspection.pressure && <span>{formatTokens(inspection.pressure.projected)} / {formatTokens(inspection.pressure.window)} Token</span>}</div>
+        <dl className="cmv-team-breakdown">{parts.map(part => <div key={part.category}><dt>{t(part.category)}</dt><dd>{formatTokens(part.tokens)} <small>{part.count}</small></dd></div>)}</dl>
+        <div className="cmv-team-source-list"><strong>{t('teamSummarySources')}</strong>
+          {!checkpoint ? <p className="cmv-muted">{t('teamNoSummarySources')}</p> : renderContent ? renderContent(inspection, checkpoint) : <p className="cmv-muted">{t('teamNoSummarySources')}</p>}
+        </div>
+      </>}
+    </div>}
+  </>
+}
+
+function teamField(field: FieldTotalReadout | null, t: InspectorText) {
+  if (field === null || field.reported === 0) return `— · ${t('effUnknownValue')}`
+  return `${field.missing > 0 ? '≥ ' : ''}${formatTokens(field.sum)}${field.missing > 0 ? ` · ${field.missing} ${t('effUnknownValue')}` : ''}`
+}
+function teamSummaryAmount(member: TeamUsageMemberReadout, t: InspectorText) {
+  return member.summaryTokens === null ? `— · ${t('teamSummaryUnknown')}`
+    : `${member.summaryCoverage !== 'complete' || (member.summaryUnknownAttempts ?? 0) > 0 ? '≥ ' : ''}${formatTokens(member.summaryTokens)} Token`
+}
+
+function TeamUsagePanel({ enabled, target, historical, api, t, renderMemberContent }: { enabled: boolean; target?: string; historical: boolean; api?: InspectorApi; t: InspectorText; renderMemberContent?: (data: Inspection, row: ContentRow) => ReactNode }) {
+  const [refresh, setRefresh] = useState(0)
+  const [readout, setReadout] = useState<TeamUsageReadout | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!enabled || historical || !api?.teamUsage || !target) { setReadout(null); setLoading(false); setError(''); return }
+    const controller = new AbortController()
+    setLoading(true); setError('')
+    void api.teamUsage({ sessionId: target }, controller.signal).then(value => {
+      if (!controller.signal.aborted) setReadout(value)
+    }).catch(() => { if (!controller.signal.aborted) setError(t('error')) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [api, enabled, historical, refresh, t, target])
+  const current = readout?.targetSessionId === target ? readout : null
+  const total = current?.knownTokens ?? 0
+  return <section className="cmv-team-usage" data-team-included={enabled}>
+    {enabled && current?.status === 'ready' && <div className="cmv-team-controls"><Button size="sm" variant="ghost" disabled={loading} onClick={() => { setReadout(null); setRefresh(value => value + 1) }}>{t('teamRefresh')}</Button></div>}
+    {enabled && (loading ? <p className="cmv-muted">{t('teamLoading')}</p> : error ? <p className="cmv-error" role="alert">{error}</p>
+      : !current ? null : current.status === 'not-team' ? <p className="cmv-muted">{t('teamNotTeam')}</p>
+        : current.status === 'unavailable' ? <p className="cmv-muted">{t('teamUnavailable')}</p>
+          : <div className="cmv-team-content">
+            <div className="cmv-team-total"><strong>{t('teamKnownTotal')} {current.tokensPartial ? '≥ ' : ''}{formatTokens(current.knownTokens)} Token</strong>
+              <span>{current.shareBasis === 'known-subtotal' ? t('teamMemberShare') : `${current.members.length} ${t('teamMember')}`}</span>
+              {current.unknownMembers > 0 && <span>{current.unknownMembers} {t('teamUnknownMembers')}</span>}
+              <span>{t('teamCost')} {current.referenceCost === null ? `— · ${t('costUnknown')}` : `${current.costPartial ? '≥ ' : ''}${money(current.referenceCost)}`}</span>
+            </div>
+            {total > 0 && <div className="cmv-stack cmv-team-stack" role="img" aria-label={`${t('teamKnownTotal')} ${formatTokens(total)} Token`}>{current.members.filter(member => member.totalTokens !== null && member.totalTokens > 0).map(member => <span key={member.sessionId} data-team-member={member.sessionId} title={`${member.name} · ${formatTokens(member.totalTokens)} Token`} style={{ width: `${member.totalTokens! / total * 100}%` }}/>)}</div>}
+            <p className="cmv-muted cmv-team-cost-note">{t('teamCostHint')}</p>
+            <ul className="cmv-team-members">{current.members.map(member => {
+              const share = member.totalTokens !== null && total > 0 ? `${(member.totalTokens / total * 100).toFixed(1)}%` : '—'
+              const role = member.role === 'lead' ? t('teamLead') : t('teamMember')
+              const phase = member.phase === 'active' ? t('teamActive') : member.phase === 'provisioning' ? t('teamProvisioning') : t('teamFailed')
+              const shareWidth = member.totalTokens !== null && total > 0 ? member.totalTokens / total * 100 : null
+              return <li key={member.sessionId} data-member-status={member.status}>
+                <div className="cmv-team-member-heading"><strong>{member.name}</strong><span>{role} · {phase}</span><b>{member.totalTokens === null ? '—' : `${member.tokensPartial ? '≥ ' : ''}${formatTokens(member.totalTokens)} Token · ${share}`}</b></div>
+                {shareWidth !== null && <div className="cmv-team-member-sharebar" role="img" aria-label={`${member.name} · ${share}`} title={`${member.name} · ${share}`}><span style={{ width: `${shareWidth}%` }}/></div>}
+                {member.status !== 'ready' ? <p className="cmv-muted">{member.status === 'analysis-limit' ? t('teamAnalysisLimit') : t('teamUnavailableMember')}</p> : <>
+                  <div className="cmv-team-member-meta"><span>{member.provider && member.model ? `${t('teamModel')} · ${member.provider} / ${member.model}` : t('teamNoModel')}</span><span>{t('teamRequestTokens')} {member.requestTokens === null ? '—' : `${member.requestTokensPartial ? '≥ ' : ''}${formatTokens(member.requestTokens)}`} · {t('teamCacheReadWrite')} {teamField(member.cacheRead, t)} / {teamField(member.cacheWrite, t)} · {t('teamSummary')} {teamSummaryAmount(member, t)}</span><span>{t('teamSettled')} {member.settledAttempts ?? '—'} · {t('teamRetries')} {member.retries ?? '—'}</span><span>{t('cost')} {member.referenceCost === null ? `— · ${t('costUnknown')}` : `${member.costPartial ? '≥ ' : ''}${money(member.referenceCost)}`}</span></div>
+                  <TeamMemberDetails member={member} api={api!} t={t} renderContent={renderMemberContent}/>
+                </>}
+              </li>
+            })}</ul>
+          </div>)}
+  </section>
+}
+
 /** Session consumption is disjoint from the current context composition. */
-export function UsageComposition({ data, t, api, target }: { data: Inspection; t: InspectorText; api?: InspectorApi; target?: string }) {
+export function UsageComposition({ data, t, api, target, renderMemberContent }: { data: Inspection; t: InspectorText; api?: InspectorApi; target?: string; renderMemberContent?: (data: Inspection, row: ContentRow) => ReactNode }) {
   const chart = usageSlices(data.usage)
   const efficiency = data.efficiency
+  const [mode, setMode] = useState<'session' | 'team'>('session')
+  const modeTarget = useRef(target)
+  useEffect(() => { if (modeTarget.current !== target) { modeTarget.current = target; setMode('session') } }, [target])
   const [usage, setUsage] = useState<{ target: string; value: SessionUsageReadout | null } | null>(null)
+  useEffect(() => { if (data.historical) setMode('session') }, [data.historical])
   useEffect(() => {
-    if (data.historical || !api?.sessionUsage || !target) { setUsage(null); return }
+    if (mode !== 'session' || data.historical || !api?.sessionUsage || !target) { setUsage(null); return }
     const controller = new AbortController()
     void api.sessionUsage({ sessionId: target }, controller.signal).then(value => {
       if (!controller.signal.aborted) setUsage({ target, value })
     }).catch(() => { if (!controller.signal.aborted) setUsage({ target, value: null }) })
     return () => controller.abort()
-  }, [api, data.historical, data.cutSeq, data.requestCount, target])
-  const cost = usage !== null && usage.target === target && !data.historical ? usage.value : null
+  }, [api, data.historical, data.cutSeq, data.requestCount, mode, target])
+  const cost = mode === 'session' && usage !== null && usage.target === target && !data.historical ? usage.value : null
   const summary = data.historical ? undefined : data.summaryUsage
   const summaryUnknown = summary !== undefined && summary.unknownAttempts > 0
   const summaryTotal = summary ? summary.input + summary.output : null
@@ -325,10 +490,17 @@ export function UsageComposition({ data, t, api, target }: { data: Inspection; t
   const maintenance = efficiency?.summaryAndRepair ?? null
   const maintenanceValue = maintenance === null ? null : maintenance.input + maintenance.output
   const maintenanceUnknown = maintenance !== null && maintenance.unknownAttempts > 0
-  return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('requestPanel')}</h3><span className="cmv-chips-inline">
-      <Tooltip label={t('cacheHitHint')}><span tabIndex={0} className="cmv-chip">{t('cacheHit')} {chart?.hit == null ? '—' : `${Math.round(chart.hit * 10) / 10}%`}</span></Tooltip>
-      <Tooltip label={t('cumulativeOutputHint')}><span tabIndex={0} className="cmv-chip">{t('cumulativeOutput')} {outputSum === null ? '—' : `${boundedTotal ? '≥ ' : ''}${formatTokens(outputSum)}`}</span></Tooltip>
-    </span></div>
+  return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('requestPanel')}</h3>
+      <div className="cmv-usage-mode" role="group" aria-label={t('requestPanel')}>
+        <Button size="sm" variant={mode === 'session' ? 'primary' : 'ghost'} aria-pressed={mode === 'session'} onClick={() => setMode('session')}>{t('teamSessionView')}</Button>
+        <Button size="sm" variant={mode === 'team' ? 'primary' : 'ghost'} disabled={data.historical || !api?.teamUsage || !target} aria-pressed={mode === 'team'} onClick={() => setMode('team')}>{t('teamAggregateView')}</Button>
+      </div>
+      {mode === 'session' && <span className="cmv-chips-inline">
+        <Tooltip label={t('cacheHitHint')}><span tabIndex={0} className="cmv-chip">{t('cacheHit')} {chart?.hit == null ? '—' : `${Math.round(chart.hit * 10) / 10}%`}</span></Tooltip>
+        <Tooltip label={t('cumulativeOutputHint')}><span tabIndex={0} className="cmv-chip">{t('cumulativeOutput')} {outputSum === null ? '—' : `${boundedTotal ? '≥ ' : ''}${formatTokens(outputSum)}`}</span></Tooltip>
+      </span>}
+    </div>
+    {mode === 'team' ? <TeamUsagePanel key={target} enabled target={target} historical={data.historical} api={api} t={t} renderMemberContent={renderMemberContent}/> : <>
     {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <div className="cmv-usage-top">
       <div className="cmv-request-values" data-usage-completeness={completeness ?? 'unqualified'}><div className="cmv-number">
         {unknownTotal ? <><strong>—</strong><span>{t('effUnknownValue')}</span></> : <><strong>{boundedTotal ? '≥ ' : ''}{formatTokens(chart.total)}</strong><span>Token</span></>}</div></div>
@@ -366,6 +538,7 @@ export function UsageComposition({ data, t, api, target }: { data: Inspection; t
       <span><Tooltip label={t('maintenanceHint')}><span tabIndex={0}>{t('maintenanceUsage')} {maintenanceValue === null ? '—' : `${maintenanceUnknown ? '≥ ' : '≈ '}${formatTokens(maintenanceValue)} Token`}</span></Tooltip></span>
       <span>{t('cost')} {cost && cost.total !== null ? `${cost.partial ? '≥ ' : ''}${money(cost.total)}` : `— · ${t('costUnknown')}`}{cost && cost.total !== null && cost.partial ? ` · ${t('costPartial')}` : ''}</span>
     </div>
+    </>}
   </article>
 }
 
