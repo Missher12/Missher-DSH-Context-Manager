@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
-  "candidatePackageVersion": "1.0.2",
-  "runtimeDiagnosticVersion": "1.0.2",
+  "candidatePackageVersion": "1.0.3",
+  "runtimeDiagnosticVersion": "1.0.3",
   "bundleMode": "neutral-runtime-capability",
   "presetMode": "host-declared-provider-with-read-only-fallback",
-  "candidateStatus": "1.0.2 synchronizes the native settings layout and context chart labels, spacing and completed-idle timestamps. It preserves the 1.0.1 startup precheck fix. Historical validation entries below retain their original versions. 1.0.1 is a startup precheck fix on top of the 1.0.0 full-width Context overview. Ordinary configuration edits and metadata-only changes on bytes already verified in this process no longer look like a new code generation, while replaced files, late ASAR containers, switched links and unusable clocks stay blocked. Compaction policy, budgets, saved settings, sessions and Host ownership are unchanged.",
+  "candidateStatus": "1.0.3 aligns release metadata and the runtime diagnostic version; feature behavior and historical validation below are retained. 1.0.2 synchronizes the native settings layout and context chart labels, spacing and completed-idle timestamps. It preserves the 1.0.1 startup precheck fix. Historical validation entries below retain their original versions. 1.0.1 is a startup precheck fix on top of the 1.0.0 full-width Context overview. Ordinary configuration edits and metadata-only changes on bytes already verified in this process no longer look like a new code generation, while replaced files, late ASAR containers, switched links and unusable clocks stay blocked. Compaction policy, budgets, saved settings, sessions and Host ownership are unchanged.",
   "hostCapability": {
     "surface": "@deepseek-ai/dsh-agent-preset-registry.compactionHost",
     "version": 1,
