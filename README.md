@@ -1,6 +1,6 @@
 # Missher DSH Context Manager
 
-当前版本 **1.0.3** · [同版安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.3)
+当前版本 **1.0.4** · [同版安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.4)
 **高质量压缩，让长会话继续任务。**
 
 中文 · [English](./README.en.md) · [下载 / Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) · [反馈](https://github.com/Missher12/Missher-DSH-Context-Manager/issues)
