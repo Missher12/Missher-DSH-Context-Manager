@@ -108,7 +108,13 @@ async function fixture(t) {
     else ctx.provide('agentPresets', {})
     if (nativeBasic) await ctx.plugin(BasicCompactionEngine)
     if (manager) await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512 } })
-    if (engine) await ctx.plugin(Engine)
+    if (engine) {
+      // Each boot models a new process after the mocked wall clock advances.
+      // Align that process boundary with its monotonic clock for startupProof.
+      const origin = Date.now() - performance.now()
+      const startup = t.mock.getter(performance, 'timeOrigin', () => origin)
+      try { await ctx.plugin(Engine) } finally { startup.mock.restore() }
+    }
     const adapter = new Adapter()
     ctx.llm.registerAdapter(['mock'], adapter)
     return { ctx, adapter }
