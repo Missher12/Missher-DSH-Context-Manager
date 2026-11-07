@@ -2,6 +2,8 @@
 
 <h1>DSH Context Manager · 上下文管理</h1>
 
+<p><img src="../docs/images/overview.svg" alt="Context Manager 功能示意" width="100%"></p>
+
 <p>整理较早历史，让长会话带着任务目标继续。</p>
 
 <p>
@@ -16,6 +18,10 @@
 
 ---
 
+<!-- current-source -->
+当前开发源码：**1.0.2** · [分支 `main`](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main)。安装包以实际 Release 为准。
+<!-- /current-source -->
+
 ## 功能一览
 
 | 能做什么 | 说明 |
@@ -24,6 +30,14 @@
 | **空闲整理** | 任务正常结束后计时，默认空闲 15 分钟再处理。 |
 | **任务摘要** | 保留目标、约束、已完成、待办、证据与下一步。 |
 | **原文追溯** | 随时查看摘要和保留的来源原文，核对压缩结果。 |
+
+<!-- existing-screenshots -->
+## 界面示例
+
+<table><tr><td><a href=".././docs/images/context-compaction-overview.png"><img src=".././docs/images/context-compaction-overview.png" alt="上下文总览：容量、变化趋势、压缩结果与摘要" width="100%"></a></td><td><a href=".././docs/images/context-summary-details.png"><img src=".././docs/images/context-summary-details.png" alt="结构化摘要与来源原文" width="100%"></a></td></tr></table>
+
+<sub>来自项目已有文档；截图版本与验证范围见<a href="../README.md">原始说明</a>，点击可放大。</sub>
+<!-- /existing-screenshots -->
 
 ## 快速开始
 
