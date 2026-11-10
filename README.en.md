@@ -1,5 +1,7 @@
 # Missher DSH Context Manager
 
+![Context Manager · 上下文管理（品牌插画）](docs/images/cover-v2.png)
+
 **Quality compaction that keeps long conversations moving.**
 
 [中文](./README.md) · English · [Download / Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) · [Feedback](https://github.com/Missher12/Missher-DSH-Context-Manager/issues)

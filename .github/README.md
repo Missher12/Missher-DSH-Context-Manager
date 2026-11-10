@@ -2,7 +2,7 @@
 
 <h1>DSH Context Manager · 上下文管理</h1>
 
-<p><img src="images/overview.svg" alt="Context Manager 功能示意" width="100%"></p>
+<p><img src="../docs/images/cover-v2.png" alt="Context Manager · 上下文管理（品牌插画）" width="100%"></p>
 
 <p>整理较早历史，让长会话带着任务目标继续。</p>
 

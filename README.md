@@ -1,5 +1,7 @@
 # Missher DSH Context Manager
 
+![Context Manager · 上下文管理（品牌插画）](docs/images/cover-v2.png)
+
 当前版本 **1.0.4** · [同版安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.4)
 **高质量压缩，让长会话继续任务。**
 
