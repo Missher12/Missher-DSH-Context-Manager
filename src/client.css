@@ -76,12 +76,16 @@
 .dsh-context-settings .cm-native-value-control,
 .dsh-context-settings .cm-native-select,
 .dsh-context-settings .cm-native-input-wrap { min-width: 0; position: relative; }
+.dsh-context-settings .cm-native-select > .cm-native-menu-root { display: block; width: 100%; }
+.cm-context-menu-option { display: block; max-width: min(280px, 68vw); white-space: normal; overflow-wrap: anywhere; text-align: start; }
+.cm-context-menu-primary { display: block; white-space: normal; overflow-wrap: anywhere; }
+.cm-context-menu-secondary { display: block; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
 .dsh-context-settings .cm-native-selected-label { overflow-wrap: anywhere; text-align: center; }
 .dsh-context-settings .cm-native-inline-hint { overflow-wrap: anywhere; }
 .dsh-context-settings .cm-native-select-row > .cm-native-selected-label { grid-column: 1 / -1; }
 .dsh-context-settings .cm-native-select-row > .cm-native-inline-hint { grid-column: 1 / -1; text-align: end; }
 .dsh-context-settings .cm-native-value > .cm-native-inline-hint { grid-column: 1 / -1; text-align: end; }
-.dsh-context-settings :is(.cm-native-input, .cm-native-select > select, textarea) {
+.dsh-context-settings :is(.cm-native-input, .cm-native-select-trigger, textarea) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -93,7 +97,11 @@
   text-align: center;
 }
 .dsh-context-settings .cm-native-input,
-.dsh-context-settings .cm-native-select > select { height: 32px; padding: 0; }
+.dsh-context-settings .cm-native-select-trigger { height: 32px; padding: 0; }
+.dsh-context-settings .cm-native-select-trigger { display: flex; align-items: center; justify-content: center; padding-inline: 22px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dsh-context-settings .cm-native-choice-label { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dsh-context-settings .cm-native-select-trigger--model { font-size: 12px; text-overflow: clip; }
+.dsh-context-settings .cm-native-select-trigger--model .cm-native-choice-label { overflow: visible; white-space: nowrap; text-overflow: clip; }
 .dsh-context-settings .cm-native-input { display: flex; align-items: center; }
 .dsh-context-settings .cm-native-input > input {
   box-sizing: border-box;
@@ -112,9 +120,13 @@
 .dsh-context-settings .cm-native-unit,
 .dsh-context-settings .cm-native-select::after { position: absolute; inset-inline-end: 10px; top: 50%; pointer-events: none; color: var(--dsw-alias-label-secondary); }
 .dsh-context-settings .cm-native-unit { transform: translateY(-50%); font-size: 12px; white-space: nowrap; }
-.dsh-context-settings .cm-native-select > select { appearance: none; padding-inline: 20px; text-align-last: center; text-overflow: ellipsis; cursor: pointer; }
 .dsh-context-settings .cm-native-select::after { transform: translateY(-70%) rotate(45deg); }
-.dsh-context-settings .cm-native-select > select:disabled { cursor: default; }
+.dsh-context-settings .cm-native-select-trigger:disabled { cursor: default; opacity: .45; }
+.dsh-context-settings .cm-native-input-wrap--menu .cm-native-unit { inset-inline-end: 34px; }
+.dsh-context-settings .cm-native-input-wrap--menu .cm-native-input-menu-root { position: absolute; inset-inline-end: 0; top: 0; z-index: 1; width: 26px; height: 32px; }
+.dsh-context-settings .cm-native-input-menu { display: flex; align-items: center; justify-content: center; width: 26px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.dsh-context-settings .cm-native-input-menu > span { width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); }
+.dsh-context-settings .cm-native-input-menu:disabled { cursor: default; opacity: .45; }
 .dsh-context-settings textarea { display: block; min-height: 68px; padding: 6px 9px; resize: vertical; overflow: auto; align-content: safe center; }
 .dsh-context-settings :is(button, summary, select, textarea, .cm-native-help):focus-visible,
 .dsh-context-settings .cm-native-input:focus-within {

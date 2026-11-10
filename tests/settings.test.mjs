@@ -28,10 +28,19 @@ function setDomInput(input, value) {
   Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, value)
   input.dispatchEvent(new window.Event('input', { bubbles: true }))
 }
-function setDomSelect(select, value) {
-  const window = select.ownerDocument.defaultView
-  Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(select, value)
-  select.dispatchEvent(new window.Event('change', { bubbles: true }))
+function menuItems() { return [...document.querySelectorAll('[role="menu"] button[role="menuitem"]')] }
+function findMenuItem(text) { return menuItems().find(item => item.textContent.includes(text)) }
+async function clickMenuOption(trigger, text) {
+  await act(async () => trigger.click())
+  const option = findMenuItem(text)
+  assert.ok(option, `menu option is available: ${text}`)
+  await act(async () => option.click())
+}
+async function editCustomNumber(id, value) {
+  let control = document.getElementById(id)
+  if (control.tagName !== 'INPUT') await clickMenuOption(control, '自定义')
+  control = document.getElementById(id)
+  await act(async () => setDomInput(control, value))
 }
 function runFact(label) {
   const dt = [...document.querySelectorAll('.cmv-run-facts dt')].find(node => node.textContent === label)
@@ -46,7 +55,7 @@ function emptySessionUsage(sessionId) {
 // Render the host's actual published RC.1 control implementations. Theme
 // acceptance runs separately in the isolated browser preview.
 const primitivesBuild = buildSync({
-  stdin: { contents: "export { Button, Input, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'", resolveDir: process.cwd() },
+  stdin: { contents: "export { Button, Input, StateDot, Tooltip, Menu } from '@deepseek-ai/dsh-client-ui-primitives'", resolveDir: process.cwd() },
   outfile: '/virtual/context-manager-primitives.cjs', bundle: true, platform: 'node', format: 'cjs',
   external: ['react', 'react/*', 'react-dom', 'react-dom/*', 'katex/dist/katex.min.css'],
   loader: { '.css': 'local-css' }, jsx: 'automatic',
@@ -60,44 +69,94 @@ test('per-model limits keep independent drafts and persist through settings reop
   let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
   const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
     async mutate(ops, revision) { assert.equal(revision, snapshot.revision); snapshot = { ...snapshot, revision: snapshot.revision + 1, value: { policy: ops[0].value } }; listeners.forEach(cb => cb()); return true } }
-  const models = [{ provider: 'first', model: 'same', label: 'Same / First' }, { provider: 'second', model: 'same', label: 'Same / Second' }]
+  const fullModelNames = ['DeepSeek-V4.1-Flash', 'DeepSeek-V4-Pro', 'Qwen3.7 Plus', 'Qwen3.8-Flash']
+  const models = [{ provider: 'first', model: 'same', label: 'Same', providerLabel: 'First' }, { provider: 'second', model: 'same', label: 'Same', providerLabel: 'Second' },
+    ...fullModelNames.map((label, index) => ({ provider: 'catalog', model: `full-name-${index}`, label, providerLabel: 'Provider' }))]
   const root = createRoot(document.getElementById('root'))
   const key = provider => JSON.stringify([provider, 'same'])
   const save = () => [...document.querySelectorAll('button')].find(b => b.textContent === '保存设置')
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form, models })))
     const modelSelect = document.querySelector('#context-manager-limitModel')
-    assert.ok(modelSelect)
-    assert.deepEqual([...modelSelect.options].map(option => option.textContent), ['Same / First', 'Same / Second'])
-    assert.equal(modelSelect.title, '', 'the full route is visible without a popup title')
-    assert.match(modelSelect.getAttribute('aria-label'), /Same \/ First/, 'assistive technology receives the full selected route label')
-    const modelSelectRow = modelSelect.closest('.cm-native-select-row')
-    const selectedRoute = modelSelectRow.querySelector('.cm-native-selected-label')
-    assert.equal(selectedRoute?.textContent, 'Same / First')
-    assert.match(modelSelectRow.querySelector('.cm-native-inline-hint')?.textContent ?? '', /目录/)
+    assert.equal(modelSelect.tagName, 'BUTTON')
+    assert.equal(modelSelect.textContent, 'Same', 'the closed model control shows only the model name')
+    const controlRect = { x: 24, y: 40, left: 24, right: 200, top: 40, bottom: 72, width: 176, height: 32, toJSON() { return this } }
+    modelSelect.getBoundingClientRect = () => controlRect
+    assert.doesNotMatch(document.body.textContent, /Same \/ First|Same \/ Second/)
+    await act(async () => modelSelect.click())
+    assert.equal(document.querySelector('[role="menu"]').style.width, '176px', 'the dropdown panel matches its control width')
+    assert.doesNotMatch(document.body.textContent, /按提供方和模型分别保存/)
+    const menuLabels = menuItems().map(item => item.textContent.replace(/\s+/g, ' ').trim())
+    assert.deepEqual(menuLabels.slice(0, 2), ['SameFirst', 'SameSecond'], 'menu items show model first and provider second')
+    assert.deepEqual(menuLabels.slice(2), fullModelNames.map(name => `${name}Provider`), 'the full catalog model names remain intact in the menu')
+    assert.equal(document.activeElement, menuItems()[0], 'opening the menu moves focus to its first option')
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+    assert.equal(document.activeElement, menuItems()[1], 'arrow keys move focus through menu options')
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })))
+    assert.equal(document.activeElement, menuItems()[0])
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.equal(menuItems().length, 0, 'Escape closes the menu')
+    assert.equal(document.activeElement, modelSelect, 'Escape restores focus to the trigger')
+    await act(async () => modelSelect.click())
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    outside.focus()
+    await act(async () => outside.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true })))
+    assert.equal(menuItems().length, 0, 'an outside pointer press closes the menu')
+    assert.equal(document.activeElement, outside, 'outside closing does not steal focus')
+    outside.remove()
+    await act(async () => modelSelect.click())
+    await act(async () => findMenuItem('First').click())
+    assert.doesNotMatch(document.body.textContent, /按提供方和模型分别保存/)
+    for (const name of fullModelNames) {
+      await clickMenuOption(modelSelect, name)
+      assert.equal(modelSelect.textContent, name, `the closed control displays ${name} completely`)
+      assert.ok(modelSelect.classList.contains('cm-native-select-trigger--model'), 'model names use the smaller single-line style')
+    }
+    await clickMenuOption(modelSelect, 'First')
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '跟随模型容量')
+    await clickMenuOption(document.querySelector('#context-manager-modelLimit'), '跟随模型容量')
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '跟随模型容量', 'choosing follow again keeps a blank override unchanged')
+    assert.equal(save().disabled, true, 'choosing follow again does not create a draft write')
+    assert.equal(document.querySelector('[role="alert"]'), null, 'choosing follow again does not produce a validation error')
+    await act(async () => document.querySelector('#context-manager-modelLimit').click())
+    for (const preset of ['32K', '64K', '128K', '200K', '256K', '300K', '512K', '1024K']) assert.ok(findMenuItem(preset), `model limit menu includes ${preset}`)
+    assert.ok(findMenuItem('跟随模型容量'))
+    await act(async () => findMenuItem('自定义').click())
+    assert.equal(document.querySelector('#context-manager-modelLimit').tagName, 'INPUT')
     const modelLimitInput = document.querySelector('#context-manager-modelLimit')
     assert.equal(modelLimitInput.closest('.cm-native-input-wrap').querySelector('.cm-native-unit')?.textContent, 'K')
-    const modelLimitRow = modelLimitInput.closest('.cm-native-value')
-    assert.match(modelLimitRow.querySelector('.cm-native-inline-hint')?.textContent ?? '', /1K\s*=\s*1000/)
+    const modelLimitWrap = modelLimitInput.closest('.cm-native-input-wrap')
+    modelLimitWrap.getBoundingClientRect = () => controlRect
+    await act(async () => document.querySelector('.cm-native-input-menu').click())
+    assert.equal(document.querySelector('[role="menu"]').style.width, '176px', 'the custom editor menu matches the full input width')
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.match(modelLimitInput.closest('.cm-native-value').querySelector('.cm-native-inline-hint')?.textContent ?? '', /1K\s*=\s*1000/)
     assert.doesNotMatch(modelSelect.closest('.cm-native-group').textContent, /Token/)
-    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '128'))
-    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
-    assert.equal(document.querySelector('#context-manager-modelLimit').value, '')
+    await act(async () => setDomInput(modelLimitInput, '128'))
+    await clickMenuOption(modelSelect, 'Second')
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '跟随模型容量')
+    await clickMenuOption(document.querySelector('#context-manager-modelLimit'), '自定义')
     await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '16.001'))
-    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('first')))
+    await act(async () => document.querySelector('.cm-native-input-menu').click())
+    assert.ok(findMenuItem('当前值')?.textContent.includes('16.001K'), 'non-preset limits remain available in the menu')
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '16.001', 'opening and dismissing leaves a non-preset limit unchanged')
+    await clickMenuOption(modelSelect, 'First')
     assert.equal(document.querySelector('#context-manager-modelLimit').value, '128')
     await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '128.0001'))
     assert.equal(save().disabled, true, 'fractional K beyond one token of precision is rejected')
-    assert.match(modelLimitRow.querySelector('.cm-error')?.textContent ?? '', /K/)
-    assert.doesNotMatch(modelLimitRow.querySelector('.cm-error')?.textContent ?? '', /Token/)
+    const currentModelLimitRow = () => document.querySelector('#context-manager-modelLimit')?.closest('.cm-native-value')
+    assert.match(currentModelLimitRow()?.querySelector('.cm-error')?.textContent ?? '', /K/)
+    assert.doesNotMatch(currentModelLimitRow()?.querySelector('.cm-error')?.textContent ?? '', /Token/)
     const settingsError = () => document.querySelector('.cm-native-fields > .cm-error')?.textContent ?? ''
     assert.match(settingsError(), /K/)
     assert.doesNotMatch(settingsError(), /Token/)
-    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
+    await clickMenuOption(modelSelect, 'Second')
     assert.equal(document.querySelector('#context-manager-modelLimit').value, '16.001')
     assert.match(settingsError(), /K/, 'another route keeps the invalid-draft error in K units')
     assert.doesNotMatch(settingsError(), /Token/)
-    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('first')))
+    await clickMenuOption(modelSelect, 'First')
     await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '1000000'))
     assert.equal(save().disabled, false, 'the 1,000,000K ceiling remains inclusive')
     await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '1000000.001'))
@@ -109,18 +168,23 @@ test('per-model limits keep independent drafts and persist through settings reop
     assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
       { provider: 'first', model: 'same', tokens: 128000 }, { provider: 'second', model: 'same', tokens: 16001 },
     ])
-    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
+    await clickMenuOption(modelSelect, 'Second')
     assert.equal(document.querySelector('#context-manager-modelLimit').value, '16.001', 'saved fractional K reads back exactly')
     await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '512'))
     await act(async () => save().click())
-    assert.equal(document.querySelector('#context-manager-limitModel').value, key('second'), 'saving keeps the selected model')
+    assert.equal(document.querySelector('#context-manager-limitModel').textContent, 'Same', 'saving keeps the selected model')
     assert.equal(document.querySelector('#context-manager-modelLimit').value, '512', 'the saved model remains selected after ConfigForm refresh')
     assert.equal(snapshot.value.policy.modelLimits[1].tokens, 512000)
     await act(async () => root.render(null))
     await act(async () => root.render(React.createElement(client.ContextSettings, { form, models: [] })))
-    assert.equal(document.querySelector('#context-manager-modelLimit').value, '128', 'a saved route stays editable even when the catalog is unavailable')
-    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), ''))
-    assert.equal(save().disabled, false, 'blank restores the selected model to its native capacity')
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '128K', 'a saved route shows its exact saved limit when the catalog is unavailable')
+    await act(async () => document.querySelector('#context-manager-modelLimit').click())
+    assert.ok(findMenuItem('128K'))
+    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '128K', 'opening and dismissing does not normalize a saved non-preset value')
+    assert.equal(save().disabled, true, 'opening and dismissing does not create a draft change')
+    await clickMenuOption(document.querySelector('#context-manager-modelLimit'), '跟随模型容量')
+    assert.equal(save().disabled, false, 'following native capacity clears the selected override')
     await act(async () => save().click())
     assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
       { provider: 'second', model: 'same', tokens: 512000 },
@@ -128,9 +192,11 @@ test('per-model limits keep independent drafts and persist through settings reop
     await act(async () => root.render(null))
     await act(async () => root.render(React.createElement(client.ContextSettings, { form, models: [] })))
     const unlistedSelect = document.querySelector('#context-manager-limitModel')
-    assert.deepEqual([...unlistedSelect.options].map(option => option.textContent), ['same / second'], 'unlisted saved routes show model before provider')
-    assert.equal(unlistedSelect.closest('.cm-native-select-row').querySelector('.cm-native-selected-label')?.textContent, 'same / second')
-    assert.equal(document.querySelector('#context-manager-modelLimit').value, '512', 'saved values are displayed in K')
+    assert.equal(unlistedSelect.textContent, 'same', 'unlisted saved routes show the model name in the closed control')
+    await act(async () => unlistedSelect.click())
+    assert.ok(findMenuItem('second'), 'unlisted saved routes include their provider in the menu')
+    await act(async () => findMenuItem('second').click())
+    assert.equal(document.querySelector('#context-manager-modelLimit').textContent, '512K', 'saved values are displayed in K')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 
@@ -165,12 +231,12 @@ test('settings section contains only policy controls and does not read any sessi
     assert.equal(document.querySelectorAll('style:not([data-plugin="dsh-context-manager"])').length, 0,
       'page and nested settings styles must not be claimed by another plugin')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
-    assert.equal(document.querySelector('#context-manager-historyMode').value, 'automatic')
-    assert.equal(document.querySelector('#context-manager-toolResultsMode').value, 'observe')
+    assert.equal(document.querySelector('#context-manager-historyMode').textContent, '自动保留')
+    assert.equal(document.querySelector('#context-manager-toolResultsMode').textContent, '观察')
     const trigger = document.querySelector('#context-manager-triggerPercent')
-    assert.ok(trigger, 'the current numeric threshold input is present')
-    await act(async () => setDomInput(trigger, '70'))
-    assert.equal(trigger.value, '70', 'the actual input stages the same threshold change without a removed preset button')
+    assert.equal(trigger.textContent, '80%', 'the default trigger remains 80%')
+    await clickMenuOption(trigger, '70%')
+    assert.equal(trigger.textContent, '70%', 'choosing a preset stages the threshold change')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 test('optional provider registration never hides a blocked or failed active compaction path', async () => {
@@ -204,6 +270,7 @@ const clientScope = {
     name === '@deepseek-ai/dsh-client-ui-primitives' ? primitivesScope.module.exports : require(name)) } } },
 }
 Object.defineProperty(clientScope, 'Node', { get: () => globalThis.window?.Node })
+Object.defineProperty(clientScope, 'document', { get: () => globalThis.document })
 vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), clientScope)
 
 test('client registers the native conversation tab after trajectory and binds its actual Session', async () => {
@@ -527,14 +594,17 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     assert.equal(document.querySelector('style').dataset.plugin, 'dsh-context-manager')
     assert.match(document.querySelector('.cm-native-help[aria-label^="开始压缩: "]')?.getAttribute('aria-label') ?? '', /新消息和预留空间可能让检查提前/)
-    assert.equal(document.querySelector('#context-manager-idleMinutes').value, '15')
-    assert.equal(document.getElementById(document.querySelector('#context-manager-idleMinutes').getAttribute('aria-describedby'))?.textContent, '分钟')
+    assert.equal(document.querySelector('#context-manager-idleMinutes').textContent, '15 分钟', 'the default idle wait remains 15 minutes')
     assert.equal(document.querySelector('#context-manager-idleMinPercent') === null, true, 'idle compaction has no occupancy control')
+    await act(async () => document.querySelector('#context-manager-triggerPercent').click())
+    assert.ok(findMenuItem('80%'), '80% remains available as a threshold preset')
+    assert.ok(findMenuItem('85%'), '85% remains available as a threshold preset')
+    await act(async () => document.querySelector('#context-manager-triggerPercent').click())
     const buttons = () => [...document.querySelectorAll('button')]
-    await act(async () => setDomInput(document.querySelector('#context-manager-triggerPercent'), '70'))
+    await clickMenuOption(document.querySelector('#context-manager-triggerPercent'), '70%')
     assert.equal(writes.length, 0)
-    assert.equal(document.querySelector('#context-manager-triggerPercent').value, '70')
-    await act(async () => setDomInput(document.querySelector('#context-manager-idleMinutes'), '30'))
+    assert.equal(document.querySelector('#context-manager-triggerPercent').textContent, '70%')
+    await clickMenuOption(document.querySelector('#context-manager-idleMinutes'), '30 分钟')
     await act(async () => buttons().find(b => b.textContent === '保存设置').click())
     assert.equal(writes.length, 1); assert.equal(writes[0].revision, 4)
     assert.equal(writes[0].ops[0].value.triggerPercent, 70)
@@ -543,7 +613,7 @@ test('settings UI stages edits, validates them and saves the complete policy wit
     assert.equal(writes[0].ops[0].value.recentTokens, 20000)
     assert.equal(writes[0].ops[0].value.idleMinutes, 30, 'a real input event is included in the save')
     assert.equal(form.getSnapshot().value.policy.idleMinutes, 30, 'the form store returns the saved policy')
-    assert.equal(document.querySelector('#context-manager-idleMinutes').value, '30', 'the rendered control reads back the saved value')
+    assert.equal(document.querySelector('#context-manager-idleMinutes').textContent, '30 分钟', 'the rendered control reads back the saved value')
     const feedback = document.querySelector('.cm-feedback[role="status"]')?.textContent ?? ''
     assert.equal(feedback, '设置已保存。', 'a successful save confirms persistence without claiming unsupported features are active')
     assert.doesNotMatch(feedback, /请求前检查|闲置整理.*生效/)
@@ -562,7 +632,11 @@ test('settings: idle fields preserve invalid drafts, save focus, and handle stal
     async mutate(ops, revision) { writes.push({ ops, revision }); return accept } }
   const root = createRoot(document.getElementById('root'))
   const save = () => [...document.querySelectorAll('button')].find(b => b.textContent === '保存设置')
-  const edit = async (key, value) => act(async () => setDomInput(document.getElementById(`context-manager-${key}`), value))
+  const edit = async (key, value) => {
+    const id = `context-manager-${key}`
+    if (key === 'summaryInstructions') await act(async () => setDomInput(document.getElementById(id), value))
+    else await editCustomNumber(id, value)
+  }
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     await edit('idleMinutes', '1x')
@@ -575,7 +649,10 @@ test('settings: idle fields preserve invalid drafts, save focus, and handle stal
     assert.match(document.body.textContent, /未保存/)
     assert.equal(writes[0].ops[0].value.idleMinutes, 30)
     assert.equal(writes[0].ops[0].value.summaryInstructions, '保留用户约束与验收命令')
+    await act(async () => document.querySelector('.cm-native-input-menu').click())
+    assert.ok(menuItems().length > 0)
     await act(async () => { snapshot = { ...snapshot, writable: false }; listeners.forEach(cb => cb()) })
+    assert.equal(menuItems().length, 0, 'a portaled menu closes when settings become read-only')
     assert.equal(document.getElementById('context-manager-idleMinutes').disabled, true)
     assert.equal(save().disabled, true)
     assert.match(document.body.textContent, /不支持保存/)
@@ -1149,13 +1226,13 @@ test('percentage settings require explicit legacy migration, preserve old fields
  const root=createRoot(document.getElementById('root'))
  const button=label=>[...document.querySelectorAll('button')].find(n=>n.textContent===label)
  const click=async label=>act(async()=>button(label).click())
- const edit=async(key,value)=>act(async()=>setDomInput(document.getElementById(`context-manager-${key}`),value))
+ const edit=async(key,value)=>editCustomNumber(`context-manager-${key}`,value)
   try{
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
   assert.match(document.body.textContent,/旧 Token 上限仍生效/)
   assert.equal(document.getElementById('context-manager-recentPercent'),null,'legacy capacity mode does not render percentage-only controls')
   assert.equal(document.getElementById('context-manager-example'),null,'no guessed model denominator')
-  await act(async()=>setDomInput(document.getElementById('context-manager-triggerPercent'),'70'))
+  await clickMenuOption(document.getElementById('context-manager-triggerPercent'),'70%')
   await click('保存设置')
   assert.equal(writes[0].revision,12)
   assert.equal(writes[0].ops[0].value.triggerPercent,70,'the real numeric control stages and saves the trigger')
@@ -1192,11 +1269,11 @@ test('settings: checkpoint protocol selector keeps JSON default and saves sectio
   await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
   await act(async()=>document.querySelector('.cm-native-advanced summary').click())
   const format=document.getElementById('context-manager-checkpointFormat')
-  assert.equal(format.value,'json','legacy config reads as JSON default without migration')
+  assert.equal(format.textContent,'JSON 七字段','legacy config reads as JSON default without migration')
   assert.equal(document.getElementById('context-manager-repairPercent'),null,'obsolete repair quota is hidden from settings')
   assert.equal(document.getElementById('context-manager-formatRepairMaxTokens'),null,'obsolete repair Token cap is hidden from settings')
   assert.equal(writes.length,0)
-  await act(async()=>setDomSelect(format,'sections'));await click('保存设置')
+  await clickMenuOption(format,'Markdown 段落');await click('保存设置')
   assert.equal(writes[0].ops[0].value.checkpointFormat,'sections','the explicit UI choice is written to the policy')
   assert.equal(writes[0].ops[0].value.repairPercent,legacy.repairPercent,'legacy repair fields stay readable, not deleted')
   assert.equal(writes[0].ops[0].value.formatRepairMaxTokens,legacy.formatRepairMaxTokens)
@@ -1216,17 +1293,17 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
   const root = createRoot(document.getElementById('root'))
   const button = text => [...document.querySelectorAll('button')].find(b => b.textContent === text)
   const save = () => button('保存设置')
-  const edit = (key, value) => act(async () => setDomInput(document.getElementById(`context-manager-${key}`), value))
+  const edit = (key, value) => editCustomNumber(`context-manager-${key}`, value)
   try {
     await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
     // Legacy fill-in: defaults appear without overwriting anything else, and the
     // default mode stays observe.
-    assert.equal(document.querySelector('#context-manager-toolResultsMaxChars').value, '200000')
-    assert.equal(document.querySelector('#context-manager-toolResultsMinSavings').value, '400')
-    assert.equal(document.querySelector('#context-manager-archiveReadBudget').value, '6000')
-    assert.equal(document.querySelector('#context-manager-archiveSearchLimit').value, '3')
+    assert.match(document.querySelector('#context-manager-toolResultsMaxChars').textContent, /200000/)
+    assert.match(document.querySelector('#context-manager-toolResultsMinSavings').textContent, /400/)
+    assert.match(document.querySelector('#context-manager-archiveReadBudget').textContent, /6000/)
+    assert.match(document.querySelector('#context-manager-archiveSearchLimit').textContent, /3/)
     const toolMode = document.querySelector('#context-manager-toolResultsMode')
-    assert.equal(toolMode.value, 'observe')
+    assert.equal(toolMode.textContent, '观察')
     assert.match(document.querySelector('.cm-native-help[aria-label^="工具结果处理: "]')?.getAttribute('aria-label') ?? '', /原文保留在本机/)
     assert.match(document.querySelector('.cm-native-help[aria-label^="单次原文回读: "]')?.getAttribute('aria-label') ?? '', /单个搜索或读取结果的字符上限/)
     // An unimplemented retention switch must not be offered.
@@ -1237,7 +1314,7 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(save().disabled, true)
     await edit('toolResultsMaxChars', '1999')
     assert.equal(save().disabled, true, 'a value below the documented minimum stays invalid')
-    await act(async () => setDomSelect(toolMode, 'reduce'))
+    await clickMenuOption(toolMode, '安全精简')
     await edit('toolResultsMaxChars', '120000'); await edit('archiveSearchLimit', '8')
     assert.equal(save().disabled, false)
     await act(async () => save().click())
@@ -1250,7 +1327,7 @@ test('settings expose the tool-result mode, thresholds and prefix switch with le
     assert.equal(writes[0].ops[0].value.prefixDiagnosticsEnabled, true)
     assert.match(document.body.textContent, /已保存/)
     // Re-read after the accepted write keeps the saved mode selected.
-    assert.equal(toolMode.value, 'reduce')
+    assert.equal(toolMode.textContent, '安全精简')
     // Empty input never becomes a saved zero, even together with a valid mode.
     await edit('archiveReadBudget', '')
     assert.equal(save().disabled, true)
@@ -1490,16 +1567,16 @@ test('settings: legacy timeout remains fixed and unchanged; adaptive is explicit
     await act(async()=>root.render(React.createElement(client.ContextSettings,{form})))
     await act(async()=>document.querySelector('.cm-native-advanced summary').click())
     const timeoutMode = document.getElementById('context-manager-summaryTimeoutMode')
-    assert.equal(timeoutMode.value,'fixed')
-    assert.equal(document.getElementById('context-manager-timeoutMs').value,'135000')
+    assert.equal(timeoutMode.textContent,'固定总时限')
+    assert.match(document.getElementById('context-manager-timeoutMs').textContent,/135000/)
     assert.equal(writes.length,0)
-    await act(async()=>setDomSelect(timeoutMode,'adaptive'))
+    await clickMenuOption(timeoutMode,'按输出进展等待')
     assert.equal(writes.length,0,'switch is a draft until native save succeeds')
     assert.equal(document.getElementById('context-manager-timeoutMs').disabled,true)
-    assert.equal(document.getElementById('context-manager-summaryTotalMs').value,'600000')
+    assert.match(document.getElementById('context-manager-summaryTotalMs').textContent,/600000/)
     await click('保存设置')
     assert.equal(writes[0].timeoutMs,135000);assert.equal(writes[0].summaryTimeoutMode,'adaptive')
-    await act(async()=>setDomSelect(timeoutMode,'fixed'));await click('保存设置')
+    await clickMenuOption(timeoutMode,'固定总时限');await click('保存设置')
     assert.equal(writes[1].timeoutMs,135000);assert.equal(writes[1].summaryTimeoutMode,'fixed')
   } finally {await act(async()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document}
 })

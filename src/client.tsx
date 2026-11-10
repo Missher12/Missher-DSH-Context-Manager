@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties, type ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, zh, type InspectorLocaleKey } from './inspector-locales.ts'
 import { settingsEn, settingsText, settingsZh, type SettingsLocaleKey, type SettingsText } from './settings-locales.ts'
@@ -52,7 +52,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 declare module '@deepseek-ai/dsh-client-ui-slots' { interface LocaleNamespaceMap { 'context.manager': InspectorLocaleKey; 'context.manager.settings': SettingsLocaleKey } }
 
 type Values = { policy: Policy }
-type ModelLimitOption = { provider: string; model: string; label: string }
+type ModelLimitOption = { provider: string; model: string; label: string; providerLabel?: string }
 type ModelCatalogReader = () => Promise<readonly ModelLimitOption[]>
 export const inject = ['locale', 'slots', 'configForms', 'sessions', 'remote', 'remote.session', 'modelDirectories']
 
@@ -86,7 +86,7 @@ export async function apply(ctx: Context) {
     const modelCatalog: ModelCatalogReader = async () => {
       const catalog: ModelCatalog = unwrap(await scope.remote.session.modelCatalog())
       return catalog.groups.flatMap(group => group.models.map(model => ({
-        provider: group.id, model: model.id, label: `${model.name} / ${group.name}`,
+        provider: group.id, model: model.id, label: model.name, providerLabel: group.name,
       })))
     }
     scope.slots.inject('conversation.input.right', () => scope.slots.register({
@@ -291,12 +291,96 @@ function toPolicy(draft: Draft): Policy {
 type ContextValueFieldProps = {
   id: string; label: string; hint: string; text: string; disabled: boolean; invalid: boolean
   overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; unit?: string; multiline?: boolean; inlineHint?: boolean
+  choiceMenu?: ContextFieldMenu
   onEdit: (text: string) => void; onReset: () => void
+}
+type ContextSelectOption = { value: string; label: string; secondaryLabel?: string }
+type ContextFieldMenu = { options: readonly ContextSelectOption[]; selectedId?: string; onSelect: (value: string) => void; triggerLabel: string }
+function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor, menuClass, measureRef }: {
+  options: readonly ContextSelectOption[]; selectedId?: string; disabled: boolean; onSelect: (value: string) => void
+  renderAnchor: (toggle: () => void, triggerRef: { current: HTMLButtonElement | null }, open: boolean) => ReactNode; menuClass?: string
+  measureRef?: { current: HTMLElement | null }
+}) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const outsidePointer = useRef(false)
+  const restoreFocus = useRef(false)
+  useEffect(() => {
+    if (disabled && open) { restoreFocus.current = false; setOpen(false) }
+  }, [disabled, open])
+  useLayoutEffect(() => {
+    if (!open) return
+    const currentMenu = () => [...document.querySelectorAll<HTMLElement>('[role="menu"]')]
+      .filter(item => item.querySelector('.cm-context-menu-option')).at(-1) ?? null
+    const syncWidth = () => {
+      const panel = currentMenu()
+      const anchor = measureRef?.current ?? triggerRef.current
+      const width = anchor?.getBoundingClientRect().width ?? 0
+      if (!panel || width <= 0) return
+      const cssWidth = `${width}px`
+      if (panel.style.width === cssWidth && panel.style.minWidth === cssWidth) return
+      panel.style.width = cssWidth
+      panel.style.minWidth = cssWidth
+      panel.style.maxWidth = cssWidth
+      panel.style.boxSizing = 'border-box'
+      const view = document.defaultView
+      if (view) view.dispatchEvent(new view.Event('resize'))
+    }
+    const view = document.defaultView
+    syncWidth()
+    view?.addEventListener('resize', syncWidth)
+    return () => view?.removeEventListener('resize', syncWidth)
+  }, [open, measureRef])
+  useEffect(() => {
+    if (!open) {
+      if (restoreFocus.current) { triggerRef.current?.focus(); restoreFocus.current = false }
+      return
+    }
+    const menu = () => [...document.querySelectorAll<HTMLElement>('[role="menu"]')]
+      .filter(item => item.querySelector('.cm-context-menu-option')).at(-1) ?? null
+    const pointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      const element = target as (HTMLElement & { closest?: (selector: string) => Element | null }) | null
+      outsidePointer.current = !(target && triggerRef.current?.contains(target)) && !element?.closest?.('[role="menu"]')
+      Promise.resolve().then(() => { outsidePointer.current = false })
+    }
+    const keyDown = (event: KeyboardEvent) => {
+      const list = menu()
+      if (!list?.contains(document.activeElement)) return
+      const entries = [...list.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')]
+      const current = entries.indexOf(document.activeElement as HTMLButtonElement)
+      if (current < 0 || !entries.length) return
+      let next = -1
+      if (event.key === 'ArrowDown') next = (current + 1) % entries.length
+      else if (event.key === 'ArrowUp') next = (current + entries.length - 1) % entries.length
+      else if (event.key === 'Home') next = 0
+      else if (event.key === 'End') next = entries.length - 1
+      if (next >= 0) { event.preventDefault(); entries[next]?.focus() }
+    }
+    const first = menu()?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
+    first?.focus()
+    document.addEventListener('pointerdown', pointerDown, true)
+    document.addEventListener('keydown', keyDown)
+    return () => {
+      document.removeEventListener('pointerdown', pointerDown, true)
+      document.removeEventListener('keydown', keyDown)
+    }
+  }, [open])
+  return <uiPrimitives.Menu open={open} anchor={renderAnchor(() => setOpen(value => !value), triggerRef, open)}
+    items={options.map(option => ({ id: option.value, label: <span className="cm-context-menu-option">
+      <span className="cm-context-menu-primary">{option.label}</span>
+      {option.secondaryLabel && <span className="cm-context-menu-secondary">{option.secondaryLabel}</span>}
+    </span> }))}
+    selectedId={selectedId} onSelect={value => { if (disabled) { setOpen(false); return }; restoreFocus.current = true; setOpen(false); onSelect(value) }}
+    onClose={() => { if (!outsidePointer.current) restoreFocus.current = true; setOpen(false) }}
+    align="start" side="bottom" portal compact className={menuClass ?? 'cm-native-menu-root'}
+    getAnchorRect={() => (measureRef?.current ?? triggerRef.current)?.getBoundingClientRect() ?? null}/>
 }
 function ContextHelp({ label, hint }: { label: string; hint: string }) {
   return <Tooltip label={hint} side="bottom"><span className="cm-native-help" tabIndex={0} role="note" aria-label={`${label}: ${hint}`}>?</span></Tooltip>
 }
-function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, inlineHint = false, onEdit, onReset }: ContextValueFieldProps) {
+function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, inlineHint = false, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
+  const inputWrapRef = useRef<HTMLDivElement>(null)
   return <div className="cm-native-value">
     <div className="cm-native-copy">
       <label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && <ContextHelp label={label} hint={hint}/>}
@@ -306,9 +390,11 @@ function ContextValueField({ id, label, hint, text, disabled, invalid, overridde
     <div className="cm-native-value-control">
       {multiline
         ? <textarea id={id} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={event => onEdit(event.currentTarget.value)}/>
-        : <div className="cm-native-input-wrap" style={unit ? { '--cm-unit-padding': `${unit.length + 3}ch` } as CSSProperties : undefined}>
+        : <div ref={choiceMenu ? inputWrapRef : undefined} className={`cm-native-input-wrap${choiceMenu ? ' cm-native-input-wrap--menu' : ''}`} style={unit ? { '--cm-unit-padding': choiceMenu ? `calc(${unit.length + 3}ch + 26px)` : `${unit.length + 3}ch` } as CSSProperties : undefined}>
           <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} aria-describedby={unit ? `${id}-unit` : undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>
           {unit && <span id={`${id}-unit`} className="cm-native-unit">{unit}</span>}
+          {choiceMenu && <AnchoredOptions options={choiceMenu.options} selectedId={choiceMenu.selectedId} disabled={disabled} onSelect={choiceMenu.onSelect} menuClass="cm-native-input-menu-root" measureRef={inputWrapRef}
+            renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-input-menu" aria-label={choiceMenu.triggerLabel} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span aria-hidden="true"/></button>}/>}
         </div>}
     </div>
     {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
@@ -332,14 +418,22 @@ function safeSaveReason(error: unknown, t: SettingsText) {
     .slice(0, 180)
   return reason || t('unknownSaveReason')
 }
-type ContextSelectOption = { value: string; label: string }
-function ContextSelect({ id, label, hint, value, options, disabled, onChange, inlineHint = false, showSelectedLabel = false }: { id: string; label: string; hint: string; value: string; options: readonly ContextSelectOption[]; disabled: boolean; onChange: (value: string) => void; inlineHint?: boolean; showSelectedLabel?: boolean }) {
-  const selectedLabel = options.find(option => option.value === value)?.label
-  return <div className="cm-native-select-row"><div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && <ContextHelp label={label} hint={hint}/>}</div>
-    <div className="cm-native-select"><select id={id} value={value} disabled={disabled}
-      aria-label={showSelectedLabel && selectedLabel ? `${label}: ${selectedLabel}` : undefined}
-      onChange={event => onChange(event.currentTarget.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
-    {showSelectedLabel && selectedLabel && <p className="cm-hint cm-native-selected-label">{selectedLabel}</p>}
+function ContextSelect({ id, label, hint, value, options, disabled, onChange, inlineHint = false, showHelp = true, compactModelLabel = false }: { id: string; label: string; hint?: string; value: string; options: readonly ContextSelectOption[]; disabled: boolean; onChange: (value: string) => void; inlineHint?: boolean; showHelp?: boolean; compactModelLabel?: boolean }) {
+  const selected = options.find(option => option.value === value)
+  return <div className="cm-native-select-row"><div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && hint && <ContextHelp label={label} hint={hint}/>}</div>
+    <div className="cm-native-select"><AnchoredOptions options={options} selectedId={value} disabled={disabled} onSelect={onChange}
+      renderAnchor={(toggle, triggerRef, open) => <button type="button" className={`cm-native-select-trigger${compactModelLabel ? ' cm-native-select-trigger--model' : ''}`} id={id} aria-label={`${label}: ${selected?.label ?? ''}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{selected?.label ?? ''}</span></button>}/></div>
+    {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
+  </div>
+}
+function ContextDropdownField({ id, label, hint, displayValue, options, selectedId, disabled, inlineHint = false, showHelp = true, onSelect }: {
+  id: string; label: string; hint: string; displayValue: string; options: readonly ContextSelectOption[]; selectedId: string
+  disabled: boolean; inlineHint?: boolean; showHelp?: boolean; onSelect: (value: string) => void
+}) {
+  return <div className="cm-native-value">
+    <div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && <ContextHelp label={label} hint={hint}/>}</div>
+    <div className="cm-native-value-control"><div className="cm-native-select"><AnchoredOptions options={options} selectedId={selectedId} disabled={disabled} onSelect={onSelect}
+      renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-select-trigger" id={id} aria-label={`${label}: ${displayValue}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{displayValue}</span></button>}/></div></div>
     {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
   </div>
 }
@@ -350,6 +444,8 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   const acceptedPolicy = accepted.value?.policy ?? defaults
   const [draft, setDraft] = useState(() => toDraft(acceptedPolicy))
   const [modelDrafts, setModelDrafts] = useState(() => limitDrafts(acceptedPolicy))
+  const [customNumericKeys, setCustomNumericKeys] = useState<Set<NumericKey>>(() => new Set())
+  const [customModelKeys, setCustomModelKeys] = useState<Set<string>>(() => new Set())
   const [selectedModel, setSelectedModel] = useState(() => {
     const saved = acceptedPolicy.modelLimits?.[0]
     return saved ? routeKey(saved.provider, saved.model) : models[0] ? routeKey(models[0].provider, models[0].model) : ''
@@ -370,11 +466,11 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   for (const item of models) modelOptions.set(routeKey(item.provider, item.model), item)
   for (const item of acceptedPolicy.modelLimits ?? []) {
     const key = routeKey(item.provider, item.model)
-    if (!modelOptions.has(key)) modelOptions.set(key, { provider: item.provider, model: item.model, label: `${item.model} / ${item.provider}` })
+    if (!modelOptions.has(key)) modelOptions.set(key, { provider: item.provider, model: item.model, label: item.model, providerLabel: item.provider })
   }
   for (const key of Object.keys(modelDrafts)) {
     const route = routeFromKey(key)
-    if (route && !modelOptions.has(key)) modelOptions.set(key, { ...route, label: `${route.model} / ${route.provider}` })
+    if (route && !modelOptions.has(key)) modelOptions.set(key, { ...route, label: route.model, providerLabel: route.provider })
   }
   const modelOptionList = [...modelOptions.entries()]
   useEffect(() => {
@@ -394,6 +490,15 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   const modelLimitText = selectedModel ? modelDrafts[selectedModel] ?? '' : ''
   const modelLimitNumber = modelLimitTokens(modelLimitText)
   const selectedLimitInvalid = modelLimitNumber !== null && (!Number.isSafeInteger(modelLimitNumber) || modelLimitNumber < 10000 || modelLimitNumber > 1000000000)
+  const modelLimitPresets = ['32', '64', '128', '200', '256', '300', '512', '1024']
+  const modelLimitHasPreset = modelLimitPresets.includes(modelLimitText.trim())
+  const modelLimitOptions: ContextSelectOption[] = [
+    { value: '@follow', label: t('followModelCapacity') },
+    ...(!modelLimitText.trim() || modelLimitHasPreset ? [] : [{ value: '@current', label: `${t('currentValue')} · ${modelLimitText}K` }]),
+    ...modelLimitPresets.map(value => ({ value, label: `${value}K` })),
+    { value: '@custom', label: `${t('customValue')}…` },
+  ]
+  const modelLimitSelectedId = customModelKeys.has(selectedModel) ? '@custom' : !modelLimitText.trim() ? '@follow' : modelLimitHasPreset ? modelLimitText.trim() : '@current'
   const invalidModelLimitDraft = Object.values(modelDrafts).some(text => {
     const tokens = modelLimitTokens(text)
     return tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 10000 || tokens > 1000000000)
@@ -420,10 +525,11 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
     setDirty(false); setFeedback(''); setFailed(false)
     const policy = accepted.value?.policy ?? defaults
     setDraft(toDraft(policy)); setModelDrafts(limitDrafts(policy)); setRevision(accepted.revision)
+    setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
     setSelectedModel(policy.modelLimits?.[0] ? routeKey(policy.modelLimits[0].provider, policy.modelLimits[0].model) : modelOptionList[0]?.[0] ?? '')
   }
   function restoreDefaults() {
-    edit(toDraft(defaults)); setModelDrafts({})
+    edit(toDraft(defaults)); setModelDrafts({}); setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
     if (!selectedModel && modelOptionList.length) setSelectedModel(modelOptionList[0]![0])
   }
   function editModelLimit(text: string) {
@@ -431,12 +537,46 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
     setModelDrafts(current => ({ ...current, [selectedModel]: text }))
     setDirty(true); setFeedback(''); setFailed(false)
   }
-  const numeric = (key: NumericKey, label: string, hint: string, unit = '', blocked = false) => <ContextValueField
-    key={key} id={`context-manager-${key}`} label={label} hint={hint} numeric
-    unit={unit}
-    text={draft[key]} disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])}
-    overridden={draft[key] !== String(defaults[key])} overriddenLabel={t('customValue')} resetLabel={t('resetValue')} invalidLabel={t('invalidNumber')}
-    onEdit={text => edit({ [key]: text })} onReset={() => edit({ [key]: String(defaults[key]) })}/>
+  function chooseModelLimit(choice: string) {
+    if (choice === '@custom') {
+      setCustomModelKeys(current => new Set(current).add(selectedModel))
+      return
+    }
+    setCustomModelKeys(current => { const next = new Set(current); next.delete(selectedModel); return next })
+    if (choice === '@follow') {
+      if (modelLimitText !== '') editModelLimit('')
+      return
+    }
+    if (choice !== '@current' && choice !== modelLimitText) editModelLimit(choice)
+  }
+  const numeric = (key: NumericKey, label: string, hint: string, unit = '', blocked = false) => {
+    const id = `context-manager-${key}`
+    const value = draft[key]
+    const display = (text: string) => unit === '%' ? `${text}%` : `${text} ${unit}`
+    const defaultsLabel = `${display(String(defaults[key]))} · ${t('recommendedValue')}`
+    const presetEntries = key === 'triggerPercent'
+      ? [{ value: '70', label: t('presetEarly') }, { value: '80', label: t('presetBalanced') }, { value: '85', label: t('presetLate') }]
+      : key === 'idleMinutes'
+        ? [5, 15, 30, 60, 120].map(minutes => ({ value: String(minutes), label: `${display(String(minutes))}${minutes === defaults.idleMinutes ? ` · ${t('recommendedValue')}` : ''}` }))
+        : [{ value: String(defaults[key]), label: defaultsLabel }]
+    const presetMap = new Map(presetEntries.map(option => [option.value, option]))
+    if (!presetMap.has(value)) presetMap.set(value, { value, label: `${t('currentValue')} · ${display(value)}` })
+    const options: ContextSelectOption[] = [...presetMap.values(), { value: '@custom', label: `${t('customValue')}…` }]
+    const onChoice = (choice: string) => {
+      if (choice === '@custom') {
+        setCustomNumericKeys(current => new Set(current).add(key))
+        return
+      }
+      setCustomNumericKeys(current => { const next = new Set(current); next.delete(key); return next })
+      if (choice !== value) edit({ [key]: choice })
+    }
+    if (customNumericKeys.has(key)) return <ContextValueField key={key} id={id} label={label} hint={hint} numeric unit={unit} text={value}
+      disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])} overridden={false} overriddenLabel={t('customValue')} resetLabel={t('resetValue')} invalidLabel={t('invalidNumber')}
+      choiceMenu={{ options, selectedId: '@custom', onSelect: onChoice, triggerLabel: `${label} · ${t('openOptions')}` }}
+      onEdit={text => edit({ [key]: text })} onReset={() => {}}/>
+    return <ContextDropdownField key={key} id={id} label={label} hint={hint} displayValue={display(value)} options={options}
+      selectedId={value} disabled={disabled || blocked} onSelect={onChoice}/>
+  }
   const toggle = (key: 'enabled' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled', label: string, hint: string, blocked = false, note?: string) =>
     <div className="cm-native-toggle">
       <div>
@@ -467,15 +607,20 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
         </section>
         <section className="cm-native-group">
           <h3>{t('modelLimitGroup')}</h3>
-          <ContextSelect id="context-manager-limitModel" label={t('modelLimitModelLabel')} hint={t('modelLimitModelHint')}
-            value={selectedModel} disabled={disabled || modelOptionList.length === 0} inlineHint showSelectedLabel
+          <ContextSelect id="context-manager-limitModel" label={t('modelLimitModelLabel')}
+            value={selectedModel} disabled={disabled || modelOptionList.length === 0} showHelp={false} compactModelLabel
             onChange={setSelectedModel}
-            options={modelOptionList.length ? modelOptionList.map(([value, item]) => ({ value, label: item.label })) : [{ value: '', label: t('modelCatalogEmpty') }]}/>
+            options={modelOptionList.length ? modelOptionList.map(([value, item]) => ({ value, label: item.label, secondaryLabel: item.providerLabel ?? item.provider })) : [{ value: '', label: t('modelCatalogEmpty') }]}/>
           {catalogUnavailable && <p className="cm-hint" role="status">{t('modelCatalogUnavailable')}</p>}
-          {selectedModel && <ContextValueField id="context-manager-modelLimit" label={t('modelLimitLabel')} hint={t('modelLimitHint')}
-            text={modelLimitText} disabled={disabled} invalid={selectedLimitInvalid} numeric unit={t('unitK')} inlineHint
-            overridden={!!modelLimitText.trim()} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('modelLimitInvalid')}
-            onEdit={editModelLimit} onReset={() => editModelLimit('')}/>}
+          {selectedModel && (customModelKeys.has(selectedModel)
+            ? <ContextValueField id="context-manager-modelLimit" label={t('modelLimitLabel')} hint={t('modelLimitHint')}
+              text={modelLimitText} disabled={disabled} invalid={selectedLimitInvalid} numeric unit={t('unitK')} inlineHint
+              overridden={false} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('modelLimitInvalid')}
+              choiceMenu={{ options: modelLimitOptions, selectedId: '@custom', onSelect: chooseModelLimit, triggerLabel: `${t('modelLimitLabel')} · ${t('openOptions')}` }}
+              onEdit={editModelLimit} onReset={() => {}}/>
+            : <ContextDropdownField id="context-manager-modelLimit" label={t('modelLimitLabel')} hint={t('modelLimitHint')}
+              displayValue={modelLimitText.trim() ? `${modelLimitText}K` : t('followModelCapacity')} options={modelLimitOptions} selectedId={modelLimitSelectedId}
+              disabled={disabled} showHelp={false} onSelect={chooseModelLimit}/>)}
         </section>
         <section className="cm-native-group">
           <h3>{t('idleGroup')}</h3>
