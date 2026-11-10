@@ -12,7 +12,7 @@
   <a href="https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/LICENSE"><img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-MIT-6B7280?style=flat-square" alt="许可: MIT"></a>
 </p>
 
-<p><a href="#功能一览">功能一览</a> · <a href="#快速开始">快速开始</a> · <a href="#使用场景">使用场景</a> · <a href="#常见问题">常见问题</a> · <a href="#详细文档">详细文档</a> · <a href="../README.en.md">English</a></p>
+<p><a href="#功能一览">功能一览</a> · <a href="#快速开始">快速开始</a> · <a href="#visual-guide">图解使用</a> · <a href="#使用场景">使用场景</a> · <a href="#常见问题">常见问题</a> · <a href="#详细文档">详细文档</a> · <a href="../README.en.md">English</a></p>
 
 </div>
 
@@ -31,25 +31,67 @@
 | **任务摘要** | 保留目标、约束、已完成、待办、证据与下一步。 |
 | **原文追溯** | 随时查看摘要和保留的来源原文，核对压缩结果。 |
 
-<!-- existing-screenshots -->
-## 界面示例
-
-<table><tr><td><a href=".././docs/images/context-compaction-overview.png"><img src=".././docs/images/context-compaction-overview.png" alt="上下文总览：容量、变化趋势、压缩结果与摘要" width="100%"></a></td><td><a href=".././docs/images/context-summary-details.png"><img src=".././docs/images/context-summary-details.png" alt="结构化摘要与来源原文" width="100%"></a></td></tr></table>
-
-<sub>来自项目已有文档；截图版本与验证范围见<a href="../README.md">原始说明</a>，点击可放大。</sub>
-<!-- /existing-screenshots -->
-
 ## 快速开始
 
 1. 从 [Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.4) 下载对应版本的 `.tgz` 安装包。
 2. 在 DSH **插件 → 添加插件** 中选择下载的文件，安装并启用；按宿主提示重新加载或正常重启。
 3. 在 **设置 → 上下文管理** 调整策略，在会话 **上下文** 页查看结果。
 
+<!-- visual-guide -->
+<a id="visual-guide"></a>
+
+## 图解使用流程
+
+长会话继续之前，先看容量，再核对留下的任务摘要。
+
+![上下文管理：四步使用流程](../docs/images/workflow-guide.svg)
+
+[查看完整流程图](../docs/images/workflow-guide.svg)
+
+| 步骤 | 怎样操作 | 需要留意 |
+| --- | --- | --- |
+| 1. 查看占用 | 在会话“上下文”页查看当前容量、变化趋势及已有压缩记录。 | 容量描述本轮上下文；历史累计 Token 不是同一个指标。 |
+| 2. 设置策略 | 在设置中确认自动压缩、触发比例与空闲整理。 | 默认检查线为 80%，空闲整理默认 15 分钟；实际判断包含模型请求预留。 |
+| 3. 继续任务 | 达到条件后整理较早历史，再继续原来的工作。 | 摘要应清楚保留目标、约束、已完成、待办、证据和下一步。 |
+| 4. 核对结果 | 展开摘要，遇到关键决定时回看保留的来源原文。 | 摘要是任务索引；校验失败时保留原文，不把失败算作整理成功。 |
+
+### 试一次
+
+> 继续这个长会话中的修复任务。先核对已有摘要里的目标、限制和待办，再处理下一项；涉及之前的关键决定时回看来源。
+
+使用后可以这样核对：
+
+- 摘要中的任务目标与用户最后一次要求一致。
+- 已完成和未完成事项分开，关键文件或证据仍有出处。
+- 查看摘要不会调用模型；新生成摘要会产生相应模型用量。
+
+### 设置怎么选
+
+| 项目 | 建议 |
+| --- | --- |
+| 自动压缩与触发比例 | 先沿用推荐值；结合实际模型窗口判断，避免把示例百分比当成固定剩余空间。 |
+| 空闲整理 | 适合任务正常结束后整理；仍在执行的任务与短暂停顿不能当成同一种空闲。 |
+| 摘要与原文 | 需要核对时先展开来源；更新插件不需要清空会话。 |
+
+<!-- existing-screenshots -->
+### 界面示例
+
+<table><tr><td><a href=".././docs/images/context-compaction-overview.png"><img src=".././docs/images/context-compaction-overview.png" alt="上下文总览：容量、变化趋势、压缩结果与摘要" width="100%"></a></td><td><a href=".././docs/images/context-summary-details.png"><img src=".././docs/images/context-summary-details.png" alt="结构化摘要与来源原文" width="100%"></a></td></tr></table>
+
+<sub>来自项目已有文档；截图版本与验证范围见<a href="../README.md">原始说明</a>，点击可放大。</sub>
+<!-- /existing-screenshots -->
+
+左图先看容量和压缩记录，右图再读结构化摘要与来源。图表用于定位变化，摘要内容才决定能否准确接着工作。
+
+![上下文管理：会话用量与费用展示的已有版本示例](../docs/images/context-session-cost-desktop.png)
+
+<sub>补充读图：会话用量与费用展示。图片来自已有文档，口径和版本以项目原说明为准。</sub>
+<!-- /visual-guide -->
+
 ## 使用前了解
 
 - 实际请求检查线结合模型预留调整，压缩比例随内容变化。
 - 查看不调用模型；生成摘要会产生模型用量，摘要校验失败时保留原文。
-
 
 <!-- readme-expansion -->
 ## 使用场景
@@ -59,16 +101,6 @@
 | 一个任务聊了很久，较早的约束容易被挤出上下文 | 将较早历史整理为任务摘要，让目标、限制、已完成工作与下一步继续可见。 |
 | 需要知道本轮上下文到底占了多少 | 在上下文页查看容量、趋势、压缩结果，并展开摘要核对内容。 |
 | 压缩后仍要追溯某个决定的出处 | 保留来源原文入口，把摘要当作继续工作的索引。 |
-
-## 第一次使用
-
-1. 打开一段已有较长历史的会话，在上下文页查看当前占用与模型窗口。
-2. 在设置中确认自动压缩、开始压缩比例和空闲整理策略；先沿用推荐值，再按任务调整。
-3. 发生压缩后展开摘要，检查目标、限制与待办是否仍然清楚；需要查证时回看原文。
-
-### 一个具体例子
-
-适合持续多轮的代码修复、资料调研和长文修改。一次清楚的后续要求可以是：“继续上一轮任务，先核对已有摘要中的限制和待办，再完成下一步。”
 
 ## 常见问题
 

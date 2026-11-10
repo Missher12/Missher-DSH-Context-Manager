@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-labelledby="title description">
+<title id="title">上下文管理 · 使用流程</title>
+<desc id="description">查看占用，当前会话与模型窗口，先分清容量和累计用量；设置策略，请求前检查与空闲整理，按任务选用推荐配置；按需整理，较早历史形成任务摘要，保留目标、约束和待办；核对摘要，展开来源原文，确认下一步没有丢失</desc>
+<defs><linearGradient id="background" x2="1" y2="1"><stop stop-color="#faf8f5"/><stop offset="1" stop-color="#f3f0fa"/></linearGradient></defs>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;fill:#272433}.title{font-size:42px;font-weight:650}.subtitle{font-size:23px;fill:#6c6678}.step{font-size:27px;font-weight:600}.body{font-size:21px;fill:#625d6d}.number{font-size:22px;font-weight:600;fill:#746294}.label{font-size:19px;fill:#827790}.group{font-size:28px;font-weight:600}.item{font-size:25px;fill:#474252}</style>
+<rect width="1200" height="470" rx="24" fill="url(#background)"/>
+
+<text x="44" y="69" class="title" >上下文管理 · 使用流程</text>
+<text x="44" y="111" class="subtitle" >操作示意 · 从入口到结果，按当前任务选择需要的步骤</text>
+<rect x="44" y="158" width="257" height="230" rx="18" fill="#fff" stroke="#e0dae9"/>
+<circle cx="80" cy="197" r="19" fill="#eee8f7"/>
+<text x="80" y="205" class="number" text-anchor="middle">01</text>
+<text x="68" y="258" class="step" >查看占用</text>
+<text x="68" y="306" class="body" >当前会话与模型窗口</text>
+<text x="68" y="343" class="body" >先分清容量和累计用量</text>
+<path d="M308 270h13m-6-6 6 6-6 6" stroke="#a396b7" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="329" y="158" width="257" height="230" rx="18" fill="#fff" stroke="#e0dae9"/>
+<circle cx="365" cy="197" r="19" fill="#eee8f7"/>
+<text x="365" y="205" class="number" text-anchor="middle">02</text>
+<text x="353" y="258" class="step" >设置策略</text>
+<text x="353" y="306" class="body" >请求前检查与空闲整理</text>
+<text x="353" y="343" class="body" >按任务选用推荐配置</text>
+<path d="M593 270h13m-6-6 6 6-6 6" stroke="#a396b7" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="614" y="158" width="257" height="230" rx="18" fill="#fff" stroke="#e0dae9"/>
+<circle cx="650" cy="197" r="19" fill="#eee8f7"/>
+<text x="650" y="205" class="number" text-anchor="middle">03</text>
+<text x="638" y="258" class="step" >按需整理</text>
+<text x="638" y="306" class="body" >较早历史形成任务摘要</text>
+<text x="638" y="343" class="body" >保留目标、约束和待办</text>
+<path d="M878 270h13m-6-6 6 6-6 6" stroke="#a396b7" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="899" y="158" width="257" height="230" rx="18" fill="#fff" stroke="#e0dae9"/>
+<circle cx="935" cy="197" r="19" fill="#eee8f7"/>
+<text x="935" y="205" class="number" text-anchor="middle">04</text>
+<text x="923" y="258" class="step" >核对摘要</text>
+<text x="923" y="306" class="body" >展开来源原文</text>
+<text x="923" y="343" class="body" >确认下一步没有丢失</text>
+<text x="44" y="435" class="label" >图解说明流程，不代表界面截图；完整步骤与注意事项见下方正文。</text>
+</svg>
