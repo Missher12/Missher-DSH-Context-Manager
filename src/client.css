@@ -76,6 +76,11 @@
 .dsh-context-settings .cm-native-value-control,
 .dsh-context-settings .cm-native-select,
 .dsh-context-settings .cm-native-input-wrap { min-width: 0; position: relative; }
+.dsh-context-settings .cm-native-selected-label { overflow-wrap: anywhere; text-align: center; }
+.dsh-context-settings .cm-native-inline-hint { overflow-wrap: anywhere; }
+.dsh-context-settings .cm-native-select-row > .cm-native-selected-label { grid-column: 1 / -1; }
+.dsh-context-settings .cm-native-select-row > .cm-native-inline-hint { grid-column: 1 / -1; text-align: end; }
+.dsh-context-settings .cm-native-value > .cm-native-inline-hint { grid-column: 1 / -1; text-align: end; }
 .dsh-context-settings :is(.cm-native-input, .cm-native-select > select, textarea) {
   box-sizing: border-box;
   width: 100%;

@@ -91,6 +91,8 @@ export default class ContextManager extends Service {
   private basicIdleSidecarReason?: string
   static Config = z.object({
     policy: z.object({
+      modelLimits: z.array(z.object({ provider: z.string().min(1), model: z.string().min(1),
+        tokens: z.number().min(10000).max(1000000000).step(1) })).default([]),
       capacityMode: z.union([z.const('legacy'), z.const('percent')]).default('legacy'),
       recentPercent: z.number().min(0.1).max(50).default(defaults.recentPercent),
       summaryPercent: z.number().min(0.1).max(10).default(defaults.summaryPercent),
@@ -127,7 +129,7 @@ export default class ContextManager extends Service {
       archiveReadBudget: z.number().min(500).max(6000).step(1).default(defaults.archiveReadBudget),
       archiveSearchLimit: z.number().min(1).max(8).step(1).default(defaults.archiveSearchLimit),
       prefixDiagnosticsEnabled: z.boolean().default(defaults.prefixDiagnosticsEnabled),
-    }).default(defaults).volatile(),
+    }).default({ ...defaults, modelLimits: [...defaults.modelLimits] }).volatile(),
   })
 
   constructor(ctx: Context, public config: Config) {

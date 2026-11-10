@@ -12,6 +12,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { LlmAdapter, createUserMessage, createMessage, ToolCallId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as Retry from '@deepseek-ai/dsh-llm-retry'
 import { mountAgentLoopTestDependencies } from './fixtures/agent-loop-dependencies.mjs'
@@ -26,7 +27,7 @@ const ABSOLUTE = { absoluteEnabled: true, absoluteTriggerTokens: 200000, absolut
 
 class Adapter extends LlmAdapter {
   constructor(options = {}) { super(); this.options = options; this.order = []; this.summaries = []; this.requests = []; this.work = 0 }
-  async resolveModel(provider, model) { return { provider, id: model, name: model, context: { contextWindow: model === 'million' ? 1000000 : 10000 }, ...(model === 'million' ? { defaultMaxTokens: 256000 } : {}) } }
+  async resolveModel(provider, model) { return { provider, id: model, name: model, context: { contextWindow: model === 'million' ? 1000000 : 10000 }, ...(model === 'million' && !this.options.omitDefaultMaxTokens ? { defaultMaxTokens: this.options.defaultMaxTokens ?? 256000 } : {}) } }
   providerRetryPolicy() { return resolveRetryPolicy({ mode: 'normal', maxRetries: 0 }, 'test') }
   async *stream(options) {
     if (options.purpose === 'compaction') {
@@ -74,14 +75,36 @@ async function fixture(options = {}, policy = {}, seed = history()) {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   await ctx.plugin(Retry)
-  installTestCompactionHost(ctx)
+  const compactionHost = installTestCompactionHost(ctx)
   await ctx.plugin(Manager, { policy: { ...defaults, summaryMaxTokens: 512, idleEnabled: false, ...policy } })
   await ctx.plugin(Engine)
   const adapter = new Adapter(options)
   ctx.llm.registerAdapter(['mock'], adapter)
   ctx.tools.register(defineContentToolFixture({ name: 'work', description: 'Count work', parameters: {}, async execute() { adapter.work++; return [{ type: 'text', text: options.toolOutput ?? 'tool complete' }] } }))
   const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('subject'), seed, agentOptions: { provider: 'mock', model: 'million' } })
-  return { ctx, adapter, agent }
+  return { ctx, adapter, agent, compactionHost }
+}
+async function nativeBasicFixture() {
+  const ctx = new Context()
+  const storageRoot = await mkdtemp(join(tmpdir(), 'dsh-context-basic-cap-'))
+  ctx.provide('profileContext',{dir:storageRoot,installAnchor:fileURLToPath(new URL('../package.json',import.meta.url)),patchPath:fileURLToPath(new URL('../cordis.patch.yml',import.meta.url))})
+  ctx.effect(() => () => rm(storageRoot, { recursive: true, force: true }))
+  await ctx.plugin(Storage)
+  await ctx.plugin(StorageJson, { root: storageRoot })
+  await ctx.plugin(StorageDomain, { backend: 'json' })
+  await mountAgentLoopTestDependencies(ctx)
+  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(TokenMeter)
+  await ctx.plugin(Retry)
+  ctx.provide('agentPresets', {})
+  await ctx.plugin(BasicCompactionEngine, { auto: false, maxTokens: 8192 })
+  await ctx.plugin(Manager, { policy: { ...defaults, capacityMode: 'percent', summaryMaxTokens: 512, idleEnabled: false,
+    modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }] } })
+  const adapter = new Adapter({ defaultMaxTokens: 8192 })
+  ctx.llm.registerAdapter(['mock'], adapter)
+  const { agent } = await ctx.agentLoop.createAgent(ctx, { sessionId: SessionId('basic-subject'), seed: history(), agentOptions: { provider: 'mock', model: 'million' } })
+  await drainUntil(() => ctx.contextManager.basicIdleSidecarState === 'active')
+  return { ctx, adapter, agent, basic: ctx.get('compaction') }
 }
 const message = (text = '请完成当前任务；不要改动无关文件。') => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
 const commits = agent => agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length
@@ -121,6 +144,89 @@ test('absolute: effective budget takes the conservative bound and reports source
   assert.equal(legacy.absoluteTrigger, null)
   assert.equal(legacy.target, legacy.admission, 'automatic mode reports an admission ceiling, not a post-compaction percentage')
   assert.equal(legacy.targetSource, 'working-set')
+})
+
+test('per-model cap compacts before a business request and also bounds summary requests', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ defaultMaxTokens: 8192 }, {
+    capacityMode: 'percent', modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }],
+  }, await seedAt(110000))
+  try {
+    agent.followup(message()); await agent.whenIdle()
+    assert.deepEqual(adapter.order, ['summary', 'main'])
+    assert.equal(commits(agent), 1)
+    for (const request of [...adapter.requests, ...adapter.summaries]) {
+      const input = request.messages.reduce((sum, m) => sum + ctx.tokenMeter.estimateMessage(m), 0)
+      assert.ok(input + (request.maxTokens ?? 8192) <= 128000, `${request.purpose ?? 'business'} fits the model cap`)
+    }
+    assert.equal(agent.session.requestContext().contextWindow, 1000000)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('a model cap occupied by output reserve blocks without sending or discarding the task', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({}, {
+    capacityMode: 'percent', modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }],
+  })
+  try {
+    const task = message()
+    agent.followup(task); await agent.whenIdle()
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(adapter.summaries.length, 0)
+    assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('a model cap remains a hard bound when automatic compaction is off', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ defaultMaxTokens: 8192 }, {
+    enabled: false, capacityMode: 'percent', modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }],
+  }, await seedAt(120000))
+  try {
+    const task = message()
+    agent.followup(task); await agent.whenIdle()
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(adapter.summaries.length, 0)
+    assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('native Basic summary validates its full prompt against the exact model cap before dispatch', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent, basic } = await nativeBasicFixture()
+  try {
+    assert.ok(basic instanceof BasicCompactionEngine, 'the test runs the actual native Basic service')
+    const before = agent.session.snapshotEvents()
+    const oversized = createUserMessage({ content: [{ type: 'text', text: 'history '.repeat(80000) }], source: { kind: 'user' } })
+    await assert.rejects(() => basic.summarize({ messages: [oversized] }, agent), /上下文上限/)
+    assert.equal(adapter.summaries.length, 0)
+    assert.deepEqual(agent.session.snapshotEvents(), before, 'an oversized Basic request leaves the original session untouched')
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('a capped route with unknown output reserve blocks before provider dispatch and keeps the task', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ omitDefaultMaxTokens: true }, {
+    capacityMode: 'percent', modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }],
+  })
+  try {
+    const task = message()
+    agent.followup(task); await agent.whenIdle()
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(adapter.summaries.length, 0)
+    assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
+  } finally { await ctx.fiber.dispose() }
+})
+
+test('a selected history span that cannot fit a capped summary remains unchanged without a paid call', { timeout: 8000 }, async () => {
+  const { ctx, adapter, agent } = await fixture({ defaultMaxTokens: 8192 }, {
+    capacityMode: 'percent', modelLimits: [{ provider: 'mock', model: 'million', tokens: 128000 }],
+  }, history(600000))
+  try {
+    const oldHistory = agent.session.deriveMessages().find(m => m.role === 'user')
+    const task = message('Keep this task verbatim.')
+    agent.followup(task); await agent.whenIdle()
+    assert.equal(adapter.requests.length, 0)
+    assert.equal(adapter.summaries.length, 0)
+    assert.equal(commits(agent), 0)
+    assert.deepEqual(agent.session.deriveMessages().find(m => m.id === task.id)?.content, task.content)
+    assert.equal(agent.session.deriveMessages().find(m => m.id === oldHistory.id)?.content[0]?.text.length, 600000)
+  } finally { await ctx.fiber.dispose() }
 })
 
 test('working set: automatic budgets ignore saved occupancy caps while retaining the absolute trigger', () => {

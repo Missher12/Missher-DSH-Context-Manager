@@ -2,6 +2,8 @@ import type { DeadlineLimits } from './summary-deadline.ts'
 
 /** Admission limits and working-history policy shared by the engine and settings preview. */
 export interface Policy {
+  /** Optional hard context ceiling for one exact provider/model route. */
+  modelLimits: readonly { provider: string; model: string; tokens: number }[]
   /** Missing on legacy persisted policies: preserve the original Token constraints. */
   capacityMode: 'legacy' | 'percent'
   recentPercent: number
@@ -83,6 +85,7 @@ export interface Policy {
 }
 
 export const defaults: Policy = {
+  modelLimits: [],
   capacityMode: 'percent', recentPercent: 10, summaryPercent: 4, repairPercent: 1,
   enabled: true, historyMode: 'automatic', recentTokens: 20000,
   triggerPercent: 80, targetPercent: 55, earlyPercent: 1,
@@ -99,7 +102,7 @@ export const defaults: Policy = {
 
 /** Schema-independent normalization for old settings readouts; no writes or migration. */
 export function normalizePolicy(saved:Partial<Policy>):Policy {
-  return {...defaults,...saved,capacityMode:saved.capacityMode??'legacy',summaryTimeoutMode:saved.summaryTimeoutMode??'fixed'}
+  return {...defaults,...saved,modelLimits:saved.modelLimits??[],capacityMode:saved.capacityMode??'legacy',summaryTimeoutMode:saved.summaryTimeoutMode??'fixed'}
 }
 
 /** Validate at the settings/request boundary; invalid policy never admits work. */
@@ -115,7 +118,7 @@ export function validatePolicy(p: Policy): void {
   if (p.summaryTimeoutMode !== 'fixed' && p.summaryTimeoutMode !== 'adaptive') throw new Error('压缩超时模式必须为 fixed 或 adaptive')
   if (p.checkpointFormat !== 'json' && p.checkpointFormat !== 'sections') throw new Error('摘要 checkpoint 协议必须为 json 或 sections')
   if (typeof p.summaryInstructions !== 'string' || p.summaryInstructions.length > 2000) throw new Error('摘要保留重点不能超过 2000 字符')
-  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode' | 'capacityMode' | 'checkpointFormat'>, [number, number]> = {
+  const ranges: Record<Exclude<keyof Policy, 'enabled' | 'historyMode' | 'idleEnabled' | 'formatRepairEnabled' | 'absoluteEnabled' | 'prefixDiagnosticsEnabled' | 'toolResultsMode' | 'summaryInstructions' | 'summaryTimeoutMode' | 'capacityMode' | 'checkpointFormat' | 'modelLimits'>, [number, number]> = {
     recentPercent: [0.1, 50], summaryPercent: [0.1, 10], repairPercent: [0.1, 10],
     recentTokens: [1000, 128000],
     triggerPercent: [50, 95], targetPercent: [10, 75], earlyPercent: [0, 5],
@@ -137,6 +140,15 @@ export function validatePolicy(p: Policy): void {
   for (const key of ['recentTokens', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const) {
     if (!Number.isInteger(p[key])) throw new Error(`${key} 必须是整数`)
   }
+  if (!Array.isArray(p.modelLimits)) throw new Error('模型上下文上限必须是列表')
+  const routes = new Set<string>()
+  for (const item of p.modelLimits) {
+    if (!item || typeof item.provider !== 'string' || !item.provider.trim() || typeof item.model !== 'string' || !item.model.trim()) throw new Error('模型路由必须同时包含 provider 和 model')
+    if (!Number.isSafeInteger(item.tokens) || item.tokens < 10000 || item.tokens > 1_000_000_000) throw new Error('模型上下文上限必须是 10000–1000000000 之间的整数 Token')
+    const route = JSON.stringify([item.provider, item.model])
+    if (routes.has(route)) throw new Error('模型路由不能重复')
+    routes.add(route)
+  }
 }
 
 export interface Budget {
@@ -156,6 +168,8 @@ export interface Budget {
   /** Effective absolute values when enabled; null otherwise. Never falsifies the model window. */
   absoluteTrigger: number | null
   absoluteTarget: number | null
+  /** The exact model cap, clamped to the real provider window. */
+  workingWindow: number
 }
 
 /**
@@ -167,16 +181,18 @@ export interface Budget {
  * and therefore reports only the admission ceiling here. Custom mode additionally
  * applies the saved percentage/absolute occupancy caps and admission headroom.
  */
-export function budget(policy: Policy, window: number, outputReserve: number): Budget {
+export function budget(policy: Policy, window: number, outputReserve: number, route?: { provider: string; model: string }): Budget {
   policy=normalizePolicy(policy)
   validatePolicy(policy)
   if (!Number.isSafeInteger(window) || window <= 0) throw new Error('当前模型未提供有效上下文窗口')
   if (!Number.isFinite(outputReserve) || outputReserve < 0) throw new Error('当前模型输出预留无效')
-  const safety = Math.ceil(window * policy.safetyPercent / 100)
-  const hard = Math.max(0, window - Math.ceil(outputReserve) - safety)
-  const trigger = Math.min(Math.floor(window * policy.triggerPercent / 100), hard)
-  const percentAdmission = Math.max(0, trigger - Math.ceil(window * policy.earlyPercent / 100))
-  const requestedPercentTarget = Math.floor(window * policy.targetPercent / 100)
+  const savedLimit = route && policy.modelLimits.find(item => item.provider === route.provider && item.model === route.model)?.tokens
+  const workingWindow = Math.min(window, savedLimit ?? window)
+  const safety = Math.ceil(workingWindow * policy.safetyPercent / 100)
+  const hard = Math.max(0, workingWindow - Math.ceil(outputReserve) - safety)
+  const trigger = Math.min(Math.floor(workingWindow * policy.triggerPercent / 100), hard)
+  const percentAdmission = Math.max(0, trigger - Math.ceil(workingWindow * policy.earlyPercent / 100))
+  const requestedPercentTarget = Math.floor(workingWindow * policy.targetPercent / 100)
   const percentTarget = Math.min(requestedPercentTarget, Math.floor(percentAdmission * 0.8))
   const absoluteTrigger = policy.capacityMode !== 'percent' && policy.absoluteEnabled ? policy.absoluteTriggerTokens : null
   const absoluteTarget = policy.capacityMode !== 'percent' && policy.historyMode === 'custom' && policy.absoluteEnabled ? policy.absoluteTargetTokens : null
@@ -189,8 +205,8 @@ export function budget(policy: Policy, window: number, outputReserve: number): B
   const targetSource: Budget['targetSource'] = policy.historyMode === 'automatic' ? 'working-set'
     : absoluteTarget !== null && target === absoluteTarget ? 'absolute'
     : percentTarget < requestedPercentTarget ? 'admission' : 'percent'
-  return { historyMode: policy.historyMode, recentTokens: capacityTokens(policy, window).recent,
-    window, outputReserve, safety, hard, trigger, admission, target, admissionSource, targetSource, absoluteTrigger, absoluteTarget }
+  return { historyMode: policy.historyMode, recentTokens: capacityTokens(policy, workingWindow).recent,
+    window, workingWindow, outputReserve, safety, hard, trigger, admission, target, admissionSource, targetSource, absoluteTrigger, absoluteTarget }
 }
 
 /**

@@ -9,7 +9,7 @@ export const contextGroups = [
   { id: 'instruction', categories: ['system', 'tools', 'inject', 'skill'] },
 ] as const satisfies readonly { id: string; categories: readonly Category[] }[]
 export type ContextGroup = typeof contextGroups[number]['id']
-export interface ChartSlice { id: ContextGroup | 'other' | 'free' | 'reserve'; value: number; share: number }
+export interface ChartSlice { id: ContextGroup | 'other' | 'free' | 'reserve' | 'model-capped' | 'unknown-space'; value: number; share: number }
 
 /** Tenths of a percent sum to 100 while bar widths use unrounded values. */
 export function percentages(values: readonly number[]): number[] {
@@ -24,10 +24,10 @@ export function percentages(values: readonly number[]): number[] {
 }
 
 /** Only current, route-bound meter metadata can supply an admission check. */
-export function admissionBudget(data: Pick<Inspection, 'admission' | 'historical'>, policy?: Policy) {
+export function admissionBudget(data: Pick<Inspection, 'admission' | 'historical' | 'model'>, policy?: Policy) {
   const reading = data.historical ? undefined : data.admission
   return policy && reading?.window != null && reading.outputReserve !== null
-    ? budget(policy, reading.window, reading.outputReserve) : null
+    ? budget(policy, reading.window, reading.outputReserve, data.model ?? undefined) : null
 }
 
 /** One denominator for charts and content at the same immutable cut. */
@@ -52,16 +52,34 @@ export function composition(data: Pick<Inspection, 'parts' | 'pressure' | 'press
   const used = Math.max(content, measured ?? 0)
   const other = used - content
   if (other > 0) slices.push({ id: 'other', value: other, share: 0 })
+  const configuredModelLimit = !data.historical && policy && data.model
+    ? policy.modelLimits?.find(item => item.provider === data.model!.provider && item.model === data.model!.model)?.tokens
+    : undefined
+  const currentWindow = current?.window != null && Number.isSafeInteger(current.window) && current.window > 0 ? current.window : null
+  const modelLimit = configuredModelLimit === undefined || currentWindow === null ? null : Math.min(currentWindow, configuredModelLimit)
+  const waitingModelWindow = configuredModelLimit !== undefined && modelLimit === null
+  const workingWindow = window === null ? null : modelLimit === null ? window : Math.min(window, modelLimit)
   const sidecarGate = data.compression?.mode === 'native' && data.cooperation?.requestPressure === 'context'
   const gate = (data.compression?.mode === 'enhanced' || sidecarGate) && policy?.enabled ? admissionBudget(data, policy) : null
-  const limit = gate?.admission ?? null
-  const free = window === null ? null : Math.max(0, (limit ?? window) - used)
-  const reserve = gate === null ? null : Math.max(0, gate.window - Math.max(used, gate.admission))
+  const capBudget = gate === null && modelLimit !== null ? admissionBudget(data, policy) : null
+  const availableBoundary = gate?.admission ?? capBudget?.hard ?? (modelLimit === null ? workingWindow : null)
+  const limit = gate?.admission ?? capBudget?.hard ?? null
+  const free = workingWindow === null || availableBoundary === null ? null : Math.max(0, availableBoundary - used)
+  const reserveBoundary = gate?.admission ?? capBudget?.hard
+  const reserve = reserveBoundary === undefined || reserveBoundary === null || workingWindow === null
+    ? null : Math.max(0, workingWindow - Math.max(used, reserveBoundary))
+  const reserveUnknown = modelLimit !== null && current?.outputReserve === null
+  const unknownSpace = reserveUnknown && workingWindow !== null ? Math.max(0, workingWindow - used) : null
+  const modelCapped = modelLimit === null || window === null || workingWindow === null ? null : Math.max(0, window - Math.max(used, workingWindow))
   if (free !== null) slices.push({ id: 'free', value: free, share: 0 })
   if (reserve !== null) slices.push({ id: 'reserve', value: reserve, share: 0 })
+  if (unknownSpace !== null && unknownSpace > 0) slices.push({ id: 'unknown-space', value: unknownSpace, share: 0 })
+  if (modelCapped !== null && modelCapped > 0) slices.push({ id: 'model-capped', value: modelCapped, share: 0 })
   const total = slices.reduce((sum, item) => sum + item.value, 0)
   const shares = slices.map(item => window === null ? 0 : item.value / window * 100)
-  return { content, used, measured, free, reserve, limit, total, window, overflow: window !== null && used > window, slices: slices.map((item, index) => ({ ...item, share: shares[index]! })) }
+  return { content, used, measured, free, reserve, reserveUnknown, limit, total, window, workingWindow,
+    configuredModelLimit: configuredModelLimit ?? null, modelLimit, waitingModelWindow,
+    overflow: window !== null && used > window, slices: slices.map((item, index) => ({ ...item, share: shares[index]! })) }
 }
 
 /**

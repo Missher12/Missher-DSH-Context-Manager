@@ -2,6 +2,11 @@
 export const settingsZh = {
   title: '上下文管理',
   compressionGroup: '压缩策略',
+  modelLimitGroup: '模型上下文上限', modelLimitModelLabel: '模型',
+  modelLimitModelHint: '按提供方和具体模型分别保存；已保存但暂未出现在目录中的模型仍可编辑。',
+  modelLimitLabel: '单次上下文上限', modelLimitHint: '单位 K（1K=1000，最多三位小数）；完整输入、最大输出预留和安全空间都计入上限。留空跟随模型容量，自动压缩关闭时仍生效。',
+  modelLimitInvalid: '请输入 10–1000000K，最多三位小数（1K=1000）。',
+  modelCatalogUnavailable: '模型目录暂不可用；已保存的上限仍可编辑。', modelCatalogEmpty: '没有可选模型',
   idleGroup: '空闲整理',
   intro: '设置压缩时机与保留内容。用量见会话的“上下文”。',
   statusChecking: '正在检查可用功能…',
@@ -120,12 +125,17 @@ export const settingsZh = {
   summaryTotalMsLabel: '压缩硬总限', summaryTotalMsHint: '所有摘要调用共享此上限。',
   summaryFirstOutputMsLabel: '首个有效输出等待', summaryFirstOutputMsHint: '等待每次调用的首个有效输出。',
   summaryStallMsLabel: '输出停滞上限', summaryStallMsHint: '无输出进展时停止，仍受硬总限约束。',
-  unitMinutes: '分钟', unitCharacters: '字符', unitItems: '条', unitCount: '次', unitMilliseconds: '毫秒',
+  unitMinutes: '分钟', unitCharacters: '字符', unitItems: '条', unitCount: '次', unitMilliseconds: '毫秒', unitTokens: 'Token', unitK: 'K',
   clear: '清空', instructionsTooLong: '摘要保留重点最多 2000 字符。',
 } as const
 export type SettingsLocaleKey = keyof typeof settingsZh
 export const settingsEn: Record<SettingsLocaleKey, string> = {
   compressionGroup: 'Compaction policy',
+  modelLimitGroup: 'Model context limits', modelLimitModelLabel: 'Model',
+  modelLimitModelHint: 'Limits are saved separately for each provider and model. Saved models remain editable when absent from the catalog.',
+  modelLimitLabel: 'Context limit', modelLimitHint: 'Enter K (1K = 1,000), up to three decimal places. Full input, maximum output reserve, and safety space count toward the limit. Blank follows native capacity; the limit applies even when auto compaction is off.',
+  modelLimitInvalid: 'Enter 10–1,000,000K with up to three decimal places (1K = 1,000).',
+  modelCatalogUnavailable: 'Model catalog is unavailable; saved limits remain editable.', modelCatalogEmpty: 'No selectable models',
   idleGroup: 'Idle compaction',
   title: 'Context manager',
   intro: 'Set when to compact and what to retain. View usage in the conversation’s Context tab.',
@@ -245,7 +255,7 @@ export const settingsEn: Record<SettingsLocaleKey, string> = {
   summaryTotalMsLabel: 'Hard total limit', summaryTotalMsHint: 'Shared by all summary calls.',
   summaryFirstOutputMsLabel: 'First output wait', summaryFirstOutputMsHint: 'Wait for valid output from each call.',
   summaryStallMsLabel: 'Output stall limit', summaryStallMsHint: 'Stops when output stalls, within the hard limit.',
-  unitMinutes: 'minutes', unitCharacters: 'characters', unitItems: 'items', unitCount: 'times', unitMilliseconds: 'ms',
+  unitMinutes: 'minutes', unitCharacters: 'characters', unitItems: 'items', unitCount: 'times', unitMilliseconds: 'ms', unitTokens: 'Token', unitK: 'K',
   clear: 'Clear', instructionsTooLong: 'Summary priorities can contain up to 2,000 characters.',
 }
 export type SettingsText = (key: SettingsLocaleKey) => string

@@ -29,10 +29,13 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
   const chart = composition(data, stale ? undefined : policy)
   const window = chart.window
   const outputReserve = data.historical ? data.model?.maxTokens : data.admission?.outputReserve ?? data.model?.maxTokens
-  const isGroup = (id: typeof chart.slices[number]['id']): id is ContextGroup => id !== 'free' && id !== 'other' && id !== 'reserve'
-  const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatPercent(chart.limit,chart.window)}` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : ''
-  const sliceLabel = (slice: typeof chart.slices[number]) => `${t(slice.id as InspectorLocaleKey)} ≈ ${formatTokens(slice.value)} ${t('tokens')} · ${formatPercent(slice.value,chart.window)}${hint(slice) ? ` · ${hint(slice)}` : ''}`
+  const isGroup = (id: typeof chart.slices[number]['id']): id is ContextGroup => id !== 'free' && id !== 'other' && id !== 'reserve' && id !== 'model-capped' && id !== 'unknown-space'
+  const name = (id: typeof chart.slices[number]['id']) => id === 'model-capped' ? t('modelCapped') : id === 'unknown-space' ? t('unknownSpace') : t(id as InspectorLocaleKey)
+  const hint = (slice: typeof chart.slices[number]) => slice.id === 'reserve' ? `${t('reserveHint')} ${t('gate')} ${formatPercent(chart.limit,chart.window)}` : slice.id === 'free' ? t(chart.limit === null ? 'availableHint' : 'freeHint') : slice.id === 'summary' ? t('summaryHint') : slice.id === 'unknown-space' ? t('unknownSpaceHint') : ''
+  const sliceLabel = (slice: typeof chart.slices[number]) => `${name(slice.id)} ≈ ${formatTokens(slice.value)} ${t('tokens')} · ${formatPercent(slice.value,chart.window)}${hint(slice) ? ` · ${hint(slice)}` : ''}`
   const slices = chart.slices
+  const labelLimit = chart.modelLimit ?? chart.configuredModelLimit
+  const limitLabel = labelLimit === null ? '' : formatTokenK(labelLimit)
   const free = slices.find(slice => slice.id === 'free') ?? null
   const reserve = slices.find(slice => slice.id === 'reserve') ?? null
   const content = slices.filter(slice => isGroup(slice.id) || slice.id === 'other').filter(slice => slice.value > 0).map(slice => ({ id: slice.id as ContextGroup | 'other', value: slice.value }))
@@ -66,11 +69,17 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
         </span>)}
       </div>
     </div>
-    <div className="cmv-stack cmv-capacity-stack" role="group" aria-label={t('windowBasis')} data-total={chart.total} data-capacity={window}>
-      {window !== null && slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? `${t('reserveTooltip')} · ${formatTokens(slice.value)} ${t('tokens')} · ${formatPercent(slice.value,window)}` : sliceLabel(slice)} side="bottom">
-        {isGroup(slice.id) ? <button type="button" data-color={slice.id} style={{ width: `${slice.value / chart.total * 100}%` }} aria-label={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span className="cmv-segment-label" aria-hidden="true">{formatPercent(slice.value, window)}</span></button> : <span data-color={slice.id} role="img" aria-label={sliceLabel(slice)} style={{ width: `${slice.value / chart.total * 100}%` }} tabIndex={0}><span className="cmv-segment-label" aria-hidden="true">{formatPercent(slice.value, window)}</span></span>}
-      </Tooltip>)}
+    <div className="cmv-capacity-track">
+      <div className="cmv-stack cmv-capacity-stack" role="group" aria-label={t('windowBasis')} data-total={chart.total} data-capacity={window}>
+        {window !== null && slices.filter(slice => slice.value > 0).map(slice => <Tooltip key={slice.id} label={slice.id === 'reserve' ? `${t('reserveTooltip')} · ${formatTokens(slice.value)} ${t('tokens')} · ${formatPercent(slice.value,window)}` : sliceLabel(slice)} side="bottom">
+          {isGroup(slice.id) ? <button type="button" data-color={slice.id} style={{ width: `${slice.value / chart.total * 100}%` }} aria-label={sliceLabel(slice)} onClick={() => { if (isGroup(slice.id)) onGroup(slice.id) }}><span className="cmv-segment-label" aria-hidden="true">{formatPercent(slice.value, window)}</span></button> : <span data-color={slice.id} role="img" aria-label={sliceLabel(slice)} style={{ width: `${slice.value / chart.total * 100}%` }} tabIndex={0}><span className="cmv-segment-label" aria-hidden="true">{formatPercent(slice.value, window)}</span></span>}
+        </Tooltip>)}
+      </div>
+      {chart.modelLimit !== null && window !== null && <Tooltip label={`${t('modelContextLimit')} · ${formatTokenK(chart.modelLimit)}`} side="bottom">
+        <span className="cmv-model-limit-marker" data-model-context-limit={chart.modelLimit} style={{ left: `${chart.modelLimit / window * 100}%` }} role="img" aria-label={`${t('modelContextLimit')} · ${limitLabel}`} />
+      </Tooltip>}
     </div>
+    {chart.configuredModelLimit !== null && <div className="cmv-model-limit-caption"><span>{t('modelContextLimit')} · {limitLabel}</span>{chart.modelLimit !== null && <span className="cmv-model-limit-legend"><i data-color="model-capped"/>{t('modelCapped')}</span>}{chart.reserveUnknown && <span className="cmv-model-limit-legend"><i data-color="unknown-space"/>{t('unknownSpace')}</span>}{chart.waitingModelWindow && <span>{t('waitingCurrentWindow')}</span>}</div>}
     <div className="cmv-composition-body">
       <Tooltip label={t('compositionDonutHint')}><div className="cmv-donut cmv-composition-donut" role="img" aria-label={`${t('contentBasis')} ${formatTokens(usedTotal)} ${t('tokens')}`} style={{ background: usedTotal > 0 ? `conic-gradient(${donutStops.join(',')})` : undefined }}><span><strong>{formatTokens(usedTotal)}</strong><small>{t('contentBasis')}</small></span></div></Tooltip>
       <ul className="cmv-category-bars">{content.map(item => <li key={item.id} data-cat={item.id}>

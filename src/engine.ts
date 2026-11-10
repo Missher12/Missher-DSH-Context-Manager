@@ -283,17 +283,48 @@ export class ContextEngine extends BasicCompactionEngine {
       engine.recoveryReaders.delete(agent)
     })
     ctx.on('llm/stream', async function* (options, next) {
-      if (!isAgentLoopRequest(options) || options.sessionId === undefined) { yield* next(); return }
+      const loopRequest = isAgentLoopRequest(options)
+      const compactionRequest = options.purpose === 'compaction'
+      if ((!loopRequest && !compactionRequest) || options.sessionId === undefined) { yield* next(); return }
       const agent = ctx.agents.get(options.sessionId)
-      if (agent === undefined || !engine.owns(agent)) { yield* next(); return }
+      if (agent === undefined || !engine.owns(agent) && !(compactionRequest && ctx.contextManager.isNativeBasicAgent(agent))) { yield* next(); return }
+      const policy = ctx.contextManager.snapshot()
+      const route = { provider: options.provider, model: options.model }
+      if (!loopRequest) {
+        // Basic's native summarizer calls llm.stream directly and is not marked
+        // as an agent-loop request. Preserve that path unless this exact route
+        // has a saved cap; then validate the full envelope before dispatch.
+        if (!compactionRequest || !policy.modelLimits.some(item => item.provider === route.provider && item.model === route.model)) {
+          yield* next(); return
+        }
+        let gate: { code: string; message: string } | undefined
+        try {
+          const model = await ctx.llm.resolveModelInfo(route.provider, route.model, options.signal)
+          const window = requestBoundContextWindow(agent.session, route, model.context?.contextWindow)
+          if (window === undefined) throw new Error('当前模型未提供上下文窗口，无法核验模型上下文上限')
+          const outputReserve = options.maxTokens ?? model.defaultMaxTokens
+          if (outputReserve === undefined) throw new Error('已设置模型上下文上限，但无法读取最大输出预留；请在模型设置中设定最大输出 Token 后再压缩。任务原文保留，未调用摘要模型。')
+          const limits = budget(policy, window, outputReserve, route)
+          if (limits.hard <= 0 || engine.requestTokens(options) > limits.hard) {
+            gate = { code: BLOCKED, message: `摘要请求的完整输入（含系统提示、工具定义、消息包装）、最大输出预留与安全空间无法装入 ${limits.workingWindow} Token 模型上下文上限；请提高该模型上限，或减少摘要输入、降低最大输出设置。任务原文保留，未调用摘要模型。` }
+          }
+        } catch (error) {
+          gate = { code: BLOCKED, message: error instanceof Error ? error.message : String(error) }
+        }
+        if (gate) { yield { type: 'finish', reason: { kind: 'error', failure: gate } }; return }
+        yield* next(); return
+      }
       let gate: { code: string; message: string } | undefined
       try {
-        const policy = ctx.contextManager.snapshot()
         const model = await ctx.llm.resolveModelInfo(options.provider, options.model, options.signal)
         const window = requestBoundContextWindow(agent.session, options, model.context?.contextWindow)
         if (window === undefined) throw new Error('当前模型未提供上下文窗口，无法安全计算压缩阈值')
-        const limits = budget(policy, window, options.maxTokens ?? model.defaultMaxTokens ?? 0)
-        if (limits.hard <= 0) throw new Error(`最大输出预留与安全空间已占满 ${window} Token 窗口；请降低最大输出设置。任务原文保留，未调用摘要模型。`)
+        const outputReserve = options.maxTokens ?? model.defaultMaxTokens
+        if (policy.modelLimits.some(item => item.provider === route.provider && item.model === route.model) && outputReserve === undefined) {
+          throw new Error('已设置模型上下文上限，但无法读取最大输出预留；请在模型设置中设定最大输出 Token 后继续。任务原文保留，未调用模型。')
+        }
+        const limits = budget(policy, window, outputReserve ?? 0, route)
+        if (limits.hard <= 0) throw new Error(`最大输出预留与安全空间已占满 ${limits.workingWindow} Token 有效上下文；请提高该模型上限或降低最大输出设置。任务原文保留，未调用摘要模型。`)
         const measurement = ctx.tokenMeter.measure(agent.session)
         const requestTokens = engine.requestTokens(options)
         const requestOverhead = Math.max(0, requestTokens - measurement.totalTokens)
@@ -321,8 +352,8 @@ export class ContextEngine extends BasicCompactionEngine {
           const source = limits.admissionSource === 'absolute' ? '（绝对软预算）' : limits.admissionSource === 'hard' ? '（硬上限）' : ''
           gate = { code: canCompact ? REBUILD : BLOCKED,
             message: canCompact
-              ? `先压缩上下文再继续：约 ${pressure} / ${window} Token，检查阈值 ${limits.admission}${source}。`
-              : `上下文仍过大（约 ${pressure} / ${window} Token）。任务已保留；请调整设置、减少附件或手动压缩后继续。` }
+              ? `先压缩上下文再继续：约 ${pressure} / ${limits.workingWindow} Token，检查阈值 ${limits.admission}${source}。`
+              : `上下文仍过大（约 ${pressure} / ${limits.workingWindow} Token）。任务已保留；请提高该模型上限、降低最大输出设置、减少附件或手动压缩后继续。` }
         }
       } catch (error) {
         gate = { code: BLOCKED, message: error instanceof Error ? error.message : String(error) }
@@ -352,7 +383,7 @@ export class ContextEngine extends BasicCompactionEngine {
         throw new LlmError('新队列输入已到达，摘要尚未开始；当前宿主缺少安全的请求交接能力，队列内容仍保留。', BLOCKED)
       }
       let measure = ctx.tokenMeter.measure(agent.session)
-      if (engine.pruneOlderTools(agent, measure, state.budget.window)) {
+      if (engine.pruneOlderTools(agent, measure, state.budget.workingWindow)) {
         signal.throwIfAborted()
         await ctx.sessions.flush(agent.session)
         signal.throwIfAborted()
@@ -364,7 +395,7 @@ export class ContextEngine extends BasicCompactionEngine {
         }
         measure = after
       }
-      const aggregateCheckpointBudget = engine.summaryCap(state.policy, state.budget.window)
+      const aggregateCheckpointBudget = engine.summaryCap(state.policy, state.budget.workingWindow)
       if (checkpointOutputBudget(aggregateCheckpointBudget, 1) < 256) {
         throw new LlmError(`摘要预算仅 ${aggregateCheckpointBudget} Token，不足以容纳 256 Token 正文与 128 Token framing；未调用摘要模型，任务原文已保留。`, BLOCKED)
       }
@@ -499,7 +530,7 @@ export class ContextEngine extends BasicCompactionEngine {
           if (!plan.completionTargetCertain && !customTarget) break
           let next: { start: SessionSeq; end: SessionSeq } | undefined
           try { next = this.select(agent, after, state, false, summaryBudget, excludedSeqs,
-            this.summaryCap(state.policy, state.budget.window), 0) }
+            this.summaryCap(state.policy, state.budget.workingWindow), 0) }
           catch { break }
           if (!next) break
           const nextCoverage = this.sourceCoverage(agent, next.start, next.end)
@@ -567,7 +598,12 @@ export class ContextEngine extends BasicCompactionEngine {
     const info = await withAbort(this.ctx.llm.resolveModelInfo(config.provider, config.model, signal), signal)
     signal.throwIfAborted()
     if (!info.context) throw new Error('摘要模型缺少窗口信息')
-    const limits = budget(policy, info.context.contextWindow, config.maxTokens ?? info.defaultMaxTokens ?? 0)
+    const route = { provider: config.provider, model: config.model }
+    const outputReserve = config.maxTokens ?? info.defaultMaxTokens
+    if (policy.modelLimits.some(item => item.provider === route.provider && item.model === route.model) && outputReserve === undefined) {
+      throw new Error('已设置模型上下文上限，但无法读取最大输出预留；请在模型设置中设定最大输出 Token 后手动压缩。原文保留，未调用摘要模型。')
+    }
+    const limits = budget(policy, info.context.contextWindow, outputReserve ?? 0, route)
     const measurement = this.ctx.tokenMeter.measure(agent.session)
     const first = measurement.nodes.findIndex(n => n.seq === start)
     const last = measurement.nodes.findIndex(n => n.seq === end)
@@ -584,7 +620,7 @@ export class ContextEngine extends BasicCompactionEngine {
     const reserve = this.continuationReserve(agent, measurement, limits, previousAdmission?.pressure, previousAdmission?.growthSamples)
     if (!reserve.sufficient) throw new Error(`续跑增长估算需求 ${reserve.required} Token 已超过触发线下可用余量 ${reserve.limit} Token；未调用摘要模型，原文保留`)
     const resumeHeadroom = reserve.tokens
-    const aggregateCheckpointTokens = this.summaryCap(policy, limits.window)
+    const aggregateCheckpointTokens = this.summaryCap(policy, limits.workingWindow)
     const activeCheckpointTokens = measurement.nodes.reduce((sum, node) => {
       const event = agent.session.eventAt(node.seq)
       return sum + (event?.type === 'user/message' && event.data.source.kind === 'compact-checkpoint' ? node.tokens : 0)
@@ -766,9 +802,14 @@ export class ContextEngine extends BasicCompactionEngine {
     const policy = this.ctx.contextManager.snapshot()
     const window = info.context?.contextWindow
     if (!window) throw new Error('当前模型未提供上下文窗口')
-    const limits = budget(policy, window, config.maxTokens ?? info.defaultMaxTokens ?? 0)
+    const route = { provider: config.provider, model: config.model }
+    const outputReserve = config.maxTokens ?? info.defaultMaxTokens
+    if (policy.modelLimits.some(item => item.provider === route.provider && item.model === route.model) && outputReserve === undefined) {
+      throw new Error('已设置模型上下文上限，但无法读取最大输出预留；请在模型设置中设定最大输出 Token 后整理。原文保留，未调用摘要模型。')
+    }
+    const limits = budget(policy, window, outputReserve ?? 0, route)
     let measure = this.ctx.tokenMeter.measure(agent.session)
-    if (!this.emergencyIntent.has(agent) && this.pruneOlderTools(agent, measure, limits.window)) {
+    if (!this.emergencyIntent.has(agent) && this.pruneOlderTools(agent, measure, limits.workingWindow)) {
       this.idlePruned.get(agent)?.()
       await this.ctx.sessions.flush(agent.session)
       signal.throwIfAborted()
@@ -808,7 +849,7 @@ export class ContextEngine extends BasicCompactionEngine {
     const latestGrowth = Number.isFinite(previousPressure)
       ? Math.max(0, m.totalTokens - previousPressure! - incomingTokens) : 0
     const growth = Math.max(latestGrowth, ...samples, 0)
-    const estimate = continuationHeadroom({ window: limits.window, admission: limits.admission, recentGrowth: growth, incomingTokens })
+    const estimate = continuationHeadroom({ window: limits.workingWindow, admission: limits.admission, recentGrowth: growth, incomingTokens })
     return { ...estimate, growth, incomingTokens }
   }
 
@@ -833,8 +874,8 @@ export class ContextEngine extends BasicCompactionEngine {
   }
 
   private select(agent: Agent, m: TokenMeasurement, state: Admission, overflow = false,
-    summaryBudget = this.summaryCap(state.policy, state.budget.window), excludedSeqs: ReadonlySet<number> = new Set(),
-    aggregateCheckpointTokens = this.summaryCap(state.policy, state.budget.window), reservedCheckpointTokens = 0): { start: SessionSeq; end: SessionSeq } | undefined {
+    summaryBudget = this.summaryCap(state.policy, state.budget.workingWindow), excludedSeqs: ReadonlySet<number> = new Set(),
+    aggregateCheckpointTokens = this.summaryCap(state.policy, state.budget.workingWindow), reservedCheckpointTokens = 0): { start: SessionSeq; end: SessionSeq } | undefined {
     const session = agent.session
     const nodes = m.nodes
     const pressureMeasurement = state.requestOverhead
@@ -1375,7 +1416,9 @@ export class ContextEngine extends BasicCompactionEngine {
     // bind its operation durably, and only then allow a billable provider call.
     await this.idlePreflights.get(agent)?.()
     activeSignal.throwIfAborted()
-    const summaryCap = Math.min(this.summaryCap(policy, info.context.contextWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
+    const requestRoute = { provider: config.provider, model: config.model }
+    const working = budget(policy, info.context.contextWindow, 0, requestRoute)
+    const summaryCap = Math.min(this.summaryCap(policy, working.workingWindow), this.plans.get(agent)?.summaryTokens ?? Infinity)
     const normalMaxTokens = Math.min(summaryCap, config.maxTokens ?? Infinity)
     const checkpointTokens = this.recovering.has(agent)
       ? Math.min(normalMaxTokens, Math.max(256, Math.floor(normalMaxTokens * 0.75))) : normalMaxTokens
@@ -1399,19 +1442,20 @@ export class ContextEngine extends BasicCompactionEngine {
       const messages = [...input.messages, { role: 'user' as const, content: [{ type: 'text' as const, text: instruction }] }]
       const systemTokens = input.messages.filter(message => message.role === 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
       const selectedTokens = input.messages.filter(message => message.role !== 'system').reduce((total, message) => total + this.ctx.tokenMeter.estimateMessage(message), 0)
-      const estimatedSummaryInput = systemTokens + Math.max(selectedTokens, this.plans.get(agent)?.tokens ?? 0)
+      const plannedSummaryInput = systemTokens + Math.max(selectedTokens, this.plans.get(agent)?.tokens ?? 0)
         + this.ctx.tokenMeter.estimateMessage(createUserMessage({ content: [{ type: 'text', text: instruction }], source: { kind: 'user' } }))
         + (input.tools ? Math.ceil(JSON.stringify(input.tools).length / 3) : 0)
+      const estimatedSummaryInput = Math.max(plannedSummaryInput, this.requestTokens({ messages, tools: input.tools } as GenerateOptions))
       // Reasoning models may count hidden reasoning against maxTokens. The
       // retained checkpoint still passes the original plan's body/aggregate
       // bounds; only this one generation gets bounded room for reasoning.
       const reasoning = config.reasoningEffort !== undefined || (info.reasoning?.efforts.length ?? 0) > 0
-      const generationCeiling = reasoning ? Math.max(normalMaxTokens, Math.min(32768, Math.floor(info.context.contextWindow * 0.1))) : normalMaxTokens
+      const generationCeiling = reasoning ? Math.max(normalMaxTokens, Math.min(32768, Math.floor(working.workingWindow * 0.1))) : normalMaxTokens
       const generationTokens = this.recovering.has(agent)
         ? Math.min(generationCeiling, Math.max(256, Math.floor(generationCeiling * 0.75))) : generationCeiling
       const maxTokens = Math.min(generationTokens, config.maxTokens ?? Infinity,
-        Math.max(0, budget(policy, info.context.contextWindow, 0).hard - estimatedSummaryInput))
-      if (maxTokens < checkpointTokens) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
+        Math.max(0, working.hard - estimatedSummaryInput))
+      if (maxTokens < checkpointTokens) throw new Error('摘要请求本身超出模型上下文上限，含系统指令、工具定义、消息包装和输出预留；请提高该模型上限或减少输入、降低最大输出设置。任务原文保留，未调用模型。')
       const primaryOptions: GenerateOptions = {
         provider: config.provider, model: config.model,
         ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
@@ -1420,7 +1464,7 @@ export class ContextEngine extends BasicCompactionEngine {
         ...(input.tools === undefined ? {} : { tools: [...input.tools] }),
         messages,
       }
-      if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens).hard) throw new Error('摘要请求本身超出模型窗口，未调用模型；任务原文保留')
+      if (estimatedSummaryInput > budget(policy, info.context.contextWindow, maxTokens, requestRoute).hard) throw new Error('摘要请求本身超出模型上下文上限，含系统指令、工具定义、消息包装和输出预留；请提高该模型上限或减少输入、降低最大输出设置。任务原文保留，未调用模型。')
       const primaryReceipt = await this.claimSummaryCall(agent, primaryOptions, this.recovering.has(agent) ? 'recovery' : 'summary', trigger, compactionId, estimatedSummaryInput)
       const primaryAttempt = await ledger.start(sessionId, compactionId, trigger)
       const releasePrimary = ledger.retainUsage(primaryAttempt)

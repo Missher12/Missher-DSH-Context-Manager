@@ -53,6 +53,87 @@ const primitivesBuild = buildSync({
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } }, write: false,
 })
 
+test('per-model limits keep independent drafts and persist through settings reopening', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const listeners = new Set()
+  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
+  const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
+    async mutate(ops, revision) { assert.equal(revision, snapshot.revision); snapshot = { ...snapshot, revision: snapshot.revision + 1, value: { policy: ops[0].value } }; listeners.forEach(cb => cb()); return true } }
+  const models = [{ provider: 'first', model: 'same', label: 'Same / First' }, { provider: 'second', model: 'same', label: 'Same / Second' }]
+  const root = createRoot(document.getElementById('root'))
+  const key = provider => JSON.stringify([provider, 'same'])
+  const save = () => [...document.querySelectorAll('button')].find(b => b.textContent === '保存设置')
+  try {
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form, models })))
+    const modelSelect = document.querySelector('#context-manager-limitModel')
+    assert.ok(modelSelect)
+    assert.deepEqual([...modelSelect.options].map(option => option.textContent), ['Same / First', 'Same / Second'])
+    assert.equal(modelSelect.title, '', 'the full route is visible without a popup title')
+    assert.match(modelSelect.getAttribute('aria-label'), /Same \/ First/, 'assistive technology receives the full selected route label')
+    const modelSelectRow = modelSelect.closest('.cm-native-select-row')
+    const selectedRoute = modelSelectRow.querySelector('.cm-native-selected-label')
+    assert.equal(selectedRoute?.textContent, 'Same / First')
+    assert.match(modelSelectRow.querySelector('.cm-native-inline-hint')?.textContent ?? '', /目录/)
+    const modelLimitInput = document.querySelector('#context-manager-modelLimit')
+    assert.equal(modelLimitInput.closest('.cm-native-input-wrap').querySelector('.cm-native-unit')?.textContent, 'K')
+    const modelLimitRow = modelLimitInput.closest('.cm-native-value')
+    assert.match(modelLimitRow.querySelector('.cm-native-inline-hint')?.textContent ?? '', /1K\s*=\s*1000/)
+    assert.doesNotMatch(modelSelect.closest('.cm-native-group').textContent, /Token/)
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '128'))
+    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '16.001'))
+    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('first')))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '128')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '128.0001'))
+    assert.equal(save().disabled, true, 'fractional K beyond one token of precision is rejected')
+    assert.match(modelLimitRow.querySelector('.cm-error')?.textContent ?? '', /K/)
+    assert.doesNotMatch(modelLimitRow.querySelector('.cm-error')?.textContent ?? '', /Token/)
+    const settingsError = () => document.querySelector('.cm-native-fields > .cm-error')?.textContent ?? ''
+    assert.match(settingsError(), /K/)
+    assert.doesNotMatch(settingsError(), /Token/)
+    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '16.001')
+    assert.match(settingsError(), /K/, 'another route keeps the invalid-draft error in K units')
+    assert.doesNotMatch(settingsError(), /Token/)
+    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('first')))
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '1000000'))
+    assert.equal(save().disabled, false, 'the 1,000,000K ceiling remains inclusive')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '1000000.001'))
+    assert.equal(save().disabled, true, 'one token above the ceiling is rejected')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '9.999'))
+    assert.equal(save().disabled, true)
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '128'))
+    await act(async () => save().click())
+    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
+      { provider: 'first', model: 'same', tokens: 128000 }, { provider: 'second', model: 'same', tokens: 16001 },
+    ])
+    await act(async () => setDomSelect(document.querySelector('#context-manager-limitModel'), key('second')))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '16.001', 'saved fractional K reads back exactly')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), '512'))
+    await act(async () => save().click())
+    assert.equal(document.querySelector('#context-manager-limitModel').value, key('second'), 'saving keeps the selected model')
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '512', 'the saved model remains selected after ConfigForm refresh')
+    assert.equal(snapshot.value.policy.modelLimits[1].tokens, 512000)
+    await act(async () => root.render(null))
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form, models: [] })))
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '128', 'a saved route stays editable even when the catalog is unavailable')
+    await act(async () => setDomInput(document.querySelector('#context-manager-modelLimit'), ''))
+    assert.equal(save().disabled, false, 'blank restores the selected model to its native capacity')
+    await act(async () => save().click())
+    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
+      { provider: 'second', model: 'same', tokens: 512000 },
+    ], 'clearing one route preserves the other saved limit')
+    await act(async () => root.render(null))
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form, models: [] })))
+    const unlistedSelect = document.querySelector('#context-manager-limitModel')
+    assert.deepEqual([...unlistedSelect.options].map(option => option.textContent), ['same / second'], 'unlisted saved routes show model before provider')
+    assert.equal(unlistedSelect.closest('.cm-native-select-row').querySelector('.cm-native-selected-label')?.textContent, 'same / second')
+    assert.equal(document.querySelector('#context-manager-modelLimit').value, '512', 'saved values are displayed in K')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
 test('settings section contains only policy controls and does not read any session', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true

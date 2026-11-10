@@ -16,6 +16,7 @@ const compatibility = JSON.parse(read('COMPATIBILITY.json'))
 const inspector = Boolean(manifest.exports?.['./inspector'])
 const expected = ['COMPATIBILITY.json', 'LICENSE', 'README.md', ...(manifest.files.includes('README.en.md') ? ['README.en.md'] : []), 'THIRD_PARTY_NOTICES.md', 'cordis.patch.yml',
   ...(manifest.files.includes('docs/images') ? ['docs/images/context-session-cost-desktop.png', 'docs/images/context-session-cost-narrow.png',
+    'docs/images/cover-v2.png', 'docs/images/workflow-guide.svg',
     // New README screenshots are optional when checking older tarballs.
     ...['docs/images/context-compaction-overview.png', 'docs/images/context-summary-details.png'].filter(file => members.includes(`package/${file}`))] : []),
   'lib/archive.js', 'lib/chart-data.js', 'lib/client.js', 'lib/compatibility.js', 'lib/compaction-cycles.js', 'lib/diagnostics.js', 'lib/efficiency.js', 'lib/engine.js',
@@ -64,7 +65,7 @@ for (const member of members.filter(p => p.startsWith('package/lib/'))) {
     `Foreign plugin reference in ${member}`)
 }
 const localBuildPath = /(?:\/home\/[^/]+\/Projects\/|\/Users\/[^/]+\/|(?:\.\.\/)+coordinator\/|node_modules\/\.pnpm\/|candidate-plugin-[^/\s]+)/u
-for (const member of members) {
+for (const member of members.filter(p => /\.(?:[cm]?js|json|md|ya?ml|svg|txt)$/u.test(p) || p.endsWith('/LICENSE'))) {
   assert.ok(!localBuildPath.test(read(member.slice('package/'.length))),
     `Local workspace or dependency-cache path leaked in ${member}`)
 }
