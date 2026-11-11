@@ -7,7 +7,7 @@
 <p>整理较早历史，让长会话带着任务目标继续。</p>
 
 <p>
-  <a href="https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.4"><img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.4-4D6BFE?style=flat-square" alt="版本: 1.0.4"></a>
+  <a href="https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.6"><img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.6-4D6BFE?style=flat-square" alt="版本: 1.0.6"></a>
   <a href="https://github.com/Missher12/Missher-DSH-Context-Manager"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-%E4%B8%AD%E6%96%87-4D6BFE?style=flat-square" alt="文档: 中文"></a>
   <a href="https://github.com/Missher12/Missher-DSH-Context-Manager/blob/main/LICENSE"><img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-MIT-6B7280?style=flat-square" alt="许可: MIT"></a>
 </p>
@@ -19,7 +19,7 @@
 ---
 
 <!-- current-source -->
-当前开发源码：**1.0.4** · [分支 `main`](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main)。安装包以实际 Release 为准。
+当前开发源码：**1.0.6** · [分支 `main`](https://github.com/Missher12/Missher-DSH-Context-Manager/tree/main)。安装包以实际 Release 为准。
 <!-- /current-source -->
 
 ## 功能一览
@@ -33,7 +33,7 @@
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.4) 下载对应版本的 `.tgz` 安装包。
+1. 从 [Releases](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.6) 下载对应版本的 `.tgz` 安装包。
 2. 在 DSH **插件 → 添加插件** 中选择下载的文件，安装并启用；按宿主提示重新加载或正常重启。
 3. 在 **设置 → 上下文管理** 调整策略，在会话 **上下文** 页查看结果。
 
