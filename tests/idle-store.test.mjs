@@ -229,6 +229,19 @@ test('cancelled or skipped unclaimed eligibility is consumed without allowing co
   assert.equal(await store.settle(first, undefined, { status: 'skipped' }), null)
 })
 
+test('only an unattempted model-change cancellation can be reopened', async t => {
+  const { store } = await harness(t)
+  const first = eligibility()
+  await store.reserve(first)
+  const unspent = await store.settle(first, undefined, { status: 'cancelled', reasonCode: 'model_changed' })
+  assert.equal((await store.reserve(first)).status, 'eligible')
+  const started = await store.claim(first, 'attempt-1')
+  const consumed = await store.settle(first, started.attemptId, { status: 'cancelled', reasonCode: 'model_changed' })
+  assert.equal(consumed.attemptId, 'attempt-1')
+  assert.deepEqual(await store.reserve(first), consumed, 'a claimed model-change attempt remains consumed')
+  assert.equal(unspent.attemptId, undefined)
+})
+
 test('drain and close wait for accepted writes while refusing new work', async t => {
   let release
   const barrier = new Promise(resolve => { release = resolve })

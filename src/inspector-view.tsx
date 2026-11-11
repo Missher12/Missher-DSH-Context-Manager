@@ -116,7 +116,7 @@ function idleStatusLabel(value: IdleStatus | IdleDiagnosticValue): InspectorLoca
       ? 'idleOff' : 'idleNotEnabled'
   }
   switch (value.status) {
-    case 'waiting': return 'idleWait'
+    case 'waiting': return value.reasonCode === 'model_pending' ? 'idleModelPending' : 'idleWait'
     case 'scheduled': return 'idleScheduled'
     case 'checking': return 'idleChecking'
     case 'compacting': return 'idleCompacting'
@@ -202,7 +202,8 @@ function IdleStatusLine({ target, api, revision, settingsRevision, retry, t, onC
     }
   }, [onCapacity, target, value])
   const message = !error && value?.status === 'scheduled' && value.dueAt !== null && !/background|busy/u.test(value.reasonCode ?? '')
-    ? `${value.restored ? `${t('restored')} · ` : ''}${Math.max(0, Math.ceil((value.dueAt - Date.now()) / 60000))} ${t('minutes')}` : ''
+    ? `${value.restored ? `${t('restored')} · ` : ''}${Math.max(0, Math.ceil((value.dueAt - Date.now()) / 60000))} ${t('minutes')}`
+    : ''
   const recover = async () => {
     if (!value?.recovery?.authorizationToken || !api.authorizeOnce || recovering) return
     const controller = new AbortController(); action.current = controller

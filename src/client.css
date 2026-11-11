@@ -67,6 +67,10 @@
 .dsh-context-settings .cm-native-toggle { grid-template-columns: minmax(0,1fr) auto; }
 .dsh-context-settings .cm-native-toggle > :last-child { justify-self: end; }
 .dsh-context-settings .cm-native-copy { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dsh-context-settings .cm-model-limit-copy { align-items: flex-start; }
+.dsh-context-settings .cm-model-limit-copy > .cm-label { display: grid; gap: 1px; min-width: 0; }
+.dsh-context-settings .cm-model-limit-provider { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; overflow-wrap: anywhere; }
+.dsh-context-settings .cm-model-limit-row { align-items: center; }
 .dsh-context-settings .cm-label { min-width: 0; overflow-wrap: anywhere; font-weight: 400; }
 .dsh-context-settings .cm-native-help { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 50%; color: var(--dsw-alias-label-secondary); font-size: 10px; line-height: 1; cursor: help; }
 .dsh-context-settings .cm-field-reset { flex: none; margin-inline-start: auto; }

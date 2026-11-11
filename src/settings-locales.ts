@@ -2,7 +2,7 @@
 export const settingsZh = {
   title: '上下文管理',
   compressionGroup: '压缩策略',
-  modelLimitGroup: '模型上下文上限', modelLimitModelLabel: '模型',
+  modelLimitGroup: '各模型上下文上限',
   modelLimitLabel: '单次上下文上限', modelLimitHint: '以 K 输入（1K=1000，最多三位小数）；包含输入和预留；关闭自动压缩仍生效。',
   modelLimitInvalid: '请输入 10–1000000K，最多三位小数（1K=1000）。',
   modelCatalogUnavailable: '模型目录暂不可用；已保存的上限仍可编辑。', modelCatalogEmpty: '没有可选模型',
@@ -130,7 +130,7 @@ export const settingsZh = {
 export type SettingsLocaleKey = keyof typeof settingsZh
 export const settingsEn: Record<SettingsLocaleKey, string> = {
   compressionGroup: 'Compaction policy',
-  modelLimitGroup: 'Model context limits', modelLimitModelLabel: 'Model',
+  modelLimitGroup: 'Context limits by model',
   modelLimitLabel: 'Context limit', modelLimitHint: 'Enter K (1K = 1,000; up to 3 decimals). Includes input and output reserve; applies when auto compaction is off.',
   modelLimitInvalid: 'Enter 10–1,000,000K with up to three decimal places (1K = 1,000).',
   modelCatalogUnavailable: 'Model catalog is unavailable; saved limits remain editable.', modelCatalogEmpty: 'No selectable models',

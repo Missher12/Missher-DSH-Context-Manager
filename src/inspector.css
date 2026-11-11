@@ -374,8 +374,12 @@
 .cmv-view .cmv-quick { grid-template-columns: minmax(0,1.5fr) minmax(0,1fr) minmax(0,.7fr); }
 
 .cmv-view .cmv-team-usage { margin-top: 9px; padding-top: 7px; border-top: .5px solid var(--dsw-alias-settings-card-stroke); }
+.cmv-view .cmv-usage-heading { flex-wrap: nowrap; }
+.cmv-view .cmv-usage-heading>h3 { flex: 0 0 auto; white-space: nowrap; }
 .cmv-view .cmv-usage-mode { display: flex; flex: 0 1 auto; align-items: center; gap: 2px; }
 .cmv-view .cmv-usage-mode>button { white-space: nowrap; }
+.cmv-view .cmv-usage-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -3px 0 6px; }
+.cmv-view .cmv-usage-metrics>.cmv-chip { margin: 0; }
 .cmv-view .cmv-team-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .cmv-view .cmv-team-content { display: grid; gap: 7px; margin-top: 8px; min-width: 0; }
 .cmv-view .cmv-team-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 12px; }

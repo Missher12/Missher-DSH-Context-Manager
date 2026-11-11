@@ -224,6 +224,25 @@ test('long idle failure reasons stay compact while remaining fully keyboard-read
   } finally { await h.close() }
 })
 
+test('pending model status stays short and the idle card explains when timing resumes', async () => {
+  const message = '已选择新模型；下一条普通任务使用后，完成时重新计时'
+  const api = {
+    idleStatus: async () => ({ status: 'waiting', dueAt: null, message, reasonCode: 'model_pending' }),
+    inspect: async query => ({ ...base, ...query }),
+  }
+  const h = harness(api)
+  try {
+    await h.render('s1'); await h.settle()
+    const status = document.querySelector('[role="status"][aria-label="闲置整理"]')
+    const card = document.querySelector('.cmv-stat[data-stat="idle"]')
+    assert.match(status?.textContent ?? '', /等待新模型生效/)
+    assert.doesNotMatch(status?.textContent ?? '', /下一条普通任务使用后/)
+    assert.match(card.querySelector('.cmv-chip').textContent, /等待新模型生效/)
+    assert.match(card.querySelector('.cmv-stat-note').textContent, /下次任务完成后重新计时/)
+    assert.doesNotMatch(card.textContent, /下一条普通任务使用后/)
+  } finally { await h.close() }
+})
+
 test('team usage stays idle until selected and aborts when the view switches back', async () => {
   const reads = []
   const api = {
@@ -235,10 +254,16 @@ test('team usage stays idle until selected and aborts when the view switches bac
   try {
     await h.render('s1'); await h.settle()
     assert.equal(reads.length, 0, 'the default session view makes no aggregate request')
+    const heading = document.querySelector('.cmv-usage-heading')
+    assert.ok(heading?.querySelector('.cmv-usage-mode'), 'the scope toggle belongs to the shared usage heading')
+    assert.equal(heading?.querySelector('.cmv-chips-inline'), null, 'session metrics do not take space inside the scope heading')
+    assert.ok(document.querySelector('.cmv-usage-metrics .cmv-chip'), 'session metrics stay visible in their own compact line')
     const team = [...document.querySelectorAll('button')].find(item => item.textContent === '包含团队')
     assert.ok(team)
     await act(async () => team.click()); await h.settle()
     assert.equal(reads.length, 1)
+    assert.ok(document.querySelector('.cmv-usage-heading')?.querySelector('.cmv-usage-mode'), 'the scope toggle stays in the same heading in team mode')
+    assert.equal(document.querySelector('.cmv-usage-metrics'), null, 'session-only metrics disappear in team mode')
     assert.equal(reads[0].query.sessionId, 's1')
     const session = [...document.querySelectorAll('button')].find(item => item.textContent === '本会话')
     await act(async () => session.click()); await h.settle()

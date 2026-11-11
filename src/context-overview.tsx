@@ -81,7 +81,10 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
   } else {
     state = idle.status
     label = t(statusKey(idle))
-    if (idle.status === 'waiting') { note = idle.message || t('idleWaitHint'); fullMessage = idle.message || null }
+    if (idle.status === 'waiting') {
+      if (idle.reasonCode === 'model_pending') note = t('idleModelPendingHint')
+      else { note = idle.message || t('idleWaitHint'); fullMessage = idle.message || null }
+    }
     else if (idle.status === 'off') note = t('idleDisabledHint')
     else if (idle.status === 'compacting') note = t('idleCompactingNote')
     else if (idle.status === 'completed' && idle.updatedAt != null) {
@@ -105,6 +108,7 @@ function IdleCard({ idle, policy, t }: { idle: IdleStatus | null; policy: Policy
 
 function statusKey(value: IdleStatus) {
   if (value.status === 'off') return value.owner === 'context-manager' ? 'idleOff' : 'idleNotEnabled'
+  if (value.status === 'waiting' && value.reasonCode === 'model_pending') return 'idleModelPending'
   const map = { waiting: 'idleWait', scheduled: 'idleScheduled', checking: 'idleChecking', compacting: 'idleCompacting', completed: 'idleCompleted', skipped: 'idleSkipped', cancelled: 'idleCancelled', failed: 'idleFailed' } as const
   return map[value.status]
 }

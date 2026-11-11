@@ -116,9 +116,10 @@ export class IdleStore {
       const current = this.get(input.sessionId)
       if (current) {
         if (sameEligibility(current, input)) {
-          // Upgrades may reconsider a qualification skipped by the removed
-          // occupancy gate. A dispatched/claimed attempt is never reopened.
-          if (current.status === 'skipped' && current.reasonCode === 'below_threshold' && current.attemptId === undefined) {
+          // Unspent skips and old model-change cancellations can be reconsidered;
+          // a dispatched/claimed attempt is never reopened.
+          if ((current.status === 'skipped' && current.reasonCode === 'below_threshold'
+            || current.status === 'cancelled' && current.reasonCode === 'model_changed') && current.attemptId === undefined) {
             return this.put({ ...input, status: 'eligible', updatedAt: Date.now() })
           }
           return current

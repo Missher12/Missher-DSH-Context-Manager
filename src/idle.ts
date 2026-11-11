@@ -54,6 +54,20 @@ function routeOf(agent: Agent): string {
   return JSON.stringify(route && [route.provider, route.model, route.reasoningEffort, route.maxTokens])
 }
 
+const modelPendingMessage = '已选择新模型；下一条普通任务使用后，完成时重新计时'
+
+/** Model selections are pending intent; requestHeader records the route actually used. */
+function modelSelectionPending(agent: Agent): boolean {
+  const selection = agent.session.snapshotEvents().findLast(event => event.type === 'model/selection')
+  if (selection?.type !== 'model/selection') return false
+  const header = agent.session.requestHeader()
+  if (!header) return true
+  const selected = selection.data
+  const used = header.config
+  const usedEffort = header.adapterDefaults?.reasoningEffort === true ? undefined : used.reasoningEffort
+  return selected.provider !== used.provider || selected.model !== used.model || selected.reasoningEffort !== usedEffort
+}
+
 /** Timers belong to one engine; persistence and concurrency are shared by the manager. */
 export class IdleCompactor {
   private readonly entries = new Map<Agent, Entry>()
@@ -77,7 +91,20 @@ export class IdleCompactor {
         if (event.data.reason.kind === 'completed') this.track(this.register(agent, entry))
         else this.invalidate(entry, 'unfinished', '任务未正常完成，本轮不进行闲置压缩')
       }
-      if (event.type === 'model/selection') this.invalidate(entry, 'model_changed', '模型选择已变化，等待下次任务完成后重新计时')
+      if (event.type === 'model/selection') {
+        const saved = entry.eligibility ? undefined : ctx.contextManager.idleStore.get(String(agent.id))
+        const unspentModelChange = saved?.status === 'cancelled' && saved.reasonCode === 'model_changed' && saved.attemptId === undefined
+        if (modelSelectionPending(agent)) {
+          if (entry.eligibility && (entry.abort || entry.attemptId)) this.invalidate(entry, 'model_changed', modelPendingMessage)
+          else if (entry.eligibility) {
+            clearTimeout(entry.timer)
+            entry.timer = undefined
+            entry.status = { status: 'waiting', dueAt: null, reasonCode: 'model_pending', message: modelPendingMessage }
+          } else if (unspentModelChange) this.track(this.restore(agent))
+        } else if (entry.eligibility && entry.status.reasonCode === 'model_pending' && !entry.abort) {
+          this.schedule(agent, entry)
+        } else if (unspentModelChange) this.track(this.restore(agent))
+      }
       if (event.type === 'compaction/start') {
         if (entry.expectStart && event.data.turn === null) {
           entry.expectStart = false
@@ -155,7 +182,7 @@ export class IdleCompactor {
   private validHistory(agent: Agent, eligibility: IdleEligibility, ownId?: string): boolean {
     if (eligibilityOf(agent)?.fingerprint !== eligibility.fingerprint) return false
     return !agent.session.snapshotEvents().slice(eligibility.turnEndSeq + 1).some(event =>
-      event.type === 'turn/start' || event.type === 'model/selection' || event.type === 'user/message' && event.data.source.kind !== 'compact-checkpoint'
+      event.type === 'turn/start' || event.type === 'user/message' && event.data.source.kind !== 'compact-checkpoint'
       || event.type === 'compaction/start' && String(event.data.compactionId) !== ownId)
   }
 
@@ -180,7 +207,8 @@ export class IdleCompactor {
         return
       }
       if (this.disposed || this.ctx.agents.get(agent.id) !== agent) return
-      if (record?.status === 'eligible') this.schedule(agent, entry)
+      if (record?.status === 'eligible' && modelSelectionPending(agent)) entry.status = { status: 'waiting', dueAt: null, reasonCode: 'model_pending', message: modelPendingMessage }
+      else if (record?.status === 'eligible') this.schedule(agent, entry)
       else entry.eligibility = undefined
     } catch (error) {
       if (entry.epoch === epoch) {
@@ -205,14 +233,19 @@ export class IdleCompactor {
       return
     }
     const unspentThresholdSkip = record.status === 'skipped' && record.reasonCode === 'below_threshold' && record.attemptId === undefined
-    if (record.status !== 'eligible' && !unspentThresholdSkip) return
+    const unspentModelChange = record.status === 'cancelled' && record.reasonCode === 'model_changed' && record.attemptId === undefined
+    if (record.status !== 'eligible' && !unspentThresholdSkip && !unspentModelChange) return
     const policy = this.ctx.contextManager.snapshot()
-    if (!policy.enabled || !policy.idleEnabled || !this.validHistory(agent, record) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length) {
+    if (!policy.enabled || !policy.idleEnabled || agent.status !== 'idle' || !this.validHistory(agent, record) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length) {
       await this.ctx.contextManager.idleStore.settle(record, undefined, { status: 'cancelled', reasonCode: !policy.enabled || !policy.idleEnabled ? 'disabled' : 'history_changed' })
       entry.status = this.ctx.contextManager.savedIdleStatus(this.ctx.contextManager.idleStore.get(String(agent.id))!)
       return
     }
-    if (unspentThresholdSkip) {
+    if (unspentModelChange && modelSelectionPending(agent)) {
+      entry.status = { status: 'waiting', dueAt: null, reasonCode: 'model_pending', message: modelPendingMessage }
+      return
+    }
+    if (unspentThresholdSkip || unspentModelChange) {
       const epoch = entry.epoch
       const { sessionId, turnEndSeq, completedAt, fingerprint } = record
       const reopened = await this.ctx.contextManager.idleStore.reserve({ sessionId, turnEndSeq, completedAt, fingerprint })
@@ -225,6 +258,10 @@ export class IdleCompactor {
     }
     entry.eligibility = record
     entry.idleSince = Math.min(record.completedAt, Date.now())
+    if (modelSelectionPending(agent)) {
+      entry.status = { status: 'waiting', dueAt: null, reasonCode: 'model_pending', message: modelPendingMessage, restored: true }
+      return
+    }
     entry.status = { ...entry.status, restored: true }
     this.schedule(agent, entry, 5000)
   }
@@ -232,6 +269,11 @@ export class IdleCompactor {
   private schedule(agent: Agent, entry: Entry, minimumDelay = 0) {
     if (this.disposed || entry.abort || !entry.eligibility) return
     clearTimeout(entry.timer)
+    if (modelSelectionPending(agent)) {
+      entry.timer = undefined
+      entry.status = { status: 'waiting', dueAt: null, reasonCode: 'model_pending', message: modelPendingMessage }
+      return
+    }
     const policy = this.ctx.contextManager.snapshot()
     if (!policy.enabled || !policy.idleEnabled) { this.invalidate(entry, 'disabled', '闲置自动压缩已关闭'); return }
     const dueAt = Math.max(entry.idleSince + policy.idleMinutes * 60000, Date.now() + minimumDelay)
@@ -248,7 +290,7 @@ export class IdleCompactor {
   private assertReady(agent: Agent, entry: Entry, epoch: number, generation: number, route: string, policy: Readonly<Policy>) {
     if (this.disposed || entry.epoch !== epoch || !this.owns(agent) || this.ctx.agents.get(agent.id) !== agent || !entry.eligibility
       || !policy.enabled || !policy.idleEnabled || agent.status !== 'idle' || agent.inbox.nextTurn.length || agent.inbox.nextStep.length
-      || agent.session.surface.replaceGeneration !== generation || routeOf(agent) !== route || !this.validHistory(agent, entry.eligibility, entry.compactionId)) {
+      || modelSelectionPending(agent) || agent.session.surface.replaceGeneration !== generation || routeOf(agent) !== route || !this.validHistory(agent, entry.eligibility, entry.compactionId)) {
       throw new IdleSkipped('state_changed', '会话状态已变化，本轮不整理')
     }
   }
@@ -358,7 +400,7 @@ export class IdleCompactor {
       if (entry.epoch === epoch) {
         if (rearm && !claimed) this.schedule(agent, entry, rearm)
         else entry.eligibility = undefined
-      } else if (entry.eligibility && agent.status === 'idle') this.schedule(agent, entry)
+      } else if (entry.eligibility && agent.status === 'idle' && !modelSelectionPending(agent)) this.schedule(agent, entry)
     }
   }
 

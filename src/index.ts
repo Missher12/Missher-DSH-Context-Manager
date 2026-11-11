@@ -451,7 +451,7 @@ export default class ContextManager extends Service {
       disabled: '闲置自动压缩已关闭', interrupted: '上次整理被中断，费用状态未知；本轮不自动重试',
       history_changed: '会话内容已变化，旧闲置计划已取消', completed: '闲置压缩已完成', recovered_commit: '已恢复上次成功压缩记录',
       below_threshold: '未达到闲置整理门槛，本轮无需压缩', background: '后台任务尚未结束，本轮未整理',
-      model_changed: '模型选择已变化，等待下次任务完成后重新计时', host_capability_missing: '当前环境无法保证压缩用量落盘，请检查插件数据目录；任务原文保留', pruned: '旧工具结果已整理，无需生成摘要', no_range: '没有可安全缩减的历史内容', other_compaction: '其他压缩已处理，本轮不重复整理',
+      model_pending: '已选择新模型；下一条普通任务使用后，完成时重新计时', model_changed: '模型选择已变化，旧闲置计划已取消', host_capability_missing: '当前环境无法保证压缩用量落盘，请检查插件数据目录；任务原文保留', pruned: '旧工具结果已整理，无需生成摘要', no_range: '没有可安全缩减的历史内容', other_compaction: '其他压缩已处理，本轮不重复整理',
       new_input: '新消息已到达，旧计划已取消', running: '新任务正在执行', stopped: '会话已停止，本轮不再整理',
       failed: '上次闲置整理失败，本轮不再重试', state_changed: '会话状态已变化，旧计划已取消',
       commit_incomplete: '内容已替换，压缩收尾未完成；本轮不自动重试',

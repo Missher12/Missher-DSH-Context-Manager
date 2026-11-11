@@ -1564,16 +1564,82 @@ test('plugin-owned idle transaction does not require the old host maintenance se
 })
 
 
-test('a model selection after completion cancels the old idle qualification before billing', { timeout: 8000 }, async t => {
+test('a pending model selection waits without billing the old route and resumes when returned', { timeout: 8000 }, async t => {
   const { ctx, agent, adapter } = await fixture({}, { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1, idleMinutes: 1 }, history(28000))
   try {
     clock(t); agent.followup(message()); await agent.whenIdle()
     await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
+    const header = agent.session.requestHeader()
+    const used = header.config
     agent.session.append('model/selection', { provider: 'mock', model: 'small', reasoningEffort: 'high' })
-    assert.equal(idleState(ctx, agent).reasonCode, 'model_changed')
+    assert.equal(idleState(ctx, agent).status, 'waiting')
+    assert.equal(idleState(ctx, agent).reasonCode, 'model_pending')
     t.mock.timers.tick(60001); await immediate()
     assert.equal(adapter.summaries.length, 0)
+    agent.session.append('model/selection', { provider: used.provider, model: used.model,
+      ...(header.adapterDefaults?.reasoningEffort === true || used.reasoningEffort === undefined ? {} : { reasoningEffort: used.reasoningEffort }) })
+    assert.equal(idleState(ctx, agent).status, 'scheduled', 'returning to the request route resumes the same unclaimed plan')
+    t.mock.timers.tick(0)
+    await drainUntil(() => idleState(ctx, agent).status === 'completed')
+    assert.equal(adapter.summaries.length, 1)
   } finally { t.mock.timers.reset(); await ctx.fiber.dispose() }
+})
+
+test('selecting the already-used route leaves an idle timer intact', { timeout: 8000 }, async t => {
+  const { ctx, agent, adapter } = await fixture({}, { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1, idleMinutes: 1 }, history(28000))
+  try {
+    clock(t); agent.followup(message()); await agent.whenIdle()
+    await drainUntil(() => idleState(ctx, agent).status === 'scheduled')
+    const before = idleState(ctx, agent).dueAt
+    const header = agent.session.requestHeader()
+    const used = header.config
+    agent.session.append('model/selection', { provider: used.provider, model: used.model,
+      ...(header.adapterDefaults?.reasoningEffort === true || used.reasoningEffort === undefined ? {} : { reasoningEffort: used.reasoningEffort }) })
+    assert.equal(idleState(ctx, agent).status, 'scheduled')
+    assert.equal(idleState(ctx, agent).dueAt, before)
+    t.mock.timers.tick(60001)
+    await drainUntil(() => idleState(ctx, agent).status === 'completed')
+    assert.equal(adapter.summaries.length, 1)
+  } finally { t.mock.timers.reset(); await ctx.fiber.dispose() }
+})
+
+test('idle restores an old unspent model-change record read-only while pending, then safely rearms', { timeout: 12000 }, async t => {
+  clock(t)
+  let first, resumed, storageRoot, firstClosed = false
+  try {
+    first = await fixture({ keepStorage: true }, { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1, idleMinutes: 1 }, history(28000))
+    storageRoot = first.storageRoot
+    first.agent.followup(message()); await first.agent.whenIdle()
+    await drainUntil(() => idleState(first.ctx, first.agent).status === 'scheduled')
+    const usedHeader = first.agent.session.requestHeader()
+    const eligibility = first.ctx.contextManager.idleStore.get(String(first.agent.id))
+    first.agent.session.append('model/selection', { provider: 'mock', model: 'small', reasoningEffort: 'high' })
+    const oldRecord = await first.ctx.contextManager.idleStore.settle(eligibility, undefined, { status: 'cancelled', reasonCode: 'model_changed' })
+    assert.equal(oldRecord.status, 'cancelled')
+    assert.equal(oldRecord.attemptId, undefined)
+    const events = first.agent.session.snapshotEvents()
+    await first.ctx.fiber.dispose(); firstClosed = true
+
+    resumed = await fixture({ storageRoot, keepStorage: true }, { triggerPercent: 95, earlyPercent: 0, safetyPercent: 1, idleMinutes: 1 }, events)
+    await drainUntil(() => idleState(resumed.ctx, resumed.agent).reasonCode === 'model_pending')
+    assert.equal(idleState(resumed.ctx, resumed.agent).status, 'waiting')
+    assert.equal(resumed.ctx.contextManager.idleStore.get(String(resumed.agent.id)).status, 'cancelled', 'pending projection performs no durable rearm')
+    t.mock.timers.tick(120000); await immediate()
+    assert.equal(resumed.adapter.summaries.length, 0, 'the old request route is never billed while the new route is pending')
+
+    resumed.agent.session.append('model/selection', { provider: usedHeader.config.provider, model: usedHeader.config.model,
+      ...(usedHeader.adapterDefaults?.reasoningEffort === true || usedHeader.config.reasoningEffort === undefined ? {} : { reasoningEffort: usedHeader.config.reasoningEffort }) })
+    await drainUntil(() => idleState(resumed.ctx, resumed.agent).status === 'scheduled')
+    assert.equal(resumed.ctx.contextManager.idleStore.get(String(resumed.agent.id)).status, 'eligible', 'only the unattempted legacy cancellation is reopened')
+    t.mock.timers.tick(5000)
+    await drainUntil(() => idleState(resumed.ctx, resumed.agent).status === 'completed')
+    assert.equal(resumed.adapter.summaries.length, 1)
+  } finally {
+    t.mock.timers.reset()
+    if (resumed) await resumed.ctx.fiber.dispose()
+    if (first && !firstClosed) await first.ctx.fiber.dispose()
+    if (storageRoot) await rm(storageRoot, { recursive: true, force: true })
+  }
 })
 
 // These use the real AgentLoop, storage domains and automatic request-error hook.

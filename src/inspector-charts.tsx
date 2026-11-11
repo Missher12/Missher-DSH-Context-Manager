@@ -499,16 +499,16 @@ export function UsageComposition({ data, t, api, target, renderMemberContent }: 
   const maintenance = efficiency?.summaryAndRepair ?? null
   const maintenanceValue = maintenance === null ? null : maintenance.input + maintenance.output
   const maintenanceUnknown = maintenance !== null && maintenance.unknownAttempts > 0
-  return <article className="cmv-card cmv-usage"><div className="cmv-heading"><h3>{t('requestPanel')}</h3>
+  return <article className="cmv-card cmv-usage"><div className="cmv-heading cmv-usage-heading"><h3>{t('requestPanel')}</h3>
       <div className="cmv-usage-mode" role="group" aria-label={t('requestPanel')}>
         <Button size="sm" variant={mode === 'session' ? 'primary' : 'ghost'} aria-pressed={mode === 'session'} onClick={() => setMode('session')}>{t('teamSessionView')}</Button>
         <Button size="sm" variant={mode === 'team' ? 'primary' : 'ghost'} disabled={data.historical || !api?.teamUsage || !target} aria-pressed={mode === 'team'} onClick={() => setMode('team')}>{t('teamAggregateView')}</Button>
       </div>
-      {mode === 'session' && <span className="cmv-chips-inline">
+    </div>
+    {mode === 'session' && <div className="cmv-usage-metrics">
         <Tooltip label={t('cacheHitHint')}><span tabIndex={0} className="cmv-chip">{t('cacheHit')} {chart?.hit == null ? '—' : `${Math.round(chart.hit * 10) / 10}%`}</span></Tooltip>
         <Tooltip label={t('cumulativeOutputHint')}><span tabIndex={0} className="cmv-chip">{t('cumulativeOutput')} {outputSum === null ? '—' : `${boundedTotal ? '≥ ' : ''}${formatTokens(outputSum)}`}</span></Tooltip>
-      </span>}
-    </div>
+      </div>}
     {mode === 'team' ? <TeamUsagePanel key={target} enabled target={target} historical={data.historical} api={api} t={t} renderMemberContent={renderMemberContent}/> : <>
     {!chart ? <div className="cmv-empty">{t('noUsage')}</div> : <div className="cmv-usage-top">
       <div className="cmv-request-values" data-usage-completeness={completeness ?? 'unqualified'}><div className="cmv-number">

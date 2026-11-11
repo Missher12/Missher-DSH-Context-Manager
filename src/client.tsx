@@ -291,6 +291,7 @@ function toPolicy(draft: Draft): Policy {
 type ContextValueFieldProps = {
   id: string; label: string; hint: string; text: string; disabled: boolean; invalid: boolean
   overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; unit?: string; multiline?: boolean; inlineHint?: boolean
+  copy?: ReactNode; className?: string
   choiceMenu?: ContextFieldMenu
   onEdit: (text: string) => void; onReset: () => void
 }
@@ -379,11 +380,11 @@ function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor
 function ContextHelp({ label, hint }: { label: string; hint: string }) {
   return <Tooltip label={hint} side="bottom"><span className="cm-native-help" tabIndex={0} role="note" aria-label={`${label}: ${hint}`}>?</span></Tooltip>
 }
-function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, inlineHint = false, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
+function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, inlineHint = false, copy, className, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
   const inputWrapRef = useRef<HTMLDivElement>(null)
-  return <div className="cm-native-value">
-    <div className="cm-native-copy">
-      <label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && <ContextHelp label={label} hint={hint}/>}
+  return <div className={`cm-native-value${className ? ` ${className}` : ''}`}>
+    <div className={`cm-native-copy${copy ? ' cm-model-limit-copy' : ''}`}>
+      {copy ?? <><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && <ContextHelp label={label} hint={hint}/>}</>}
       {overridden && <Button type="button" className="cm-field-reset" size="sm" variant="ghost" disabled={disabled}
         aria-label={`${label} · ${overriddenLabel} · ${resetLabel}`} onClick={onReset}>{resetLabel}</Button>}
     </div>
@@ -426,12 +427,12 @@ function ContextSelect({ id, label, hint, value, options, disabled, onChange, in
     {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
   </div>
 }
-function ContextDropdownField({ id, label, hint, displayValue, options, selectedId, disabled, inlineHint = false, showHelp = true, onSelect }: {
+function ContextDropdownField({ id, label, hint, displayValue, options, selectedId, disabled, inlineHint = false, showHelp = true, copy, className, onSelect }: {
   id: string; label: string; hint: string; displayValue: string; options: readonly ContextSelectOption[]; selectedId: string
-  disabled: boolean; inlineHint?: boolean; showHelp?: boolean; onSelect: (value: string) => void
+  disabled: boolean; inlineHint?: boolean; showHelp?: boolean; copy?: ReactNode; className?: string; onSelect: (value: string) => void
 }) {
-  return <div className="cm-native-value">
-    <div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && <ContextHelp label={label} hint={hint}/>}</div>
+  return <div className={`cm-native-value${className ? ` ${className}` : ''}`}>
+    <div className={`cm-native-copy${copy ? ' cm-model-limit-copy' : ''}`}>{copy ?? <><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && <ContextHelp label={label} hint={hint}/>}</>}</div>
     <div className="cm-native-value-control"><div className="cm-native-select"><AnchoredOptions options={options} selectedId={selectedId} disabled={disabled} onSelect={onSelect}
       renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-select-trigger" id={id} aria-label={`${label}: ${displayValue}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{displayValue}</span></button>}/></div></div>
     {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
@@ -446,10 +447,6 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   const [modelDrafts, setModelDrafts] = useState(() => limitDrafts(acceptedPolicy))
   const [customNumericKeys, setCustomNumericKeys] = useState<Set<NumericKey>>(() => new Set())
   const [customModelKeys, setCustomModelKeys] = useState<Set<string>>(() => new Set())
-  const [selectedModel, setSelectedModel] = useState(() => {
-    const saved = acceptedPolicy.modelLimits?.[0]
-    return saved ? routeKey(saved.provider, saved.model) : models[0] ? routeKey(models[0].provider, models[0].model) : ''
-  })
   const [revision, setRevision] = useState(accepted.revision)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -473,13 +470,6 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
     if (route && !modelOptions.has(key)) modelOptions.set(key, { ...route, label: route.model, providerLabel: route.provider })
   }
   const modelOptionList = [...modelOptions.entries()]
-  useEffect(() => {
-    if (!modelOptions.has(selectedModel)) {
-      const saved = acceptedPolicy.modelLimits?.[0]
-      const fallback = saved ? routeKey(saved.provider, saved.model) : modelOptionList[0]?.[0] ?? ''
-      if (fallback !== selectedModel) setSelectedModel(fallback)
-    }
-  }, [selectedModel, models, accepted, modelDrafts])
   function edit(update: Partial<Draft>) { setDraft(p => ({ ...p, ...update })); setDirty(true); setFeedback(''); setFailed(false) }
   const modelLimits = Object.entries(modelDrafts).flatMap(([key, text]) => {
     const route = routeFromKey(key)
@@ -487,18 +477,7 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
     return route && tokens !== null ? [{ ...route, tokens }] : []
   })
   const policy: Policy = { ...toPolicy(draft), modelLimits }
-  const modelLimitText = selectedModel ? modelDrafts[selectedModel] ?? '' : ''
-  const modelLimitNumber = modelLimitTokens(modelLimitText)
-  const selectedLimitInvalid = modelLimitNumber !== null && (!Number.isSafeInteger(modelLimitNumber) || modelLimitNumber < 10000 || modelLimitNumber > 1000000000)
   const modelLimitPresets = ['32', '64', '128', '200', '256', '300', '512', '1024']
-  const modelLimitHasPreset = modelLimitPresets.includes(modelLimitText.trim())
-  const modelLimitOptions: ContextSelectOption[] = [
-    { value: '@follow', label: t('followModelCapacity') },
-    ...(!modelLimitText.trim() || modelLimitHasPreset ? [] : [{ value: '@current', label: `${t('currentValue')} · ${modelLimitText}K` }]),
-    ...modelLimitPresets.map(value => ({ value, label: `${value}K` })),
-    { value: '@custom', label: `${t('customValue')}…` },
-  ]
-  const modelLimitSelectedId = customModelKeys.has(selectedModel) ? '@custom' : !modelLimitText.trim() ? '@follow' : modelLimitHasPreset ? modelLimitText.trim() : '@current'
   const invalidModelLimitDraft = Object.values(modelDrafts).some(text => {
     const tokens = modelLimitTokens(text)
     return tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 10000 || tokens > 1000000000)
@@ -526,28 +505,25 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
     const policy = accepted.value?.policy ?? defaults
     setDraft(toDraft(policy)); setModelDrafts(limitDrafts(policy)); setRevision(accepted.revision)
     setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
-    setSelectedModel(policy.modelLimits?.[0] ? routeKey(policy.modelLimits[0].provider, policy.modelLimits[0].model) : modelOptionList[0]?.[0] ?? '')
   }
   function restoreDefaults() {
     edit(toDraft(defaults)); setModelDrafts({}); setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
-    if (!selectedModel && modelOptionList.length) setSelectedModel(modelOptionList[0]![0])
   }
-  function editModelLimit(text: string) {
-    if (!selectedModel) return
-    setModelDrafts(current => ({ ...current, [selectedModel]: text }))
+  function editModelLimit(key: string, text: string) {
+    setModelDrafts(current => ({ ...current, [key]: text }))
     setDirty(true); setFeedback(''); setFailed(false)
   }
-  function chooseModelLimit(choice: string) {
+  function chooseModelLimit(key: string, choice: string, text: string) {
     if (choice === '@custom') {
-      setCustomModelKeys(current => new Set(current).add(selectedModel))
+      setCustomModelKeys(current => new Set(current).add(key))
       return
     }
-    setCustomModelKeys(current => { const next = new Set(current); next.delete(selectedModel); return next })
+    setCustomModelKeys(current => { const next = new Set(current); next.delete(key); return next })
     if (choice === '@follow') {
-      if (modelLimitText !== '') editModelLimit('')
+      if (text !== '') editModelLimit(key, '')
       return
     }
-    if (choice !== '@current' && choice !== modelLimitText) editModelLimit(choice)
+    if (choice !== '@current' && choice !== text) editModelLimit(key, choice)
   }
   const numeric = (key: NumericKey, label: string, hint: string, unit = '', blocked = false) => {
     const id = `context-manager-${key}`
@@ -607,20 +583,34 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
         </section>
         <section className="cm-native-group">
           <h3>{t('modelLimitGroup')}</h3>
-          <ContextSelect id="context-manager-limitModel" label={t('modelLimitModelLabel')}
-            value={selectedModel} disabled={disabled || modelOptionList.length === 0} showHelp={false} compactModelLabel
-            onChange={setSelectedModel}
-            options={modelOptionList.length ? modelOptionList.map(([value, item]) => ({ value, label: item.label, secondaryLabel: item.providerLabel ?? item.provider })) : [{ value: '', label: t('modelCatalogEmpty') }]}/>
           {catalogUnavailable && <p className="cm-hint" role="status">{t('modelCatalogUnavailable')}</p>}
-          {selectedModel && (customModelKeys.has(selectedModel)
-            ? <ContextValueField id="context-manager-modelLimit" label={t('modelLimitLabel')} hint={t('modelLimitHint')}
-              text={modelLimitText} disabled={disabled} invalid={selectedLimitInvalid} numeric unit={t('unitK')} inlineHint
-              overridden={false} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('modelLimitInvalid')}
-              choiceMenu={{ options: modelLimitOptions, selectedId: '@custom', onSelect: chooseModelLimit, triggerLabel: `${t('modelLimitLabel')} · ${t('openOptions')}` }}
-              onEdit={editModelLimit} onReset={() => {}}/>
-            : <ContextDropdownField id="context-manager-modelLimit" label={t('modelLimitLabel')} hint={t('modelLimitHint')}
-              displayValue={modelLimitText.trim() ? `${modelLimitText}K` : t('followModelCapacity')} options={modelLimitOptions} selectedId={modelLimitSelectedId}
-              disabled={disabled} showHelp={false} onSelect={chooseModelLimit}/>)}
+          {!modelOptionList.length && <p className="cm-hint" role="status">{t('modelCatalogEmpty')}</p>}
+          {modelOptionList.map(([key, item]) => {
+            const text = modelDrafts[key] ?? ''
+            const provider = item.providerLabel ?? item.provider
+            const rowLabel = `${t('modelLimitLabel')} · ${item.label} · ${provider}`
+            const id = `context-manager-modelLimit-${encodeURIComponent(key)}`
+            const tokens = modelLimitTokens(text)
+            const limitInvalid = tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 10000 || tokens > 1000000000)
+            const hasPreset = modelLimitPresets.includes(text.trim())
+            const options: ContextSelectOption[] = [
+              { value: '@follow', label: t('followModelCapacity') },
+              ...(!text.trim() || hasPreset ? [] : [{ value: '@current', label: `${t('currentValue')} · ${text}K` }]),
+              ...modelLimitPresets.map(value => ({ value, label: `${value}K` })),
+              { value: '@custom', label: `${t('customValue')}…` },
+            ]
+            const selectedId = customModelKeys.has(key) ? '@custom' : !text.trim() ? '@follow' : hasPreset ? text.trim() : '@current'
+            const copy = <label htmlFor={id} className="cm-label"><span>{item.label}</span><span className="cm-model-limit-provider">{provider}</span></label>
+            return customModelKeys.has(key)
+              ? <ContextValueField key={key} id={id} className="cm-model-limit-row" copy={copy} label={rowLabel} hint={t('modelLimitHint')}
+                text={text} disabled={disabled} invalid={limitInvalid} numeric unit={t('unitK')} inlineHint
+                overridden={false} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('modelLimitInvalid')}
+                choiceMenu={{ options, selectedId: '@custom', onSelect: choice => chooseModelLimit(key, choice, text), triggerLabel: `${rowLabel} · ${t('openOptions')}` }}
+                onEdit={value => editModelLimit(key, value)} onReset={() => {}}/>
+              : <ContextDropdownField key={key} id={id} className="cm-model-limit-row" copy={copy} label={rowLabel} hint={t('modelLimitHint')}
+                displayValue={text.trim() ? `${text}K` : t('followModelCapacity')} options={options} selectedId={selectedId}
+                disabled={disabled} showHelp={false} onSelect={choice => chooseModelLimit(key, choice, text)}/>
+          })}
         </section>
         <section className="cm-native-group">
           <h3>{t('idleGroup')}</h3>
