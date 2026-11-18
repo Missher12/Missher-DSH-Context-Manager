@@ -10,7 +10,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-token-meter/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { Button, Input, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -52,9 +51,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 declare module '@deepseek-ai/dsh-client-ui-slots' { interface LocaleNamespaceMap { 'context.manager': InspectorLocaleKey; 'context.manager.settings': SettingsLocaleKey } }
 
 type Values = { policy: Policy }
-type ModelLimitOption = { provider: string; model: string; label: string; providerLabel?: string }
-type ModelCatalogReader = () => Promise<readonly ModelLimitOption[]>
-export const inject = ['locale', 'slots', 'configForms', 'sessions', 'remote', 'remote.session', 'modelDirectories']
+export const inject = ['locale', 'slots', 'configForms', 'sessions', 'remote', 'modelDirectories']
 
 // Page styles are mounted after the module factory. Explicit ownership keeps
 // another plugin's later materialization from claiming and removing them.
@@ -70,7 +67,7 @@ export async function apply(ctx: Context) {
   const form = ctx.configForms.get<Values>('context-manager')
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE)
   ctx.effect(() => unmount, 'context-manager: remote')
-  ctx.inject(['remote.contextInspector', 'remote.session'], scope => {
+  ctx.inject(['remote.contextInspector'], scope => {
     const unwrap = <T,>(result: RemoteResult<T>): T => {
       if (!result.ok) throw new Error(`上下文读取失败：${result.error.code}`)
       return result.value
@@ -82,12 +79,6 @@ export async function apply(ctx: Context) {
       sessionUsage: async (query, signal) => unwrap(await scope.remote.contextInspector.sessionUsage(query, signal)),
       teamUsage: async (query, signal) => unwrap(await scope.remote.contextInspector.teamUsage(query, signal)),
       content: async (query, signal) => unwrap(await scope.remote.contextInspector.content(query, signal)),
-    }
-    const modelCatalog: ModelCatalogReader = async () => {
-      const catalog: ModelCatalog = unwrap(await scope.remote.session.modelCatalog())
-      return catalog.groups.flatMap(group => group.models.map(model => ({
-        provider: group.id, model: model.id, label: model.name, providerLabel: group.name,
-      })))
     }
     scope.slots.inject('conversation.input.right', () => scope.slots.register({
       name: 'conversation.input.right', id: 'context-manager-period', order: 100,
@@ -117,7 +108,7 @@ export async function apply(ctx: Context) {
     })
     scope.effect(() => scope.configForms.whileServed(['context-manager'], () => scope.slots.inject('settings.section', () => scope.slots.register({
       name: 'settings.section', id: 'context-manager', order: 65, label: () => settingsT('title'), locale: 'context.manager.settings',
-      inject: () => ({ form, compatibility: api.compatibility!, modelCatalog, t: settingsT }),
+      inject: () => ({ form, compatibility: api.compatibility!, t: settingsT }),
     }, ContextPage))))
     scope.slots.inject('conversation.view', () => scope.slots.register({
       name: 'conversation.view', id: 'context-manager', order: 20, label: () => t('title'), locale: 'context.manager',
@@ -131,22 +122,14 @@ export async function apply(ctx: Context) {
   })
 }
 
-export function ContextPage({ form, compatibility, modelCatalog, t = settingsText() }: { form: ConfigForm<Values>; compatibility: NonNullable<InspectorApi['compatibility']>; modelCatalog?: ModelCatalogReader; t?: SettingsText }) {
+export function ContextPage({ form, compatibility, t = settingsText() }: { form: ConfigForm<Values>; compatibility: NonNullable<InspectorApi['compatibility']>; t?: SettingsText }) {
   const [host, setHost] = useState<HostCapabilityReadout | null>(null)
-  const [models, setModels] = useState<readonly ModelLimitOption[]>([])
-  const [catalogUnavailable, setCatalogUnavailable] = useState(false)
   useEffect(() => {
     const controller = new AbortController()
     void compatibility(controller.signal).then(setHost, () => setHost({ state: 'unknown', reason: '无法读取宿主压缩能力',
       integration: { state: 'unknown', reason: '无法读取 Context provider 注册状态' } }))
     return () => controller.abort()
   }, [compatibility])
-  useEffect(() => {
-    if (!modelCatalog) return
-    let active = true
-    void modelCatalog().then(value => { if (active) setModels(value) }, () => { if (active) setCatalogUnavailable(true) })
-    return () => { active = false }
-  }, [modelCatalog])
   const requestPath = host?.requestPath
   const missingInterfaces = host?.missingInterfaces ?? []
   const sidecarState = requestPath?.path === 'request-gate-sidecar' ? requestPath.state : undefined
@@ -189,7 +172,7 @@ export function ContextPage({ form, compatibility, modelCatalog, t = settingsTex
       {host.integration.reason && host.integration.reason !== host.reason && !registrationOptional &&
         <p className="cm-intro">{t('detailReason')}: {host.integration.reason}</p>}
     </details>}
-    <ContextSettings form={form} models={models} catalogUnavailable={catalogUnavailable} t={t} />
+    <ContextSettings form={form} t={t} />
   </section>
 }
 
@@ -251,33 +234,6 @@ function pathReasonLabel(code: NonNullable<HostCapabilityReadout['requestPath']>
 const numericKeys = ['recentPercent', 'summaryPercent', 'repairPercent', 'triggerPercent', 'targetPercent', 'recentTokens', 'earlyPercent', 'safetyPercent', 'summaryMaxTokens', 'maxPasses', 'timeoutMs', 'summaryTotalMs', 'summaryFirstOutputMs', 'summaryStallMs', 'idleMinutes', 'formatRepairMaxTokens', 'absoluteTriggerTokens', 'absoluteTargetTokens', 'toolResultsMaxChars', 'toolResultsMinSavings', 'archiveReadBudget', 'archiveSearchLimit'] as const
 type NumericKey = typeof numericKeys[number]
 type Draft = Omit<Policy, NumericKey> & Record<NumericKey, string>
-const routeKey = (provider: string, model: string) => JSON.stringify([provider, model])
-function routeFromKey(key: string): { provider: string; model: string } | undefined {
-  try {
-    const value = JSON.parse(key)
-    return Array.isArray(value) && value.length === 2 && value.every(item => typeof item === 'string' && item.length > 0)
-      ? { provider: value[0], model: value[1] } : undefined
-  } catch { return undefined }
-}
-function limitDrafts(policy: Policy): Record<string, string> {
-  return Object.fromEntries((policy.modelLimits ?? []).map(item => [routeKey(item.provider, item.model), modelLimitDisplay(item.tokens)]))
-}
-function modelLimitDisplay(tokens: number): string {
-  const whole = Math.floor(tokens / 1000)
-  const fraction = String(tokens % 1000).padStart(3, '0').replace(/0+$/, '')
-  return fraction ? `${whole}.${fraction}` : String(whole)
-}
-function modelLimitTokens(text: string): number | null {
-  const value = text.trim()
-  if (!value) return null
-  const match = /^(\d+)(?:\.(\d{0,3}))?$/.exec(value)
-  if (!match) return Number.NaN
-  const whole = Number(match[1])
-  if (!Number.isSafeInteger(whole) || whole > 1_000_000) return Number.NaN
-  const fraction = Number((match[2] ?? '').padEnd(3, '0'))
-  const tokens = whole * 1000 + fraction
-  return Number.isSafeInteger(tokens) ? tokens : Number.NaN
-}
 function toDraft(policy: Policy): Draft {
   const normalized = normalizePolicy(policy)
   const fields = Object.fromEntries(numericKeys.map(key => [key, String(normalized[key])])) as Record<NumericKey, string>
@@ -290,12 +246,11 @@ function toPolicy(draft: Draft): Policy {
 
 type ContextValueFieldProps = {
   id: string; label: string; hint: string; text: string; disabled: boolean; invalid: boolean
-  overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; unit?: string; multiline?: boolean; inlineHint?: boolean
-  copy?: ReactNode; className?: string
+  overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; unit?: string; multiline?: boolean
   choiceMenu?: ContextFieldMenu
   onEdit: (text: string) => void; onReset: () => void
 }
-type ContextSelectOption = { value: string; label: string; secondaryLabel?: string }
+type ContextSelectOption = { value: string; label: string }
 type ContextFieldMenu = { options: readonly ContextSelectOption[]; selectedId?: string; onSelect: (value: string) => void; triggerLabel: string }
 function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor, menuClass, measureRef }: {
   options: readonly ContextSelectOption[]; selectedId?: string; disabled: boolean; onSelect: (value: string) => void
@@ -370,7 +325,6 @@ function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor
   return <uiPrimitives.Menu open={open} anchor={renderAnchor(() => setOpen(value => !value), triggerRef, open)}
     items={options.map(option => ({ id: option.value, label: <span className="cm-context-menu-option">
       <span className="cm-context-menu-primary">{option.label}</span>
-      {option.secondaryLabel && <span className="cm-context-menu-secondary">{option.secondaryLabel}</span>}
     </span> }))}
     selectedId={selectedId} onSelect={value => { if (disabled) { setOpen(false); return }; restoreFocus.current = true; setOpen(false); onSelect(value) }}
     onClose={() => { if (!outsidePointer.current) restoreFocus.current = true; setOpen(false) }}
@@ -380,11 +334,11 @@ function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor
 function ContextHelp({ label, hint }: { label: string; hint: string }) {
   return <Tooltip label={hint} side="bottom"><span className="cm-native-help" tabIndex={0} role="note" aria-label={`${label}: ${hint}`}>?</span></Tooltip>
 }
-function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, inlineHint = false, copy, className, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
+function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
   const inputWrapRef = useRef<HTMLDivElement>(null)
-  return <div className={`cm-native-value${className ? ` ${className}` : ''}`}>
-    <div className={`cm-native-copy${copy ? ' cm-model-limit-copy' : ''}`}>
-      {copy ?? <><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && <ContextHelp label={label} hint={hint}/>}</>}
+  return <div className="cm-native-value">
+    <div className="cm-native-copy">
+      <label htmlFor={id} className="cm-label">{label}</label><ContextHelp label={label} hint={hint}/>
       {overridden && <Button type="button" className="cm-field-reset" size="sm" variant="ghost" disabled={disabled}
         aria-label={`${label} · ${overriddenLabel} · ${resetLabel}`} onClick={onReset}>{resetLabel}</Button>}
     </div>
@@ -398,7 +352,6 @@ function ContextValueField({ id, label, hint, text, disabled, invalid, overridde
             renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-input-menu" aria-label={choiceMenu.triggerLabel} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span aria-hidden="true"/></button>}/>}
         </div>}
     </div>
-    {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
     {invalid && <p className="cm-error" role="alert">{invalidLabel}</p>}
   </div>
 }
@@ -419,34 +372,30 @@ function safeSaveReason(error: unknown, t: SettingsText) {
     .slice(0, 180)
   return reason || t('unknownSaveReason')
 }
-function ContextSelect({ id, label, hint, value, options, disabled, onChange, inlineHint = false, showHelp = true, compactModelLabel = false }: { id: string; label: string; hint?: string; value: string; options: readonly ContextSelectOption[]; disabled: boolean; onChange: (value: string) => void; inlineHint?: boolean; showHelp?: boolean; compactModelLabel?: boolean }) {
+function ContextSelect({ id, label, hint, value, options, disabled, onChange }: { id: string; label: string; hint?: string; value: string; options: readonly ContextSelectOption[]; disabled: boolean; onChange: (value: string) => void }) {
   const selected = options.find(option => option.value === value)
-  return <div className="cm-native-select-row"><div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && hint && <ContextHelp label={label} hint={hint}/>}</div>
+  return <div className="cm-native-select-row"><div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label>{hint && <ContextHelp label={label} hint={hint}/>}</div>
     <div className="cm-native-select"><AnchoredOptions options={options} selectedId={value} disabled={disabled} onSelect={onChange}
-      renderAnchor={(toggle, triggerRef, open) => <button type="button" className={`cm-native-select-trigger${compactModelLabel ? ' cm-native-select-trigger--model' : ''}`} id={id} aria-label={`${label}: ${selected?.label ?? ''}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{selected?.label ?? ''}</span></button>}/></div>
-    {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
+      renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-select-trigger" id={id} aria-label={`${label}: ${selected?.label ?? ''}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{selected?.label ?? ''}</span></button>}/></div>
   </div>
 }
-function ContextDropdownField({ id, label, hint, displayValue, options, selectedId, disabled, inlineHint = false, showHelp = true, copy, className, onSelect }: {
+function ContextDropdownField({ id, label, hint, displayValue, options, selectedId, disabled, onSelect }: {
   id: string; label: string; hint: string; displayValue: string; options: readonly ContextSelectOption[]; selectedId: string
-  disabled: boolean; inlineHint?: boolean; showHelp?: boolean; copy?: ReactNode; className?: string; onSelect: (value: string) => void
+  disabled: boolean; onSelect: (value: string) => void
 }) {
-  return <div className={`cm-native-value${className ? ` ${className}` : ''}`}>
-    <div className={`cm-native-copy${copy ? ' cm-model-limit-copy' : ''}`}>{copy ?? <><label htmlFor={id} className="cm-label">{label}</label>{!inlineHint && showHelp && <ContextHelp label={label} hint={hint}/>}</>}</div>
+  return <div className="cm-native-value">
+    <div className="cm-native-copy"><label htmlFor={id} className="cm-label">{label}</label><ContextHelp label={label} hint={hint}/></div>
     <div className="cm-native-value-control"><div className="cm-native-select"><AnchoredOptions options={options} selectedId={selectedId} disabled={disabled} onSelect={onSelect}
       renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-select-trigger" id={id} aria-label={`${label}: ${displayValue}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span className="cm-native-choice-label">{displayValue}</span></button>}/></div></div>
-    {inlineHint && <p className="cm-hint cm-native-inline-hint">{hint}</p>}
   </div>
 }
 
 /** Context settings controls use the actual RC.2 UI primitives where available and scoped native controls for removed form atoms. */
-export function ContextSettings({ form, models = [], catalogUnavailable = false, t = settingsText() }: { form: ConfigForm<Values>; models?: readonly ModelLimitOption[]; catalogUnavailable?: boolean; t?: SettingsText }) {
+export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm<Values>; t?: SettingsText }) {
   const accepted = useSyncExternalStore(callback => form.subscribe(callback), () => form.getSnapshot())
   const acceptedPolicy = accepted.value?.policy ?? defaults
   const [draft, setDraft] = useState(() => toDraft(acceptedPolicy))
-  const [modelDrafts, setModelDrafts] = useState(() => limitDrafts(acceptedPolicy))
   const [customNumericKeys, setCustomNumericKeys] = useState<Set<NumericKey>>(() => new Set())
-  const [customModelKeys, setCustomModelKeys] = useState<Set<string>>(() => new Set())
   const [revision, setRevision] = useState(accepted.revision)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -456,43 +405,20 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   useStableScrollbarGutter(rootRef)
   useEffect(() => {
     if (!dirty && accepted.value) {
-      setDraft(toDraft(accepted.value.policy)); setModelDrafts(limitDrafts(accepted.value.policy)); setRevision(accepted.revision)
+      setDraft(toDraft(accepted.value.policy)); setRevision(accepted.revision)
     }
   }, [accepted, dirty])
-  const modelOptions = new Map<string, ModelLimitOption>()
-  for (const item of models) modelOptions.set(routeKey(item.provider, item.model), item)
-  for (const item of acceptedPolicy.modelLimits ?? []) {
-    const key = routeKey(item.provider, item.model)
-    if (!modelOptions.has(key)) modelOptions.set(key, { provider: item.provider, model: item.model, label: item.model, providerLabel: item.provider })
-  }
-  for (const key of Object.keys(modelDrafts)) {
-    const route = routeFromKey(key)
-    if (route && !modelOptions.has(key)) modelOptions.set(key, { ...route, label: route.model, providerLabel: route.provider })
-  }
-  const modelOptionList = [...modelOptions.entries()]
   function edit(update: Partial<Draft>) { setDraft(p => ({ ...p, ...update })); setDirty(true); setFeedback(''); setFailed(false) }
-  const modelLimits = Object.entries(modelDrafts).flatMap(([key, text]) => {
-    const route = routeFromKey(key)
-    const tokens = modelLimitTokens(text)
-    return route && tokens !== null ? [{ ...route, tokens }] : []
-  })
-  const policy: Policy = { ...toPolicy(draft), modelLimits }
-  const modelLimitPresets = ['32', '64', '128', '200', '256', '300', '512', '1024']
-  const invalidModelLimitDraft = Object.values(modelDrafts).some(text => {
-    const tokens = modelLimitTokens(text)
-    return tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 10000 || tokens > 1000000000)
-  })
-  let invalid = invalidModelLimitDraft ? t('modelLimitInvalid') : ''
-  if (!invalid) {
-    try { validatePolicy(policy) } catch (error) { invalid = error instanceof Error ? error.message : String(error) }
-  }
+  const policy = toPolicy(draft)
+  let invalid = ''
+  try { validatePolicy(policy) } catch (error) { invalid = error instanceof Error ? error.message : String(error) }
   if (!invalid && draft.summaryInstructions.length > 2000) invalid = t('instructionsTooLong')
   const disabled = !accepted.writable || saving || accepted.status !== 'ready'
   async function save() {
     if (disabled || !dirty || invalid) return
     setSaving(true); setFeedback(''); setFailed(false)
     try {
-      const ok = await form.mutate([{ op: 'set', path: ['policy'], value: { ...policy, modelLimits: [...policy.modelLimits] } }], revision)
+      const ok = await form.mutate([{ op: 'set', path: ['policy'], value: { ...policy } }], revision)
       if (ok) { setDirty(false); setFeedback(t('savedSettings')) }
       else { setFailed(true); setFeedback(t('conflictSettings')) }
     } catch (error) {
@@ -503,27 +429,11 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
   function reload() {
     setDirty(false); setFeedback(''); setFailed(false)
     const policy = accepted.value?.policy ?? defaults
-    setDraft(toDraft(policy)); setModelDrafts(limitDrafts(policy)); setRevision(accepted.revision)
-    setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
+    setDraft(toDraft(policy)); setRevision(accepted.revision)
+    setCustomNumericKeys(new Set())
   }
   function restoreDefaults() {
-    edit(toDraft(defaults)); setModelDrafts({}); setCustomNumericKeys(new Set()); setCustomModelKeys(new Set())
-  }
-  function editModelLimit(key: string, text: string) {
-    setModelDrafts(current => ({ ...current, [key]: text }))
-    setDirty(true); setFeedback(''); setFailed(false)
-  }
-  function chooseModelLimit(key: string, choice: string, text: string) {
-    if (choice === '@custom') {
-      setCustomModelKeys(current => new Set(current).add(key))
-      return
-    }
-    setCustomModelKeys(current => { const next = new Set(current); next.delete(key); return next })
-    if (choice === '@follow') {
-      if (text !== '') editModelLimit(key, '')
-      return
-    }
-    if (choice !== '@current' && choice !== text) editModelLimit(key, choice)
+    edit(toDraft(defaults)); setCustomNumericKeys(new Set())
   }
   const numeric = (key: NumericKey, label: string, hint: string, unit = '', blocked = false) => {
     const id = `context-manager-${key}`
@@ -580,37 +490,6 @@ export function ContextSettings({ form, models = [], catalogUnavailable = false,
           <ContextSelect id="context-manager-toolResultsMode" label={t('toolGroup')} hint={t('toolResultsHint')} value={draft.toolResultsMode}
             disabled={disabled || !draft.enabled} onChange={value => edit({ toolResultsMode: value as Policy['toolResultsMode'] })}
             options={[{ value: 'off', label: t('toolOff') }, { value: 'observe', label: t('toolObserve') }, { value: 'reduce', label: t('toolReduce') }]}/>
-        </section>
-        <section className="cm-native-group">
-          <h3>{t('modelLimitGroup')}</h3>
-          {catalogUnavailable && <p className="cm-hint" role="status">{t('modelCatalogUnavailable')}</p>}
-          {!modelOptionList.length && <p className="cm-hint" role="status">{t('modelCatalogEmpty')}</p>}
-          {modelOptionList.map(([key, item]) => {
-            const text = modelDrafts[key] ?? ''
-            const provider = item.providerLabel ?? item.provider
-            const rowLabel = `${t('modelLimitLabel')} · ${item.label} · ${provider}`
-            const id = `context-manager-modelLimit-${encodeURIComponent(key)}`
-            const tokens = modelLimitTokens(text)
-            const limitInvalid = tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 10000 || tokens > 1000000000)
-            const hasPreset = modelLimitPresets.includes(text.trim())
-            const options: ContextSelectOption[] = [
-              { value: '@follow', label: t('followModelCapacity') },
-              ...(!text.trim() || hasPreset ? [] : [{ value: '@current', label: `${t('currentValue')} · ${text}K` }]),
-              ...modelLimitPresets.map(value => ({ value, label: `${value}K` })),
-              { value: '@custom', label: `${t('customValue')}…` },
-            ]
-            const selectedId = customModelKeys.has(key) ? '@custom' : !text.trim() ? '@follow' : hasPreset ? text.trim() : '@current'
-            const copy = <label htmlFor={id} className="cm-label"><span>{item.label}</span><span className="cm-model-limit-provider">{provider}</span></label>
-            return customModelKeys.has(key)
-              ? <ContextValueField key={key} id={id} className="cm-model-limit-row" copy={copy} label={rowLabel} hint={t('modelLimitHint')}
-                text={text} disabled={disabled} invalid={limitInvalid} numeric unit={t('unitK')} inlineHint
-                overridden={false} overriddenLabel={t('customValue')} resetLabel={t('clear')} invalidLabel={t('modelLimitInvalid')}
-                choiceMenu={{ options, selectedId: '@custom', onSelect: choice => chooseModelLimit(key, choice, text), triggerLabel: `${rowLabel} · ${t('openOptions')}` }}
-                onEdit={value => editModelLimit(key, value)} onReset={() => {}}/>
-              : <ContextDropdownField key={key} id={id} className="cm-model-limit-row" copy={copy} label={rowLabel} hint={t('modelLimitHint')}
-                displayValue={text.trim() ? `${text}K` : t('followModelCapacity')} options={options} selectedId={selectedId}
-                disabled={disabled} showHelp={false} onSelect={choice => chooseModelLimit(key, choice, text)}/>
-          })}
         </section>
         <section className="cm-native-group">
           <h3>{t('idleGroup')}</h3>

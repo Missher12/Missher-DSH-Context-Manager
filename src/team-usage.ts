@@ -7,11 +7,78 @@ export interface TeamRosterMember {
   name: string
   role: 'lead' | 'teammate'
   phase: 'provisioning' | 'active' | 'failed'
+  external?: true
 }
 
 export interface TeamRoster {
   rootId: string
   members: readonly TeamRosterMember[]
+}
+
+const unavailableRoster = { roster: null, available: false } as const
+
+function recordOf(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined
+}
+
+function memberPhase(value: unknown): value is TeamRosterMember['phase'] {
+  return value === 'provisioning' || value === 'active' || value === 'failed'
+}
+
+/** Read either the historical Team projection or the Host's split mode/catalog. */
+export function readTeamRoster(rootId: string, values: Record<string, unknown> | undefined,
+  events: readonly SessionEvent[], inheritedEventCount: number): { roster: TeamRoster | null; available: boolean } {
+  const view = recordOf(values?.agentTeam)
+  if (!view || view.failure !== undefined) return unavailableRoster
+  if (view.members !== undefined) {
+    if (!Array.isArray(view.members)) return unavailableRoster
+    const members: TeamRosterMember[] = []
+    for (const item of view.members) {
+      const member = recordOf(item)
+      if (typeof member?.id !== 'string' || typeof member.name !== 'string'
+        || (member.role !== 'lead' && member.role !== 'teammate') || !memberPhase(member.phase)) return unavailableRoster
+      members.push({ id: member.id, name: member.name, role: member.role, phase: member.phase })
+    }
+    return { roster: { rootId, members }, available: members.some(member => member.role === 'lead' && member.id === rootId) }
+  }
+  if (typeof view.enabled !== 'boolean' || !Number.isSafeInteger(inheritedEventCount)
+    || inheritedEventCount < 0 || inheritedEventCount > events.length) return unavailableRoster
+
+  let teamModeRecorded = view.enabled
+  const members = new Map<string, TeamRosterMember>()
+  for (let index = inheritedEventCount; index < events.length; index++) {
+    const event = events[index]!
+    const type: string = event.type
+    if (type !== 'team/mode' && type !== 'team/member') continue
+    const data = recordOf(event.data)
+    if (type === 'team/mode') {
+      // Closing Team mode stops its tools, but the same children still belong to the root.
+      if (data?.enabled === true) teamModeRecorded = true
+      continue
+    }
+    if (data?.teamId !== rootId) continue
+    const member = recordOf(data.member)
+    if (data.version !== 2 || typeof member?.id !== 'string' || typeof member.name !== 'string'
+      || !memberPhase(member.phase)) return unavailableRoster
+    members.set(member.id, { id: member.id, name: member.name, role: 'teammate', phase: member.phase })
+  }
+
+  if (teamModeRecorded) {
+    const catalog = values?.subagentCatalog
+    if (!Array.isArray(catalog)) return unavailableRoster
+    for (const item of catalog) {
+      const entry = recordOf(item)
+      if (typeof entry?.id !== 'string' || !entry.id || typeof entry.mode !== 'string'
+        || !['continuable', 'one-shot', 'external', 'unknown'].includes(entry.mode)) return unavailableRoster
+      const name = typeof entry.name === 'string' && entry.name ? entry.name
+        : typeof entry.label === 'string' && entry.label ? entry.label : entry.id
+      members.set(entry.id, { id: entry.id, name, role: 'teammate', phase: 'active',
+        ...(entry.mode === 'external' ? { external: true } : {}) })
+    }
+  }
+  const name = typeof values?.title === 'string' && values.title ? values.title : rootId
+  return { roster: { rootId, members: [{ id: rootId, name, role: 'lead', phase: 'active' }, ...members.values()] }, available: true }
 }
 
 export interface SummaryLedgerCoverageInput {

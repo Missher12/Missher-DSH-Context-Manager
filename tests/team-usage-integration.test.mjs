@@ -117,6 +117,92 @@ test('a team created from an ordinary parent is found on the target roster', asy
   assert.equal(service.disposed, 2)
 })
 
+test('current Host Team mode uses its direct subagent catalog and counts each owned request once', async t => {
+  const time = Date.parse('2026-11-18T02:00:00Z')
+  const settled = (seq, turn, usage) => event(seq, time + seq, 'assistant/message', {
+    turn, step: 1, usage,
+    message: { source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-flash' }, content: [] },
+  }, 'append')
+  const lead = settled(0, 1, { inputTokens: 800, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 200 })
+  const worker = settled(1, 2, { inputTokens: 100, cacheReadTokens: 10, cacheWriteTokens: 5, outputTokens: 20 })
+  const child = id => id === 'worker' || id === 'ordinary-fork'
+  const service = await createService(t, {
+    trace: id => ({
+      target: { header: header(id, child(id) ? 'root' : undefined) },
+      ancestors: child(id) ? [{ header: header('root') }] : [],
+    }),
+    observe: async (id, options) => {
+      assert.notEqual(id, 'external-run', 'external members have no local session log')
+      return {
+        cursor: id === 'worker' ? 1 : 0,
+        header: header(id, child(id) ? 'root' : undefined),
+        inheritedEventCount: child(id) ? 1 : 0,
+        events: id === 'worker' ? [lead, worker] : [lead],
+        projections: options.projectionMode === 'all' ? { values: {
+          agentTeam: { enabled: id === 'root', tasks: [] },
+          subagentCatalog: id === 'root' ? [
+            { id: 'worker', name: 'reviewer', label: 'Review', mode: 'continuable', createdAt: time },
+            { id: 'external-run', name: 'external', mode: 'external', createdAt: time },
+          ] : [],
+        } } : undefined,
+      }
+    },
+  })
+  for (const sessionId of ['root', 'worker']) {
+    const result = await service.api.teamUsage({ sessionId }, new AbortController().signal)
+    assert.equal(result.status, 'ready')
+    assert.equal(result.teamId, 'root')
+    assert.deepEqual(result.members.map(row => [row.sessionId, row.requestTokens, row.status]), [
+      ['root', 1000, 'ready'], ['worker', 135, 'ready'], ['external-run', null, 'unavailable'],
+    ])
+    assert.equal(result.knownTokens, 1135)
+    assert.equal(result.unknownMembers, 1)
+    assert.equal(result.costPartial, true)
+    assert.ok(Math.abs(result.referenceCost - 0.0035604) < 1e-12)
+  }
+  const fork = await service.api.teamUsage({ sessionId: 'ordinary-fork' }, new AbortController().signal)
+  assert.equal(fork.status, 'not-team')
+})
+
+test('a newer Host restores the last historical member state without counting inherited roster events', async t => {
+  const archived = (seq, id, phase) => event(seq, seq + 10, 'team/member', {
+    version: 2, teamId: 'root', member: { id, name: 'archived review', phase },
+  })
+  const service = await createService(t, {
+    trace: id => ({ target: { header: header(id) }, ancestors: [] }),
+    observe: async (id, options) => ({
+      header: header(id, id === 'archived' ? 'root' : undefined),
+      cursor: id === 'root' ? 2 : -1,
+      inheritedEventCount: id === 'root' ? 1 : 0,
+      events: id === 'root' ? [archived(0, 'inherited', 'active'), archived(1, 'archived', 'provisioning'),
+        archived(2, 'archived', 'failed')] : [],
+      projections: options.projectionMode === 'all' ? { values: {
+        agentTeam: { enabled: false, tasks: [] }, subagentCatalog: [],
+      } } : undefined,
+    }),
+  })
+  const result = await service.api.teamUsage({ sessionId: 'root' }, new AbortController().signal)
+  assert.equal(result.status, 'ready')
+  assert.deepEqual(result.members.map(row => [row.sessionId, row.phase]), [['root', 'active'], ['archived', 'failed']])
+})
+
+test('current Host without an enabled Team excludes ordinary subagents and missing enabled catalogs stay unknown', async t => {
+  const service = await createService(t, {
+    trace: id => ({ target: { header: header(id) }, ancestors: [] }),
+    observe: async id => ({
+      cursor: -1, header: header(id), inheritedEventCount: 0, events: [],
+      projections: { values: id === 'disabled'
+        ? { agentTeam: { enabled: false, tasks: [] }, subagentCatalog: [{ id: 'ordinary-child', label: 'Work', mode: 'continuable', createdAt: 1 }] }
+        : { agentTeam: { enabled: true, tasks: [] } } },
+    }),
+  })
+  const ordinary = await service.api.teamUsage({ sessionId: 'disabled' }, new AbortController().signal)
+  assert.equal(ordinary.status, 'not-team')
+  assert.deepEqual(ordinary.members, [])
+  const missing = await service.api.teamUsage({ sessionId: 'no-catalog' }, new AbortController().signal)
+  assert.equal(missing.status, 'unavailable')
+})
+
 test('missing or malformed target rosters stay unavailable instead of claiming no team', async t => {
   const service = await createService(t, {
     trace: id => ({ target: { header: header(id) }, ancestors: [] }),

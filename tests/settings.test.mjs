@@ -62,98 +62,30 @@ const primitivesBuild = buildSync({
   tsconfigRaw: { compilerOptions: { target: 'ES2022' } }, write: false,
 })
 
-test('per-model limits keep independent drafts and persist through settings reopening', async () => {
+test('settings open and save an old profile without the retired model limits', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const listeners = new Set()
-  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: { ...defaults } } }
+  let snapshot = { status: 'ready', writable: true, mode: 'host', revision: 4, value: { policy: {
+    ...defaults, modelLimits: [{ provider: 'first', model: 'previously limited', tokens: 128000 }],
+  } } }
   const form = { subscribe: cb => { listeners.add(cb); return () => listeners.delete(cb) }, getSnapshot: () => snapshot,
-    async mutate(ops, revision) { assert.equal(revision, snapshot.revision); snapshot = { ...snapshot, revision: snapshot.revision + 1, value: { policy: ops[0].value } }; listeners.forEach(cb => cb()); return true } }
-  const fullModelNames = ['DeepSeek-V4.1-Flash', 'DeepSeek-V4-Pro', 'Qwen3.7 Plus', 'Qwen3.8-Flash']
-  const models = [{ provider: 'first', model: 'same', label: 'Same', providerLabel: 'First' }, { provider: 'second', model: 'same', label: 'Same', providerLabel: 'Second' },
-    ...fullModelNames.map((label, index) => ({ provider: 'catalog', model: `full-name-${index}`, label, providerLabel: 'Provider' }))]
+    async mutate(ops, revision) {
+      assert.equal(revision, 4)
+      snapshot = { ...snapshot, revision: 5, value: { policy: ops[0].value } }
+      listeners.forEach(cb => cb())
+      return true
+    } }
   const root = createRoot(document.getElementById('root'))
-  const key = provider => JSON.stringify([provider, 'same'])
-  const id = provider => `context-manager-modelLimit-${encodeURIComponent(key(provider))}`
-  const row = provider => [...document.querySelectorAll('.cm-model-limit-row')].find(item => item.querySelector('.cm-label')?.textContent.toLowerCase() === `same${provider}`)
-  const control = provider => document.getElementById(id(provider))
-  const save = () => [...document.querySelectorAll('button')].find(b => b.textContent === '保存设置')
   try {
-    await act(async () => root.render(React.createElement(client.ContextSettings, { form, models })))
-    assert.equal(document.querySelectorAll('.cm-model-limit-row').length, 6, 'every provider/model route has its own row')
-    assert.equal(row('first').querySelector('.cm-label').textContent, 'SameFirst', 'the row names the model and its provider')
-    assert.equal(row('second').querySelector('.cm-label').textContent, 'SameSecond', 'same model names remain distinguishable by provider')
-    for (const name of fullModelNames) assert.ok(document.body.textContent.includes(`${name}Provider`), `the complete catalog model ${name} stays visible`)
-    assert.equal(control('first').tagName, 'BUTTON')
-    assert.equal(control('first').textContent, '跟随模型容量')
-    const controlRect = { x: 24, y: 40, left: 24, right: 200, top: 40, bottom: 72, width: 176, height: 32, toJSON() { return this } }
-    control('first').getBoundingClientRect = () => controlRect
-    await act(async () => control('first').click())
-    assert.equal(document.querySelector('[role="menu"]').style.width, '176px', 'the dropdown panel matches its control width')
-    assert.ok(findMenuItem('32K')); assert.ok(findMenuItem('跟随模型容量')); assert.ok(findMenuItem('自定义'))
-    assert.equal(document.activeElement, menuItems()[0], 'opening the menu moves focus to its first option')
-    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
-    assert.equal(document.activeElement, menuItems()[1], 'arrow keys move focus through menu options')
-    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    assert.equal(document.activeElement, control('first'), 'Escape closes the menu and restores focus')
-    await clickMenuOption(control('first'), '自定义')
-    assert.equal(control('first').tagName, 'INPUT')
-    const modelLimitInput = control('first')
-    assert.equal(modelLimitInput.closest('.cm-native-input-wrap').querySelector('.cm-native-unit')?.textContent, 'K')
-    const modelLimitWrap = modelLimitInput.closest('.cm-native-input-wrap')
-    modelLimitWrap.getBoundingClientRect = () => controlRect
-    await act(async () => document.querySelector('.cm-native-input-menu').click())
-    assert.equal(document.querySelector('[role="menu"]').style.width, '176px', 'the custom editor menu matches the full input width')
-    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    assert.match(modelLimitInput.closest('.cm-native-value').querySelector('.cm-native-inline-hint')?.textContent ?? '', /1K\s*=\s*1000/)
-    await act(async () => setDomInput(modelLimitInput, '128'))
-    assert.equal(control('second').textContent, '跟随模型容量', 'editing one route leaves the other route unchanged')
-    await clickMenuOption(control('second'), '自定义')
-    await act(async () => setDomInput(control('second'), '16.001'))
-    await act(async () => row('second').querySelector('.cm-native-input-menu').click())
-    assert.ok(findMenuItem('当前值')?.textContent.includes('16.001K'), 'non-preset limits remain available in the menu')
-    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    assert.equal(control('second').value, '16.001', 'opening and dismissing leaves a non-preset limit unchanged')
-    await act(async () => setDomInput(control('first'), '128.0001'))
-    assert.equal(save().disabled, true, 'fractional K beyond one token of precision is rejected')
-    assert.match(row('first').querySelector('.cm-error')?.textContent ?? '', /K/)
-    const settingsError = () => document.querySelector('.cm-native-fields > .cm-error')?.textContent ?? ''
-    assert.match(settingsError(), /K/)
-    assert.equal(control('second').value, '16.001', 'other route drafts remain visible beside the invalid row')
-    await act(async () => setDomInput(control('first'), '1000000'))
-    assert.equal(save().disabled, false, 'the 1,000,000K ceiling remains inclusive')
-    await act(async () => setDomInput(control('first'), '1000000.001'))
-    assert.equal(save().disabled, true, 'one token above the ceiling is rejected')
-    await act(async () => setDomInput(control('first'), '9.999'))
-    assert.equal(save().disabled, true)
-    await act(async () => setDomInput(control('first'), '128'))
-    await act(async () => save().click())
-    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
-      { provider: 'first', model: 'same', tokens: 128000 }, { provider: 'second', model: 'same', tokens: 16001 },
-    ])
-    assert.equal(control('second').value, '16.001', 'saved fractional K reads back exactly')
-    await act(async () => setDomInput(control('second'), '512'))
-    await act(async () => save().click())
-    assert.equal(control('first').value, '128', 'saving one route leaves its neighbor visible and unchanged')
-    assert.equal(control('second').value, '512', 'the second route keeps its own edited value after ConfigForm refresh')
-    assert.equal(snapshot.value.policy.modelLimits[1].tokens, 512000)
-    await clickMenuOption(row('first').querySelector('.cm-native-input-menu'), '跟随模型容量')
-    assert.equal(control('first').textContent, '跟随模型容量', 'follow clears only the row chosen')
-    assert.equal(control('second').value, '512', 'follow leaves the other route untouched')
-    await act(async () => save().click())
-    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.value.policy.modelLimits)), [
-      { provider: 'second', model: 'same', tokens: 512000 },
-    ], 'saving follow removes only that route override')
-    await act(async () => root.render(null))
-    await act(async () => root.render(React.createElement(client.ContextSettings, { form, models: [] })))
-    assert.equal(document.querySelectorAll('.cm-model-limit-row').length, 1, 'a saved route remains visible if it is absent from the catalog')
-    assert.equal(row('second').querySelector('.cm-label').textContent, 'samesecond', 'the unlisted row still names its provider')
-    assert.equal(control('second').textContent, '512K', 'a saved route shows its exact saved limit')
-    await act(async () => control('second').click())
-    assert.ok(findMenuItem('512K'))
-    await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    assert.equal(control('second').textContent, '512K', 'opening and dismissing does not change the saved value')
-    assert.equal(save().disabled, true, 'opening and dismissing does not create a draft change')
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
+    assert.doesNotMatch(document.body.textContent, /模型上下文上限|128K/)
+    await editCustomNumber('context-manager-triggerPercent', '82')
+    const save = [...document.querySelectorAll('button')].find(button => button.textContent === '保存设置')
+    await act(async () => save.click())
+    assert.equal(snapshot.value.policy.triggerPercent, 82)
+    assert.equal(snapshot.value.policy.idleMinutes, 15)
+    assert.equal(Object.hasOwn(snapshot.value.policy, 'modelLimits'), false)
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 

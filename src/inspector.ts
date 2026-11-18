@@ -16,7 +16,7 @@ import { attributeSession } from './efficiency.ts'
 import { inspectQuerySchema, contentQuerySchema, sessionUsageQuerySchema, teamUsageQuerySchema } from './inspector-wire.ts'
 import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout, SessionUsageQuery, SessionUsageReadout, TeamUsageQuery, TeamUsageReadout, TeamUsageMemberReadout } from './inspector-types.ts'
 import { estimateSessionCost } from './session-cost.ts'
-import { aggregateTeamUsage, attributeOwnedSession, resolveSummaryCoverage, resolveVerifiedTeam, type TeamRoster } from './team-usage.ts'
+import { aggregateTeamUsage, attributeOwnedSession, readTeamRoster, resolveSummaryCoverage, resolveVerifiedTeam, type TeamRoster } from './team-usage.ts'
 import type { IdleStatus } from './idle-types.ts'
 import type ContextManager from './index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -323,21 +323,9 @@ export class ContextInspector extends TypertRemoteService {
       observations.set(key, observation)
       return observation
     }
-    const rosterOf = (rootId: string, value: unknown): { roster: TeamRoster | null; available: boolean } => {
-      if (!value || typeof value !== 'object') return { roster: null, available: false }
-      const view = value as { failure?: unknown; members?: unknown }
-      if (view.failure !== undefined || !Array.isArray(view.members)) return { roster: null, available: false }
-      const members: TeamRoster['members'][number][] = []
-      for (const item of view.members) {
-        if (!item || typeof item !== 'object') return { roster: null, available: false }
-        const member = item as Record<string, unknown>
-        if (typeof member.id !== 'string' || typeof member.name !== 'string'
-          || (member.role !== 'lead' && member.role !== 'teammate')
-          || (member.phase !== 'provisioning' && member.phase !== 'active' && member.phase !== 'failed')) return { roster: null, available: false }
-        members.push({ id: member.id, name: member.name, role: member.role, phase: member.phase })
-      }
-      return { roster: { rootId, members }, available: members.some(member => member.role === 'lead' && member.id === rootId) }
-    }
+    const rosterOf = (rootId: string, observation: SessionObservation) => readTeamRoster(rootId,
+      observation.projections?.values as unknown as Record<string, unknown> | undefined,
+      observation.events, observation.inheritedEventCount)
     const unavailable = (member: TeamRoster['members'][number]): TeamUsageMemberReadout => ({
       sessionId: member.id, name: member.name, role: member.role, phase: member.phase, status: 'unavailable', cutSeq: null,
       provider: null, model: null, requestTokens: null, requestTokensPartial: true, settledAttempts: null, retries: null,
@@ -363,8 +351,7 @@ export class ContextInspector extends TypertRemoteService {
       try {
         const target = await read(targetId, 'all')
         targetProjectionReadable = target.projections !== undefined
-        const targetValues = target.projections?.values as unknown as Record<string, unknown> | undefined
-        targetRoster = rosterOf(targetId, targetValues?.agentTeam)
+        targetRoster = rosterOf(targetId, target)
       } catch (error) {
         if (cancel.aborted) throw error
         targetReadFailed = true
@@ -374,8 +361,7 @@ export class ContextInspector extends TypertRemoteService {
       if (!team && parentId && parentId !== targetId) {
         try {
           const parent = await read(parentId, 'all')
-          const parentValues = parent.projections?.values as unknown as Record<string, unknown> | undefined
-          parentRoster = rosterOf(parentId, parentValues?.agentTeam)
+          parentRoster = rosterOf(parentId, parent)
           // A parent is accepted only when its durable roster names this exact child.
           const listedByParent = parentRoster.roster?.members.some(member => member.role === 'teammate' && member.id === targetId) === true
           if (listedByParent) {
@@ -391,6 +377,7 @@ export class ContextInspector extends TypertRemoteService {
         return empty(readable ? 'not-team' : 'unavailable', targetId)
       }
       const rows = await Promise.all(team.members.map(async member => {
+        if (member.external) return unavailable(member)
         let observation: SessionObservation
         try { observation = await read(member.id, member.id === team.teamId ? 'all' : 'none') }
         catch (error) { if (cancel.aborted) throw error; return unavailable(member) }

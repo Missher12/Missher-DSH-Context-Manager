@@ -54,66 +54,24 @@ function harness(api, policyValue = policy) {
   return { render, settle, close, tick }
 }
 
-test('context capacity shows the current model limit as a dashed marker against the real window', async () => {
-  let current = { ...base, admission: { tokens: 60000, logRevision: 6, baseline: 'estimated', window: 1000000, outputReserve: 8192 } }
+test('the current capacity uses the true model window and reserve even with an old saved limit', async () => {
+  let current = { ...base, compression: { mode: 'native' }, cooperation: { requestPressure: 'context', idleMaintenance: 'active',
+    toolResults: { state: 'observe', finalResultSeen: false }, originals: { state: 'empty', count: 0 } },
+    admission: { tokens: 60000, logRevision: 6, baseline: 'estimated', window: 1000000, outputReserve: 8192 } }
   const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => ({ ...current, ...query }), content: () => new Promise(() => {}) }
   const h = harness(api, { ...defaults, modelLimits: [{ provider: 'fixture', model: 'offline', tokens: 128000 }] })
   try {
     await h.render('s1'); await h.settle()
-    const marker = document.querySelector('[data-model-context-limit="128000"]')
-    assert.ok(marker, 'the configured per-model cap is visible on the capacity bar')
-    assert.equal(marker.style.left, '12.8%')
-    assert.match(document.querySelector('.cmv-model-limit-caption').textContent, /模型上下文上限.*128K/)
-    const capped = document.querySelector('.cmv-capacity-stack [data-color="model-capped"]')
-    assert.match(capped.getAttribute('aria-label'), /模型上限外/)
-    assert.equal(document.querySelector('.cmv-capacity-stack [data-color="reserve"]').getAttribute('aria-label').includes('模型上限外'), false)
+    assert.equal(document.querySelector('[data-model-context-limit]'), null)
+    assert.doesNotMatch(document.querySelector('.cmv-composition').textContent, /模型上下文上限/)
     assert.equal(document.querySelector('.cmv-capacity-stack').dataset.capacity, '1000000')
-    current = { ...current, model: { ...current.model, provider: 'other' } }
+    assert.equal(document.querySelector('[data-slice="reserve"]').dataset.value, '210000')
+    assert.ok(document.querySelector('.cmv-capacity-stack [data-color="reserve"]'))
+    current = { ...current, admission: { ...current.admission, outputReserve: null } }
     await act(async () => h.tick()); await h.settle()
-    assert.equal(document.querySelector('[data-model-context-limit]'), null, 'another provider does not inherit the limit')
-    current = { ...current, model: { provider: 'fixture', model: 'offline', maxTokens: null, effort: null },
-      admission: { ...current.admission, tokens: 10000, window: 64000 } }
-    await act(async () => h.tick()); await h.settle()
-    const clamped = document.querySelector('[data-model-context-limit="64000"]')
-    assert.equal(clamped.style.left, '100%')
-    assert.equal(document.querySelector('.cmv-capacity-stack [data-color="model-capped"]'), null)
-    assert.equal(document.querySelector('.cmv-capacity-stack').dataset.total, '64000')
-    current = { ...current, admission: { ...current.admission, tokens: 60000, window: 1000000, outputReserve: null } }
-    await act(async () => h.tick()); await h.settle()
-    assert.equal(document.querySelector('.cmv-capacity-readout [data-slice="free"]').dataset.value, 'unknown')
-    assert.equal(document.querySelector('.cmv-capacity-readout [data-slice="reserve"]').dataset.value, 'unknown')
-    assert.match(document.querySelector('.cmv-capacity-stack [data-color="unknown-space"]').getAttribute('aria-label'), /预留未知/)
-    assert.equal(document.querySelector('.cmv-capacity-stack').dataset.total, '1000000')
-    current = { ...current, historical: true }
-    await act(async () => h.tick()); await h.settle()
-    assert.equal(document.querySelector('[data-model-context-limit]'), null, 'a historical cut does not use the current saved cap')
-  } finally { await h.close() }
-})
-
-test('a cold session keeps the saved model limit label while waiting for a current window', async () => {
-  const current = { ...base, model: { provider: 'fixture', model: 'offline', maxTokens: null, effort: null },
-    pressure: { projected: 60000, window: 1000000 } }
-  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => ({ ...current, ...query }), content: () => new Promise(() => {}) }
-  const h = harness(api, { ...defaults, modelLimits: [{ provider: 'fixture', model: 'offline', tokens: 128000 }] })
-  try {
-    await h.render('s1'); await h.settle()
-    assert.match(document.querySelector('.cmv-model-limit-caption').textContent, /模型上下文上限.*128K.*等待当前窗口/)
-    assert.equal(document.querySelector('[data-model-context-limit]'), null, 'a pressure projection cannot place the current cap marker')
-    assert.equal(document.querySelector('.cmv-capacity-stack').dataset.capacity, '1000000')
-  } finally { await h.close() }
-})
-
-test('model context limit marker and caption stay in K units above one million tokens', async () => {
-  const current = { ...base, admission: { tokens: 60000, logRevision: 6, baseline: 'estimated', window: 1000000, outputReserve: 8192 } }
-  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => ({ ...current, ...query }), content: () => new Promise(() => {}) }
-  const h = harness(api, { ...defaults, modelLimits: [{ provider: 'fixture', model: 'offline', tokens: 2000000 }] })
-  try {
-    await h.render('s1'); await h.settle()
-    const marker = document.querySelector('[data-model-context-limit="1000000"]')
-    assert.ok(marker)
-    assert.match(marker.getAttribute('aria-label'), /模型上下文上限 · 1[,.]?000K/)
-    assert.match(document.querySelector('.cmv-model-limit-caption').textContent, /模型上下文上限.*1[,.]?000K/)
-    assert.doesNotMatch(document.querySelector('.cmv-model-limit-caption').textContent, /M|Token/)
+    assert.equal(document.querySelector('[data-slice="free"]').dataset.value, 'unknown')
+    assert.equal(document.querySelector('[data-slice="reserve"]').dataset.value, 'unknown')
+    assert.ok(document.querySelector('.cmv-capacity-stack [data-color="unknown-space"]'))
   } finally { await h.close() }
 })
 

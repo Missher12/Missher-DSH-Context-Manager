@@ -2,7 +2,7 @@
 
 ![Context Manager · 上下文管理（品牌插画）](docs/images/cover-v2.png)
 
-当前版本 **1.0.7** · [同版安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases/tag/v1.0.7)
+当前版本 **1.0.9** · [安装包](https://github.com/Missher12/Missher-DSH-Context-Manager/releases)
 **高质量压缩，让长会话继续任务。**
 
 中文 · [English](./README.en.md) · [下载 / Release](https://github.com/Missher12/Missher-DSH-Context-Manager/releases) · [反馈](https://github.com/Missher12/Missher-DSH-Context-Manager/issues)
@@ -15,8 +15,7 @@
 | :---: | :---: | :---: |
 | 默认 **80%** | 默认 **15 分钟** | **摘要 + 来源原文** |
 
-空闲从任务正常结束后计时；实际请求检查线会结合模型预留调整。
-可按提供方和模型分别设置上下文上限，限制该路由的可用上下文与压缩预算。
+空闲从任务正常结束后计时。请求检查线按模型实际窗口与输出预留计算。
 
 ## 压缩后保留什么
 
