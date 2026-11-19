@@ -1,5 +1,5 @@
 /** Native-theme charts for one immutable session cut. */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { defaultQuery, type ContentRow, type EfficiencyReadout, type FieldTotalReadout, type Inspection, type InspectorApi, type ReductionReadout, type SessionUsageReadout, type TeamUsageMemberReadout, type TeamUsageReadout } from './inspector-types.ts'
 import type { CompactCapacity } from './idle-types.ts'
@@ -16,6 +16,10 @@ export const formatCapacity = (value: number | null) => value === null ? '—' :
 export const exactTokens = (value: number | null | undefined) => value == null ? '—' : Math.round(value).toLocaleString()
 export const formatTime = (value: number) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 const recordTime = (value: number) => new Date(value).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+const dateTime = (value: number) => {
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined
+}
 
 /** A percentage donut retains unknown input as an empty track. */
 export function CacheDonut({ value, t }: { value: number | null; t: InspectorText }) {
@@ -37,15 +41,11 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
   const reserve = slices.find(slice => slice.id === 'reserve') ?? null
   const content = slices.filter(slice => isGroup(slice.id) || slice.id === 'other').filter(slice => slice.value > 0).map(slice => ({ id: slice.id as ContextGroup | 'other', value: slice.value }))
   const usedTotal = content.reduce((sum, item) => sum + item.value, 0)
-  const colour: Record<string, string> = {
-    tool: 'var(--cmv-blue)', message: 'var(--cmv-green)', instruction: 'var(--cmv-amber)',
-    summary: 'var(--dsw-alias-label-deep-diving)', other: 'color-mix(in srgb,var(--cmv-blue) 32%,var(--dsw-alias-bg-layer-1))',
-  }
   const donutStops: string[] = []
   let cursor = 0
   for (const item of content) {
     const next = cursor + (usedTotal === 0 ? 0 : item.value / usedTotal * 100)
-    donutStops.push(`${colour[item.id] ?? 'var(--cmv-gray)'} ${cursor.toFixed(2)}% ${next.toFixed(2)}%`)
+    donutStops.push(`var(--cmv-composition-${item.id}) ${cursor.toFixed(2)}% ${next.toFixed(2)}%`)
     cursor = next
   }
   const reading = [
@@ -54,7 +54,7 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
     { id: 'reserve' as const, label: t('reserve'), value: reserve?.value ?? null, known: reserve !== null, share: reserve === null ? t('valueUnknown') : formatPercent(reserve.value, window), title: reserve === null ? t('reserveUnknown') : `${t('reserveTooltip')} · ${t('gate')} ${formatPercent(chart.limit, window)}` },
   ]
   return <article className="cmv-card cmv-composition">
-    <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('compositionTitle')}</h3>{data.model && <Tooltip label={`${t('effort')} ${data.model.effort ?? '—'}`}><span tabIndex={0} className="cmv-muted cmv-model">{data.model.provider} / {data.model.model}</span></Tooltip>}</div><span className="cmv-muted">{stale ? t('lastRead') : `${t('current')} · ${t('estimateShort')}`}</span></div>
+    <div className="cmv-heading"><div className="cmv-context-title"><h3>{t('compositionTitle')}</h3>{data.model && <Tooltip label={`${t('effort')} ${data.model.effort ?? '—'}`}><span tabIndex={0} className="cmv-muted cmv-model">{data.model.provider} / {data.model.model}</span></Tooltip>}</div><span className="cmv-muted">{stale ? t('lastRead') : <><span className="cmv-composition-current">{t('current')} · </span>{t('estimateShort')}</>}</span></div>
     <div className="cmv-composition-line">
       <Tooltip label={`${t('used')} ≈ ${formatTokens(chart.used)} ${t('tokens')} · ${t('windowBasis')} ${window === null ? t('unknownWindow') : `${formatCapacity(window)} ${t('tokens')}`}`}><div tabIndex={0} className="cmv-number"><strong>≈ {formatTokens(chart.used)} {t('tokens')}</strong><span>/ {window === null ? `— ${t('tokens')}` : `${formatCapacity(window)} ${t('tokens')}`}</span><b>{formatPercent(chart.used,window)}</b></div></Tooltip>
       <div className="cmv-capacity-readout" role="group" aria-label={t('capacity')}>
@@ -79,7 +79,7 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
         <button type="button" className="cmv-cat-filter" disabled={item.id === 'other'} title={item.id === 'other' ? undefined : t('filterGroupHint')} onClick={() => { if (item.id !== 'other') onGroup(item.id) }}>
           <i data-color={item.id}/><span>{t(item.id as InspectorLocaleKey)}</span>
         </button>
-        <span className="cmv-category-track" aria-hidden="true"><span style={{ width: `${usedTotal === 0 ? 0 : item.value / usedTotal * 100}%` }}/></span>
+        <span className="cmv-category-track" aria-hidden="true"><span data-color={item.id} style={{ width: `${usedTotal === 0 ? 0 : item.value / usedTotal * 100}%` }}/></span>
         <span className="cmv-category-token">{formatTokens(item.value)}</span>
         <small className="cmv-category-share">{usedTotal === 0 ? '—' : `${(item.value / usedTotal * 100).toFixed(1)}%`}</small>
       </li>)}</ul>
@@ -88,8 +88,75 @@ export function ContextComposition({ data, policy, stale = false, t, onGroup }: 
   </article>
 }
 
-/** Recorded host projections only; compaction markers come from the applied entries. */
-export function PressureTrend({ data, t, onCut }: { data: Inspection; t: InspectorText; onCut: (seq: number) => void }) {
+type TrendProps = { data: Inspection; t: InspectorText; onCut: (seq: number) => void }
+type CompactionEntry = Inspection['compactions'][number]
+type ComparableCompaction = CompactionEntry & { beforeTokens: number; afterTokens: number }
+const triggerLabel = { idle: 'triggerIdle', pressure: 'triggerPressure', overflow: 'triggerOverflow', manual: 'triggerManual', unknown: 'triggerUnknown' } as const
+const compactionTime = (entry: CompactionEntry) => entry.endedAt ?? entry.startedAt
+const compactionCut = (entry: CompactionEntry) => entry.checkpointSeq ?? entry.endSeq ?? entry.startSeq
+
+function comparable(entry: CompactionEntry): entry is ComparableCompaction {
+  return entry.kind === 'compact' && entry.applied && [entry.beforeTokens, entry.afterTokens]
+    .every(value => value !== undefined && Number.isSafeInteger(value) && value >= 0)
+}
+
+export function PressureTrend(props: TrendProps) {
+  const entries = props.data.compactions.filter(comparable).sort((a, b) => compactionTime(a) - compactionTime(b)
+    || (compactionCut(a) ?? -1) - (compactionCut(b) ?? -1)).slice(-3)
+  return entries.length ? <CompactionTrend {...props} entries={entries}/> : <OccupancyTrend {...props}/>
+}
+
+function CompactionTrend({ data, entries, t, onCut }: TrendProps & { entries: ComparableCompaction[] }) {
+  const [selection, setSelection] = useState<string | null>(null)
+  const selected = entries.find(entry => entry.id === selection) ?? entries[entries.length - 1]!
+  const window = contextWindow(data)
+  const peak = Math.max(1, ...entries.flatMap(entry => [entry.beforeTokens, entry.afterTokens]))
+  const magnitude = 10 ** Math.floor(Math.log10(peak))
+  const scale = ([1, 2, 5].find(step => step * magnitude >= peak) ?? 10) * magnitude
+  const axisTicks = scale % 2 === 0 ? [scale, scale / 2, 0] : [scale, 0]
+  const columns = { gridTemplateColumns: `repeat(${entries.length}, minmax(0,1fr))` }
+  const spansDays = new Date(compactionTime(entries[0]!)).toDateString() !== new Date(compactionTime(entries[entries.length - 1]!)).toDateString()
+  const cut = compactionCut(selected)
+  const delta = selected.beforeTokens - selected.afterTokens
+  const percent = capacityPercent(Math.abs(delta), selected.beforeTokens)
+  return <article className="cmv-card cmv-trend">
+    <div className="cmv-heading"><h3>{t('contextChange')}</h3><Tooltip label={t('comparisonHint')}><span tabIndex={0} className="cmv-muted">{t('comparisonSegment')}</span></Tooltip></div>
+    <div className="cmv-trend-comparison cmv-trend-plot" role="img" aria-label={t('trendComparison')}>
+      <div className="cmv-trend-scale" aria-hidden="true">{axisTicks.map((value, index) => <span key={value} style={{ top: `${index / (axisTicks.length - 1) * 100}%` }}>{formatCapacity(value)}</span>)}</div>
+      <div className="cmv-trend-pairs" style={columns} aria-hidden="true">{entries.map(entry => {
+        const time = compactionTime(entry)
+        return <div key={entry.id} className="cmv-trend-pair" data-trigger={entry.trigger ?? 'unknown'} data-selected={entry.id === selected.id}>
+          <div className="cmv-trend-bars">{(['before', 'after'] as const).map(stage => {
+            const amount = stage === 'before' ? entry.beforeTokens : entry.afterTokens
+            return <div key={stage} className="cmv-trend-bar" data-stage={stage} style={{ height: `${amount / scale * 100}%` }} title={`${t(stage)} ${exactTokens(amount)} ${t('tokens')}`}><span>{formatTokens(amount)}</span></div>
+          })}</div>
+          <time dateTime={dateTime(time)}>{spansDays ? recordTime(time) : formatTime(time)}</time>
+        </div>
+      })}</div>
+    </div>
+    <div className="cmv-trend-legend"><span data-kind="before"><i/>{t('before')}</span><span data-kind="after"><i/>{t('after')}</span>
+      {window !== null && <span className="cmv-trend-window">{t('windowBasis')} {formatCapacity(window)}</span>}
+    </div>
+    <div className="cmv-trend-events" role="group" aria-label={t('trendComparison')} style={columns}>{entries.map(entry => {
+      const time = compactionTime(entry)
+      const trigger = entry.trigger ?? 'unknown'
+      const description = new Date(time).toLocaleString()
+      return <Button key={entry.id} size="sm" variant="ghost" className="cmv-trend-event" data-trigger={trigger} aria-pressed={entry.id === selected.id}
+        aria-label={`${description} · ${t(triggerLabel[trigger])} · ${t('before')} ${exactTokens(entry.beforeTokens)} · ${t('after')} ${exactTokens(entry.afterTokens)} ${t('tokens')}`}
+        title={description} onClick={() => setSelection(entry.id)}><i aria-hidden="true"/><time dateTime={dateTime(time)}>{formatTime(time)}</time><span>{t(triggerLabel[trigger])}</span></Button>
+    })}</div>
+    <div className="cmv-trend-selection" data-trigger={selected.trigger ?? 'unknown'}>
+      <div className="cmv-trend-reading" aria-live="polite">
+        <span className="cmv-trend-result"><b>{formatTokens(selected.beforeTokens)}</b><span>→</span><b>{formatTokens(selected.afterTokens)}</b></span>
+        <span className="cmv-trend-delta">{t(delta >= 0 ? 'reduced' : 'increased')} {formatTokens(Math.abs(delta))}{percent !== null && <> · {percent.toFixed(1)}%</>}</span>
+      </div>
+      {cut !== undefined && cut >= 0 && !data.historical && <Button size="sm" variant="ghost" onClick={() => onCut(cut)}>{t('trendInspectCut')}</Button>}
+    </div>
+  </article>
+}
+
+/** Keep the clickable host projection when no recorded compaction can be compared. */
+function OccupancyTrend({ data, t, onCut }: TrendProps) {
   const points = data.pressureHistory ?? []
   const window = contextWindow(data) ?? points.at(-1)?.window ?? null
   const known = points.filter(point => typeof point.tokens === 'number' && point.tokens !== null)
@@ -124,10 +191,8 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
   const ticks = [...new Set([0, scale / 2, scale, ...(window !== null && window < scale ? [window] : [])].map(value => Math.round(value)))].sort((a, b) => a - b)
   const markers = data.compactions.filter(entry => entry.kind === 'compact' && entry.applied && entry.startedAt >= first && entry.startedAt <= last)
   const latestMarker = markers.at(-1)
-  const markerDelta = latestMarker && latestMarker.beforeTokens !== undefined && latestMarker.afterTokens !== undefined ? latestMarker.beforeTokens - latestMarker.afterTokens : null
-  const triggerLabel = (entry: Inspection['compactions'][number]) => t(entry.trigger === 'idle' ? 'triggerIdle' : entry.trigger === 'pressure' ? 'triggerPressure' : entry.trigger === 'overflow' ? 'triggerOverflow' : entry.trigger === 'manual' ? 'triggerManual' : entry.manual ? 'betweenTurns' : 'duringTask')
   return <article className="cmv-card cmv-trend"><div className="cmv-heading"><h3>{t('contextChange')}</h3><Tooltip label={t('trendHint')}><span tabIndex={0} className="cmv-muted">{t('estimateShort')}</span></Tooltip></div>
-    {known.length === 0 ? <div className="cmv-empty">{t('noTrend')}</div> : <>
+    {known.length === 0 ? <div className="cmv-empty cmv-trend-plot">{t('noTrend')}</div> : <>
       <div className="cmv-trend-plot" ref={plot}>
         <svg className="cmv-trend-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${t('contextChange')} ${formatTokens(known.at(-1)!.tokens)} ${t('tokens')}`}>
           <line x1={PAD_LEFT} y1={y(0).toFixed(1)} x2={width - PAD_RIGHT} y2={y(0).toFixed(1)} className="cmv-trend-base"/>
@@ -147,13 +212,14 @@ export function PressureTrend({ data, t, onCut }: { data: Inspection; t: Inspect
         </svg>
       </div>
       <div className="cmv-trend-axis"><span>{axisTime(first)}</span><span>{axisTime(last)}</span></div>
-      <div className="cmv-trend-legend"><span data-kind="used"><i data-color="used"/>{t('contextEstimate')}</span><span data-kind="event"><i data-color="marker"/>{t('compactionEvents')}</span>{latestMarker && <span className="cmv-muted">{triggerLabel(latestMarker)}{markerDelta === null ? '' : ` · ${markerDelta > 0 ? '-' : markerDelta < 0 ? '+' : ''}${formatTokens(Math.abs(markerDelta))}`}</span>}</div>
+      <div className="cmv-trend-legend"><span data-kind="used"><i data-color="used"/>{t('contextEstimate')}</span>{latestMarker && <>
+        <span data-kind="event"><i data-color="marker"/>{t('compactionEvents')}</span><span className="cmv-muted">{t(triggerLabel[latestMarker.trigger ?? 'unknown'])}</span>
+      </>}</div>
       <p className="cmv-muted cmv-trend-hint">{t('trendScaleHint')} {formatTokens(peak)} / {window === null ? t('unknownWindow') : formatCapacity(window)}{window !== null && peak > window ? ` · ${t('trendOverflowHint')}` : ''}</p>
     </>}
   </article>
 }
 
-type CompactionEntry = Inspection['compactions'][number]
 function compactionSource(entry: CompactionEntry, historical: boolean) {
   const sources = { idle: 'triggerIdle', pressure: 'triggerPressure', overflow: 'triggerOverflow', manual: 'triggerManual' } as const
   return entry.kind === 'prune' ? 'toolCleanup' : !historical && entry.trigger ? sources[entry.trigger] : entry.manual ? 'betweenTurns' : 'duringTask'
@@ -404,6 +470,39 @@ function teamSummaryAmount(member: TeamUsageMemberReadout, t: InspectorText) {
     : `${member.summaryCoverage !== 'complete' || (member.summaryUnknownAttempts ?? 0) > 0 ? '≥ ' : ''}${formatTokens(member.summaryTokens)} Token`
 }
 
+function TeamRequestDetails({ member, t }: { member: TeamUsageMemberReadout; t: InspectorText }) {
+  const [expanded, setExpanded] = useState(false)
+  const id = useId()
+  const readable = member.status === 'ready'
+  const open = expanded && readable
+  const rows = member.recentRequests
+  const spansDays = rows?.length ? new Date(rows[0]!.time).toDateString() !== new Date(rows[rows.length - 1]!.time).toDateString() : false
+  const headings = [['teamRequestTime', 'teamRequestTime'], ['teamRequestUncached', 'uncached'], ['teamRequestCacheRead', 'read'],
+    ['teamRequestCacheWrite', 'write'], ['output', 'output'], ['teamRequestTotal', 'teamRequestTotal']] as const
+  return <div className="cmv-team-requests">
+    <Button size="sm" variant="ghost" className="cmv-team-requests-button" disabled={!readable} aria-expanded={open} aria-controls={id} onClick={() => setExpanded(value => !value)}>{t('teamRequestDetails')}</Button>
+    <div id={id} hidden={!open}>
+      {open && (rows === undefined ? <p className="cmv-muted">{t('teamRequestsUnavailable')}</p>
+        : rows.length === 0 ? <p className="cmv-muted">{t('noRequest')}</p>
+          : <table aria-label={t('recentRequests')}>
+            <thead><tr>{headings.map(([key, label]) => <th key={key} scope="col" aria-label={t(label)} title={key === label ? undefined : t(label)}>{t(key)}</th>)}</tr></thead>
+            <tbody>{rows.map(row => {
+              const values = [row.uncachedInput, row.cacheRead, row.cacheWrite, row.output]
+              const known = values.filter((value): value is number => value !== null)
+              const sum = known.reduce((total, value) => total + value, 0)
+              const amount = known.length === 0 ? t('effUnknownValue') : `${known.length < values.length ? '≥ ' : ''}${formatTokens(sum)}`
+              const time = dateTime(row.time)
+              return <tr key={row.seq}>
+                <td>{time === undefined ? t('effUnknownValue') : <time dateTime={time} title={new Date(row.time).toLocaleString()}>{spansDays ? recordTime(row.time) : formatTime(row.time)}</time>}</td>
+                {values.map((value, index) => <td key={index}>{value === null ? t('effUnknownValue') : formatTokens(value)}</td>)}
+                <td>{amount}</td>
+              </tr>
+            })}</tbody>
+          </table>)}
+    </div>
+  </div>
+}
+
 function TeamUsagePanel({ enabled, target, historical, api, t, renderMemberContent }: { enabled: boolean; target?: string; historical: boolean; api?: InspectorApi; t: InspectorText; renderMemberContent?: (data: Inspection, row: ContentRow) => ReactNode }) {
   const [refresh, setRefresh] = useState(0)
   const [readout, setReadout] = useState<TeamUsageReadout | null>(null)
@@ -414,17 +513,22 @@ function TeamUsagePanel({ enabled, target, historical, api, t, renderMemberConte
     const controller = new AbortController()
     setLoading(true); setError('')
     void api.teamUsage({ sessionId: target }, controller.signal).then(value => {
-      if (!controller.signal.aborted) setReadout(value)
+      if (controller.signal.aborted) return
+      if (value.targetSessionId !== target) { setError(t('targetMismatch')); return }
+      setReadout(value)
     }).catch(() => { if (!controller.signal.aborted) setError(t('error')) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [api, enabled, historical, refresh, t, target])
   const current = readout?.targetSessionId === target ? readout : null
+  const waiting = enabled && !historical && !!api?.teamUsage && !!target && (loading || (!current && !error))
   const total = current?.knownTokens ?? 0
-  return <section className="cmv-team-usage" data-team-included={enabled}>
-    {enabled && current?.status === 'ready' && <div className="cmv-team-controls"><Button size="sm" variant="ghost" disabled={loading} onClick={() => { setReadout(null); setRefresh(value => value + 1) }}>{t('teamRefresh')}</Button></div>}
-    {enabled && (loading ? <p className="cmv-muted">{t('teamLoading')}</p> : error ? <p className="cmv-error" role="alert">{error}</p>
-      : !current ? null : current.status === 'not-team' ? <p className="cmv-muted">{t('teamNotTeam')}</p>
+  return <section className="cmv-team-usage" data-team-included={enabled} aria-busy={waiting}>
+    {enabled && <div className="cmv-team-controls"><Button size="sm" variant="ghost" disabled={waiting || historical} onClick={() => setRefresh(value => value + 1)}>{t('teamRefresh')}</Button>
+      {waiting ? <p className="cmv-muted" role="status">{t('teamLoading')}</p> : error && <p className="cmv-error" role="alert">{error}{current?.status === 'ready' ? ` · ${t('retained')}` : ''}</p>}
+    </div>}
+    {enabled && !historical && (current === null ? waiting && <div className="cmv-team-pending" aria-hidden="true"><span/><div className="cmv-stack cmv-team-stack"/></div>
+      : current.status === 'not-team' ? <p className="cmv-muted">{t('teamNotTeam')}</p>
         : current.status === 'unavailable' ? <p className="cmv-muted">{t('teamUnavailable')}</p>
           : <div className="cmv-team-content">
             <div className="cmv-team-total"><strong>{t('teamKnownTotal')} {current.tokensPartial ? '≥ ' : ''}{formatTokens(current.knownTokens)} Token</strong>
@@ -446,6 +550,7 @@ function TeamUsagePanel({ enabled, target, historical, api, t, renderMemberConte
                   <div className="cmv-team-member-meta"><span>{member.provider && member.model ? `${t('teamModel')} · ${member.provider} / ${member.model}` : t('teamNoModel')}</span><span>{t('teamRequestTokens')} {member.requestTokens === null ? '—' : `${member.requestTokensPartial ? '≥ ' : ''}${formatTokens(member.requestTokens)}`} · {t('teamCacheReadWrite')} {teamField(member.cacheRead, t)} / {teamField(member.cacheWrite, t)} · {t('teamSummary')} {teamSummaryAmount(member, t)}</span><span>{t('teamSettled')} {member.settledAttempts ?? '—'} · {t('teamRetries')} {member.retries ?? '—'}</span><span>{t('cost')} {member.referenceCost === null ? `— · ${t('costUnknown')}` : `${member.costPartial ? '≥ ' : ''}${money(member.referenceCost)}`}</span></div>
                   <TeamMemberDetails member={member} api={api!} t={t} renderContent={renderMemberContent}/>
                 </>}
+                <TeamRequestDetails member={member} t={t}/>
               </li>
             })}</ul>
           </div>)}

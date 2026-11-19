@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import Inspector from '../lib/inspector.js'
+import { TYPERT } from '../lib/typert.js'
 
 const header = (id, parentSession) => ({ id, ...(parentSession ? { parentSession } : {}) })
 const event = (seq, time, type, data, surfaceOp) => ({ seq, time, type, data, ...(surfaceOp ? { surfaceOp } : {}) })
@@ -162,6 +163,52 @@ test('current Host Team mode uses its direct subagent catalog and counts each ow
   }
   const fork = await service.api.teamUsage({ sessionId: 'ordinary-fork' }, new AbortController().signal)
   assert.equal(fork.status, 'not-team')
+})
+
+test('team request details carry only each member’s recent owned business settlements through the wire', async t => {
+  const members = [
+    { id: 'root', name: 'Lead', role: 'lead', phase: 'active' },
+    ...['worker', 'peer', 'empty', 'unreadable'].map(id => ({ id, name: id, role: 'teammate', phase: 'active' })),
+  ]
+  const settled = (seq, turn, usage) => event(seq, 1_000 + seq, 'assistant/message', {
+    turn, step: 1, usage, message: { source: { kind: 'model', provider: 'fixture', model: 'fixed' },
+      content: [{ type: 'text', text: 'private fixture text' }] },
+  }, 'append')
+  const lead = settled(0, 1, { inputTokens: 80, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 20 })
+  const workerEvents = [lead, ...Array.from({ length: 9 }, (_, i) => settled(i + 1, i + 2,
+    { inputTokens: 2_000 + i, cacheReadTokens: 3_000, outputTokens: 40 })),
+    event(10, 1_010, 'compaction/start', { compactionId: 'numbered', turn: 11 }),
+    settled(11, 11, { inputTokens: 50_000, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 50 }),
+    event(12, 1_012, 'compaction/end', { compactionId: 'numbered' })]
+  const service = await createService(t, {
+    trace: id => ({ target: { header: header(id) }, ancestors: [] }),
+    observe: async (id, { projectionMode }) => {
+      if (id === 'unreadable') throw new Error('no log')
+      const events = id === 'worker' ? workerEvents : id === 'peer' ? [lead, settled(1, 2, { inputTokens: 30, outputTokens: 9 })] : [lead]
+      return { cursor: events.at(-1).seq, header: header(id, id !== 'root' ? 'root' : undefined), events,
+        inheritedEventCount: id === 'root' ? 0 : 1,
+        projections: projectionMode === 'all' ? { values: { agentTeam: { members } } } : undefined }
+    },
+    summaryLedger: { stats: id => id === 'worker' ? { since: 1, input: 55_000, output: 120, attempts: 1, unknownAttempts: 0, recent: [] } : undefined },
+  })
+  const result = await service.api.teamUsage({ sessionId: 'root' }, new AbortController().signal)
+  const codec = TYPERT.invocations.find(item => item.method === 'teamUsage').result.create()
+  const readout = codec.parse(JSON.parse(JSON.stringify(result)))
+  const [root, worker, peer, empty, unreadable] = readout.members
+  assert.deepEqual(root.recentRequests, [{ seq: 0, time: 1_000, uncachedInput: 80, cacheRead: 0, cacheWrite: 0, output: 20 }])
+  assert.deepEqual(worker.recentRequests.map(row => row.seq), [9, 8, 7, 6, 5, 4, 3, 2])
+  assert.deepEqual(worker.recentRequests[0], { seq: 9, time: 1_009, uncachedInput: 2_008, cacheRead: 3_000, cacheWrite: null, output: 40 })
+  assert.deepEqual(peer.recentRequests, [{ seq: 1, time: 1_001, uncachedInput: 30, cacheRead: null, cacheWrite: null, output: 9 }])
+  assert.deepEqual(empty.recentRequests, [])
+  assert.equal(unreadable.status, 'unavailable')
+  assert.equal(unreadable.recentRequests, undefined)
+  assert.equal(worker.maintenanceSuspects, 1)
+  assert.equal(worker.summaryTokens, 55_120)
+  assert.ok(!JSON.stringify(readout).includes('private fixture text'))
+  const old = JSON.parse(JSON.stringify(readout))
+  delete old.members[0].recentRequests
+  assert.equal(codec.parse(old).members[0].recentRequests, undefined)
+  assert.equal(codec.safeParse({ ...readout, members: [{ ...root, recentRequests: [...worker.recentRequests, root.recentRequests[0]] }] }).success, false)
 })
 
 test('a newer Host restores the last historical member state without counting inherited roster events', async t => {

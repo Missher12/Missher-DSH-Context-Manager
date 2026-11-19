@@ -701,11 +701,13 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     pressure: null, official: null, usage: { input: 110, uncached: 30, cacheRead: 70, cacheWrite: 10, output: 90 }, model: null,
     parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0,
     requests: [{ seq: 1, time: 1000, turn: 1, step: 1, provider: 'fixture', model: 'offline', input: 900, output: 30, cacheRead: 0 }, { seq: 3, time: 2000, turn: 2, step: 1, provider: 'fixture', model: 'offline', input: 400, output: 60, cacheRead: 0 }],
-    requestCount: 2, compactions: [], pressureHistory: [{ seq: 1, time: 1000, kind: 'reply', tokens: 900, window: 1000 }, { seq: 2, time: 2000, kind: 'reply', tokens: null, window: null }, { seq: 3, time: 86_403_000, kind: 'replace', tokens: 300, window: 1000 }] }
+    requestCount: 2, compactions: [{ id: 'legacy', kind: 'compact', applied: true, status: 'completed', startedAt: 2000, manual: true, beforeTokens: 700 }],
+    pressureHistory: [{ seq: 1, time: 1000, kind: 'reply', tokens: 900, window: 1000 }, { seq: 2, time: 2000, kind: 'reply', tokens: null, window: null }, { seq: 3, time: 86_403_000, kind: 'replace', tokens: 300, window: 1000 }] }
   const formValue = { revision: 1, value: { policy: defaults } }
   const form = { subscribe: () => () => {}, getSnapshot: () => formValue }
   const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
-  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async () => snapshot }
+  const cuts = []
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => { cuts.push(query.atSeq); return snapshot } }
   const root = createRoot(document.getElementById('root'))
   try {
     await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: 'charts', form, api, pulse })))
@@ -716,6 +718,8 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     assert.equal(document.querySelectorAll('.cmv-trend-point').length, 2, 'a null projection stays a gap instead of a fabricated point')
     assert.equal(document.querySelectorAll('.cmv-trend-area').length, 0, 'a projection gap is never filled as one continuous area')
     assert.match(document.querySelector('.cmv-trend-point').getAttribute('aria-label'), /900/)
+    assert.equal(document.querySelector('.cmv-trend-comparison'), null, 'a legacy record with one amount retains the line')
+    assert.match(document.querySelector('.cmv-trend-legend').textContent, /触发原因未知/)
     assert.equal(document.querySelectorAll('svg path.cmi-pressure-line').length, 0)
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="read"]').style.width, '35%')
     assert.equal(document.querySelector('.cmv-usage-stack [data-usage="write"]').style.width, '5%')
@@ -731,6 +735,132 @@ test('context charts keep projection gaps, disjoint cache buckets, step changes 
     assert.ok(document.querySelector('.cmv-summary').compareDocumentPosition(document.querySelector('.cmv-records')) & 4)
     assert.ok(document.querySelector('.cmv-records').compareDocumentPosition(document.querySelector('.cmv-content')) & 4, 'content stays last in the single-column flow')
     assert.equal(document.querySelectorAll('[role="tab"]').length, 0)
+    await act(async () => document.querySelector('.cmv-trend-point').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    assert.deepEqual(cuts, [null, 1], 'the old line still opens the recorded cut')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('compaction comparison keeps a shared scale and opens the selected recorded cut', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const entry = (id, startSeq, trigger, beforeTokens, afterTokens) => ({ id, kind: 'compact', applied: true,
+    status: 'completed', manual: trigger === 'idle' || trigger === 'manual', trigger, beforeTokens, afterTokens,
+    startSeq, checkpointSeq: startSeq + 2, endSeq: startSeq + 3, startedAt: startSeq * 60_000, endedAt: (startSeq + 1) * 60_000 })
+  const pressure = entry('request', 10, 'pressure', 80_000, 30_000)
+  const manual = entry('manual', 20, 'manual', 60_000, 30_000)
+  const idle = entry('idle', 30, 'idle', 40_000, 25_000)
+  const snapshot = { sessionId: 'comparison', cursor: 50, cutSeq: 50, sampledAt: 3_000_000, historical: false,
+    pressure: { window: 1_000_000, projected: 25_000, input: 0 }, official: null, usage: null, model: null,
+    parts: [], rows: [], total: 0, offset: 0, pageSize: 50, activeCount: 0, archivedCount: 0,
+    requests: [], requestCount: 0, pressureHistory: [],
+    compactions: [manual, entry('old', 4, undefined, 500_000, 85_000), idle, pressure,
+      { ...entry('unapplied', 40, 'pressure', 900_000, 5_000), applied: false }, entry('legacy', 45, undefined, 800_000, undefined)] }
+  let current = snapshot
+  const queries = []
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async query => {
+    queries.push(query.atSeq)
+    return query.atSeq === null ? current : { ...snapshot, cutSeq: query.atSeq, historical: true, compactions: [pressure, manual] }
+  } }
+  const formValue = { revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => formValue }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const root = createRoot(document.getElementById('root'))
+  const plot = () => document.querySelector('.cmv-trend-comparison')
+  const events = () => [...document.querySelectorAll('#cmi-history-panel button[aria-pressed]')]
+  const heights = () => [...plot().querySelectorAll('.cmv-trend-bar')].map(bar => bar.style.height)
+  const cut = () => [...document.querySelectorAll('#cmi-history-panel button')].find(button => button.textContent === '查看当时')
+  const settle = () => act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: snapshot.sessionId, form, api, pulse })))
+    await settle()
+    assert.ok(plot(), 'applied comparisons render even without a pressure projection')
+    assert.deepEqual(events().map(button => button.dataset.trigger), ['pressure', 'manual', 'idle'])
+    assert.deepEqual(events().map(button => button.getAttribute('aria-pressed')), ['false', 'false', 'true'])
+    assert.equal(plot().querySelector('.cmv-trend-scale span').textContent, '100.0K', '80K peak rounds to 100K within a 1M model window')
+    assert.match(document.querySelector('.cmv-trend-window').textContent, /1M$/)
+    assert.deepEqual(heights(), ['80%', '30%', '60%', '30%', '40%', '25%'])
+    await act(async () => events()[1].click())
+    assert.equal(events()[1].getAttribute('aria-pressed'), 'true')
+    assert.deepEqual(heights(), ['80%', '30%', '60%', '30%', '40%', '25%'], 'selection does not rescale the bars')
+    assert.match(document.querySelector('.cmv-trend-selection').textContent, /60\.0K.*30\.0K.*减少\s*30\.0K.*50\.0%/)
+    await act(async () => cut().click())
+    assert.ok(document.querySelector('.cmv-page[aria-busy="true"] .cmv-trend-plot'), 'the pending cut reserves chart space')
+    assert.equal(plot(), null, 'the previous cut’s values do not flash as historical data')
+    await settle()
+    assert.deepEqual(queries, [null, 22])
+    assert.equal(cut(), undefined, 'the action is hidden inside a historical cut')
+    const back = [...document.querySelectorAll('button')].find(button => button.textContent === '返回当前上下文')
+    await act(async () => back.click())
+    await settle()
+    assert.deepEqual(queries, [null, 22, null])
+    assert.equal(events().at(-1).getAttribute('aria-pressed'), 'true')
+    current = { ...snapshot, compactions: [entry('small', 44, 'idle', 19_800, 530)] }
+    await act(async () => document.querySelector('.cmv-hero-actions button').click())
+    await settle()
+    assert.equal(plot().querySelector('.cmv-trend-scale span').textContent, '20.0K', '19.8K peak rounds to 20K')
+    assert.deepEqual(heights().map(height => Number.parseFloat(height).toFixed(2)), ['99.00', '2.65'])
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('member request details show reported zeros, unknown fields and lower bounds while refresh is pending', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const snapshot = { sessionId: 'team-root', cursor: 9, cutSeq: 9, sampledAt: 1000, historical: false,
+    pressure: null, official: null, usage: null, model: null, parts: [], rows: [], total: 0, offset: 0, pageSize: 50,
+    activeCount: 0, archivedCount: 0, requests: [], requestCount: 0, pressureHistory: [], compactions: [] }
+  const member = (sessionId, name, patch) => ({ sessionId, name, role: 'teammate', phase: 'active', status: 'ready', cutSeq: 9,
+    provider: null, model: null, requestTokens: null, requestTokensPartial: true, settledAttempts: null, retries: null,
+    uncachedInput: null, cacheRead: null, cacheWrite: null, output: null, summaryInput: null, summaryOutput: null,
+    summaryTokens: null, summaryCacheRead: null, summaryCacheWrite: null, summaryAttempts: null, summaryUnknownAttempts: null,
+    summarySince: null, summaryCoverage: 'unknown', maintenanceSuspects: 0, totalTokens: null, tokensPartial: true, referenceCost: null, costPartial: true, ...patch })
+  const readout = { targetSessionId: 'team-root', teamId: 'team-root', sampledAt: 1000, status: 'ready', knownTokens: 0,
+    unknownMembers: 4, tokensPartial: true, shareBasis: 'known-subtotal', referenceCost: null, costPartial: true, members: [
+      member('team-root', 'Lead', { role: 'lead', recentRequests: [] }),
+      member('team-worker', 'Worker', { recentRequests: [
+        { seq: 3, time: 3000, uncachedInput: 2_100, cacheRead: 19_200, cacheWrite: 0, output: 760 },
+        { seq: 2, time: 2000, uncachedInput: 10_400, cacheRead: null, cacheWrite: 0, output: 900 },
+        { seq: 1, time: 1000, uncachedInput: null, cacheRead: null, cacheWrite: null, output: null },
+      ] }),
+      member('team-legacy', 'Legacy', {}), member('team-missing', 'Missing', { status: 'unavailable', cutSeq: null }),
+    ] }
+  const reads = []
+  const api = { idleStatus: async () => ({ status: 'off', dueAt: null, message: '' }), inspect: async () => snapshot,
+    teamUsage: () => new Promise(resolve => reads.push(resolve)) }
+  const state = { revision: 1, value: { policy: defaults } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => state }
+  const pulse = { subscribe: () => () => {}, getSnapshot: () => 1 }
+  const root = createRoot(document.getElementById('root'))
+  const button = (label, scope = document) => [...scope.querySelectorAll('button')].find(node => node.textContent.trim() === label)
+  try {
+    await act(async () => root.render(React.createElement(client.ContextInspectorView, { target: snapshot.sessionId, form, api, pulse })))
+    await act(async () => new Promise(resolve => setTimeout(resolve, 230)))
+    await act(async () => button('包含团队').click())
+    const panel = document.querySelector('.cmv-team-usage')
+    assert.match(panel.textContent, /正在读取团队成员/)
+    await act(async () => reads[0](readout))
+    const [lead, worker, legacy, missing] = panel.querySelectorAll('.cmv-team-members>li')
+    const expand = button('请求明细', worker)
+    assert.ok(expand, 'each readable member has its own request disclosure')
+    await act(async () => expand.click())
+    assert.equal(expand.getAttribute('aria-expanded'), 'true')
+    const rows = [...worker.querySelectorAll('table tbody tr')]
+    assert.equal(rows[0].querySelector('time').dateTime, '1970-01-01T00:00:03.000Z')
+    assert.deepEqual(rows.map(row => [...row.cells].slice(1).map(cell => cell.textContent)), [
+      ['2.1K', '19.2K', '0', '760', '22.1K'], ['10.4K', '未知', '0', '900', '≥ 11.3K'],
+      ['未知', '未知', '未知', '未知', '未知'],
+    ])
+    await act(async () => button('请求明细', lead).click())
+    assert.match(lead.textContent, /暂无请求记录/)
+    await act(async () => button('请求明细', legacy).click())
+    assert.match(legacy.textContent, /请求明细不可用/)
+    assert.match(missing.textContent, /成员日志暂不可读/)
+    await act(async () => button('刷新', panel).click())
+    assert.equal(reads.length, 2)
+    assert.match(panel.textContent, /正在读取团队成员/)
+    assert.ok(worker.querySelector('table'), 'refresh does not collapse or erase the last readout')
+    await act(async () => reads[1](readout))
+    assert.equal(expand.getAttribute('aria-expanded'), 'true')
   } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
 })
 

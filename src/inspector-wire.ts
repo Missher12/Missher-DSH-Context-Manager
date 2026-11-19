@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
+import { TEAM_REQUEST_LIMIT } from './inspector-types.ts'
 
 const count = () => z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const seq = () => z.number().int().min(-1).max(Number.MAX_SAFE_INTEGER)
@@ -57,6 +58,8 @@ export function teamUsageReadoutSchema() { return z.object({
     provider: z.string().max(200).nullable(), model: z.string().max(200).nullable(), requestTokens: count().nullable(), requestTokensPartial: z.boolean(),
     settledAttempts: count().nullable(), retries: count().nullable(), uncachedInput: fieldTotalSchema().nullable(),
     cacheRead: fieldTotalSchema().nullable(), cacheWrite: fieldTotalSchema().nullable(), output: fieldTotalSchema().nullable(),
+    recentRequests: z.array(z.object({ seq: count(), time: count(), uncachedInput: count().nullable(),
+      cacheRead: count().nullable(), cacheWrite: count().nullable(), output: count().nullable() }).strict()).max(TEAM_REQUEST_LIMIT).optional(),
     summaryInput: count().nullable(), summaryOutput: count().nullable(), summaryTokens: count().nullable(),
     summaryCacheRead: count().nullable(), summaryCacheWrite: count().nullable(),
     summaryAttempts: count().nullable(), summaryUnknownAttempts: count().nullable(), totalTokens: count().nullable(),

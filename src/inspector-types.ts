@@ -154,6 +154,8 @@ export interface ContentQuery { sessionId: string; cutSeq: number; id: string; o
 export interface SessionUsageQuery { sessionId: string }
 export type SessionUsageReadout = SessionCostReadout & { sessionId: string; sampledAt: number; status: 'ready' | 'analysis-limit' }
 export interface TeamUsageQuery { sessionId: string }
+export const TEAM_REQUEST_LIMIT = 8
+export type TeamUsageRequest = Pick<EfficiencyRequestRow, 'seq' | 'time' | 'uncachedInput' | 'cacheRead' | 'cacheWrite' | 'output'>
 export interface TeamUsageMemberReadout {
   sessionId: string; name: string; role: 'lead' | 'teammate'; phase: 'provisioning' | 'active' | 'failed'
   status: 'ready' | 'analysis-limit' | 'unavailable'; cutSeq: number | null
@@ -161,6 +163,8 @@ export interface TeamUsageMemberReadout {
   requestTokens: number | null; requestTokensPartial: boolean; settledAttempts: number | null; retries: number | null
   uncachedInput: FieldTotalReadout | null; cacheRead: FieldTotalReadout | null
   cacheWrite: FieldTotalReadout | null; output: FieldTotalReadout | null
+  /** Newest owned business settlements first. Absent on older or unreadable results. */
+  recentRequests?: TeamUsageRequest[]
   summaryInput: number | null; summaryOutput: number | null; summaryTokens: number | null
   summaryCacheRead: number | null; summaryCacheWrite: number | null
   summaryAttempts: number | null; summaryUnknownAttempts: number | null

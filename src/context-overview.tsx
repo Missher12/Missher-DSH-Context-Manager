@@ -145,8 +145,8 @@ export function StatCards({ data, policy, idle, t }: { data: Inspection; policy:
   </div>
 }
 
-export function WindowChips({ data, policy, t }: { data: Inspection; policy: Policy | undefined; t: InspectorText }) {
-  const window = contextWindow(data)
+export function WindowChips({ data, policy, t }: { data: Inspection | null; policy: Policy | undefined; t: InspectorText }) {
+  const window = data && contextWindow(data)
   return <div className="cmv-window-chips">
     <Tooltip label={t('windowHint')}><span tabIndex={0} className="cmv-chip">{t('window')} {window === null ? '—' : formatCapacity(window)} Token</span></Tooltip>
     {policy && <><span className="cmv-chip">{t('trigger')} {policy.triggerPercent}%</span><span className="cmv-chip">{t('idle')} {policy.idleMinutes} {t('minuteShort')}</span></>}

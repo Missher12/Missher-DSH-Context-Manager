@@ -14,6 +14,7 @@ export { pressureHistory } from './pressure-history.ts'
 import { indexContext, MAX_EVENTS } from './inspector-fold.ts'
 import { attributeSession } from './efficiency.ts'
 import { inspectQuerySchema, contentQuerySchema, sessionUsageQuerySchema, teamUsageQuerySchema } from './inspector-wire.ts'
+import { TEAM_REQUEST_LIMIT } from './inspector-types.ts'
 import type { InspectQuery, Inspection, ContentQuery, ContentPage, ContextDelta, ContextGrowth, AdmissionReadout, EfficiencyReadout, SessionUsageQuery, SessionUsageReadout, TeamUsageQuery, TeamUsageReadout, TeamUsageMemberReadout } from './inspector-types.ts'
 import { estimateSessionCost } from './session-cost.ts'
 import { aggregateTeamUsage, attributeOwnedSession, readTeamRoster, resolveSummaryCoverage, resolveVerifiedTeam, type TeamRoster } from './team-usage.ts'
@@ -399,6 +400,9 @@ export class ContextInspector extends TypertRemoteService {
           : summaryTokens === null ? attribution.cost.requestTokens : attribution.cost.requestTokens + summaryTokens
         const tokensPartial = attribution.cost.requestTokensPartial || summaryCoverage !== 'complete' || maintenanceSuspects > 0
         const request = attribution.attribution.requests.at(-1)
+        const recentRequests = attribution.attribution.requests.filter(row => !row.maintenanceSuspect)
+          .sort((a, b) => b.seq - a.seq).slice(0, TEAM_REQUEST_LIMIT)
+          .map(({ seq, time, uncachedInput, cacheRead, cacheWrite, output }) => ({ seq, time, uncachedInput, cacheRead, cacheWrite, output }))
         const lastHeader = owned.findLast(event => event.type === 'request/header')
         const config = lastHeader?.type === 'request/header' ? lastHeader.data.header.config : undefined
         const provider = config?.provider ?? request?.provider ?? null
@@ -409,7 +413,7 @@ export class ContextInspector extends TypertRemoteService {
           cutSeq: observation.cursor, provider, model,
           requestTokens: attribution.cost.requestTokens, requestTokensPartial: attribution.cost.requestTokensPartial,
           settledAttempts: attribution.attribution.mirrored.settledAttempts,
-          retries: attribution.attribution.mirrored.retries,
+          retries: attribution.attribution.mirrored.retries, recentRequests,
           uncachedInput: { ...attribution.attribution.mirrored.uncachedInput }, cacheRead: { ...attribution.attribution.mirrored.cacheRead },
           cacheWrite: { ...attribution.attribution.mirrored.cacheWrite }, output: { ...attribution.attribution.mirrored.output },
           summaryInput: stats?.input ?? (summaryCoverage === 'complete' ? 0 : null),

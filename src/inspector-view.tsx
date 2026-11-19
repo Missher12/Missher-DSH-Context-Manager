@@ -12,7 +12,7 @@ import { useReadonlyView } from './readonly-view.ts'
 import type { CompactCapacity, IdleStatus } from './idle-types.ts'
 import type { CompactionReadout, ContextCooperationReadout } from './compatibility.ts'
 import { admissionBudget, type ContextGroup } from './chart-data.ts'
-import { ContentDetail, Loading, errorText } from './content-reader.tsx'
+import { ContentDetail, errorText } from './content-reader.tsx'
 export { CheckpointBody } from './content-reader.tsx'
 import { StatCards, SummaryCard, WindowChips } from './context-overview.tsx'
 import { previousAppliedCheckpoint } from './summary-review.ts'
@@ -273,6 +273,23 @@ function RequestStatus({ data, policy, stale, bindingMode, t }: { data: Inspecti
   </div>
 }
 
+function InspectorLoading({ t }: { t: InspectorText }) {
+  return <div className="cmv-page" aria-busy="true">
+    <article className="cmv-card cmv-composition">
+      <div className="cmv-heading"><h3>{t('compositionTitle')}</h3><span className="cmv-muted" role="status">{t('inspectorLoading')}</span></div>
+      <div className="cmv-loading-metrics" aria-hidden="true"><span/><span/></div>
+      <div className="cmv-stack" aria-hidden="true"/>
+      <div className="cmv-composition-body" aria-hidden="true">
+        <div className="cmv-donut cmv-composition-donut"><span/></div>
+        <div className="cmv-category-bars cmv-loading-categories"><span/><span/><span/><span/><span/></div>
+      </div>
+      <div className="cmv-loading-footnote" aria-hidden="true"/>
+    </article>
+    <div className="cmv-stats" aria-hidden="true">{[0, 1, 2, 3].map(slot => <div key={slot} className="cmv-card cmv-stat cmv-loading-stat"><span/><span/></div>)}</div>
+    <article className="cmv-card cmv-trend" aria-hidden="true"><div className="cmv-heading"><h3>{t('contextChange')}</h3></div><div className="cmv-trend-plot cmv-loading-plot"/></article>
+  </div>
+}
+
 function ContentBrowser({ data, query, change, api, target, loading, t, initialSelected }: { data: Inspection; initialSelected?: string; query: InspectQuery; change: (patch: Partial<InspectQuery>) => void; api: InspectorApi; target: string; loading: boolean; t: InspectorText }) {
   const [selected, setSelected] = useState(initialSelected ?? '')
   const [shown, setShown] = useState(4)
@@ -449,7 +466,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
           {refreshing && <span className="cmv-binding-refresh">{t('runRefreshing')}</span>}
         </div>
         <div className="cmv-hero-actions">
-          {safeData && <WindowChips data={safeData} policy={accepted.value?.policy} t={t}/>}
+          <WindowChips data={safeData} policy={accepted.value?.policy} t={t}/>
           <Button size="sm" variant="ghost" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('refresh')}</Button>
           <span className="cmv-settings-note" tabIndex={0} title={t('settingsHint')}>{t('settingsHint')}</span>
         </div>
@@ -459,7 +476,7 @@ export function ContextInspectorView({ target, form, api, pulse, locale = 'zh' }
       {safeData?.goal?.blockedReason && !historical && <div className="cmv-notice"><span role="status">{requestStale && <>{t('lastRead')} · </>}{t('goalStopShort')}：{safeData.goal.blockedReason.message}</span></div>}
       {effective.atSeq !== null && <div className="cmv-notice"><Tooltip label={t('historyHint')}><span tabIndex={0}>{t('historical')} · {t('record')} {effective.atSeq}</span></Tooltip><Button size="sm" onClick={() => change({ ...defaultQuery, group: undefined })}>{t('currentReturn')}</Button></div>}
       {error && <div className="cmv-notice" role="alert"><span>{error}{safeData ? ` · ${t('retained')}` : ''}</span><Button size="sm" onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></div>}
-      {!safeData ? loading ? <Loading/> : <div className="cmv-empty">{t('noData')}</div> : <>
+      {!safeData ? loading ? <InspectorLoading t={t}/> : <div className="cmv-empty">{t('noData')}</div> : <>
         <div className="cmv-page">
           <ContextComposition key={target} data={safeData} policy={accepted.value?.policy} stale={requestStale} t={t} onGroup={showGroup}/>
           <StatCards data={safeData} policy={accepted.value?.policy} idle={idleStatus?.target === target ? idleStatus.value : null} t={t}/>
