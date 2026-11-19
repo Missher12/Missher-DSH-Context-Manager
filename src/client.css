@@ -11,6 +11,7 @@
 .dsh-context-settings .cm-detail { margin: 4px 0 18px; }
 .dsh-context-settings .cm-intro,
 .dsh-context-settings .cm-detail > summary,
+.dsh-context-settings .cm-detail-summary,
 .dsh-context-settings .cm-hint,
 .dsh-context-settings .cm-native-cost-note { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 
@@ -23,6 +24,14 @@
   list-style: none;
   cursor: pointer;
 }
+.dsh-context-settings .cm-detail-summary {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 20px;
+}
+.dsh-context-settings .cm-disclosure-placeholder { visibility: hidden; }
 .dsh-context-settings summary::-webkit-details-marker { display: none; }
 .dsh-context-settings .cm-disclosure-label { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .dsh-context-settings .cm-disclosure-label::after,
@@ -100,7 +109,7 @@
   width: 100%;
   min-width: 0;
   height: 100%;
-  padding: 0 var(--cm-unit-padding, 8px);
+  padding: 0 8px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -109,12 +118,10 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
-.dsh-context-settings .cm-native-unit,
 .dsh-context-settings .cm-native-select::after { position: absolute; inset-inline-end: 10px; top: 50%; pointer-events: none; color: var(--dsw-alias-label-secondary); }
-.dsh-context-settings .cm-native-unit { transform: translateY(-50%); font-size: 12px; white-space: nowrap; }
 .dsh-context-settings .cm-native-select::after { transform: translateY(-70%) rotate(45deg); }
 .dsh-context-settings .cm-native-select-trigger:disabled { cursor: default; opacity: .45; }
-.dsh-context-settings .cm-native-input-wrap--menu .cm-native-unit { inset-inline-end: 34px; }
+.dsh-context-settings .cm-native-input-wrap--menu .cm-native-input > input { padding-inline: 26px; }
 .dsh-context-settings .cm-native-input-wrap--menu .cm-native-input-menu-root { position: absolute; inset-inline-end: 0; top: 0; z-index: 1; width: 26px; height: 32px; }
 .dsh-context-settings .cm-native-input-menu { display: flex; align-items: center; justify-content: center; width: 26px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
 .dsh-context-settings .cm-native-input-menu > span { width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); }

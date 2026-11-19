@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ChangeEvent, type ComponentType, type CSSProperties, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ChangeEvent, type ComponentType, type ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, zh, type InspectorLocaleKey } from './inspector-locales.ts'
 import { settingsEn, settingsText, settingsZh, type SettingsLocaleKey, type SettingsText } from './settings-locales.ts'
@@ -148,9 +148,14 @@ export function ContextPage({ form, compatibility, t = settingsText() }: { form:
   const statusFailed = status === 'statusFailed' || status === 'statusSidecarFailed' || status === 'statusSidecarBlocked'
   return <section aria-label="上下文管理" className="dsh-context-settings">
     <style data-plugin={STYLE_OWNER} data-plugin-css={`${STYLE_OWNER}/settings`}>{css}</style><h2 className="cm-title">{t('title')}</h2>
-    {!host && <p className="cm-intro" role="status">{t(status)}</p>}
+    {!host && <div className="cm-detail cm-detail--loading">
+      <div className="cm-detail-summary" role="status">
+        <span className="cm-readiness">{t(status)}</span>
+        <span className="cm-disclosure-label cm-disclosure-placeholder" aria-hidden="true">{t('technicalDetails')}</span>
+      </div>
+    </div>}
     {host && <details className="cm-detail">
-      <summary>
+      <summary className="cm-detail-summary">
         <span className="cm-readiness" role={statusFailed ? 'alert' : 'status'}>{t(status)}</span>
         <span className="cm-disclosure-label">{t('technicalDetails')}</span>
       </summary>
@@ -246,7 +251,7 @@ function toPolicy(draft: Draft): Policy {
 
 type ContextValueFieldProps = {
   id: string; label: string; hint: string; text: string; disabled: boolean; invalid: boolean
-  overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; unit?: string; multiline?: boolean
+  overridden: boolean; overriddenLabel: string; resetLabel: string; invalidLabel: string; numeric?: boolean; multiline?: boolean
   choiceMenu?: ContextFieldMenu
   onEdit: (text: string) => void; onReset: () => void
 }
@@ -334,7 +339,7 @@ function AnchoredOptions({ options, selectedId, disabled, onSelect, renderAnchor
 function ContextHelp({ label, hint }: { label: string; hint: string }) {
   return <Tooltip label={hint} side="bottom"><span className="cm-native-help" tabIndex={0} role="note" aria-label={`${label}: ${hint}`}>?</span></Tooltip>
 }
-function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, unit, multiline, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
+function ContextValueField({ id, label, hint, text, disabled, invalid, overridden, overriddenLabel, resetLabel, invalidLabel, numeric, multiline, choiceMenu, onEdit, onReset }: ContextValueFieldProps) {
   const inputWrapRef = useRef<HTMLDivElement>(null)
   return <div className="cm-native-value">
     <div className="cm-native-copy">
@@ -345,9 +350,8 @@ function ContextValueField({ id, label, hint, text, disabled, invalid, overridde
     <div className="cm-native-value-control">
       {multiline
         ? <textarea id={id} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={event => onEdit(event.currentTarget.value)}/>
-        : <div ref={choiceMenu ? inputWrapRef : undefined} className={`cm-native-input-wrap${choiceMenu ? ' cm-native-input-wrap--menu' : ''}`} style={unit ? { '--cm-unit-padding': choiceMenu ? `calc(${unit.length + 3}ch + 26px)` : `${unit.length + 3}ch` } as CSSProperties : undefined}>
-          <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} aria-describedby={unit ? `${id}-unit` : undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>
-          {unit && <span id={`${id}-unit`} className="cm-native-unit">{unit}</span>}
+        : <div ref={choiceMenu ? inputWrapRef : undefined} className={`cm-native-input-wrap${choiceMenu ? ' cm-native-input-wrap--menu' : ''}`}>
+          <Input className="cm-native-input" id={id} type="text" inputMode={numeric ? 'decimal' : 'text'} value={text} disabled={disabled} aria-invalid={invalid || undefined} onChange={(event: ChangeEvent<HTMLInputElement>) => onEdit(event.currentTarget.value)}/>
           {choiceMenu && <AnchoredOptions options={choiceMenu.options} selectedId={choiceMenu.selectedId} disabled={disabled} onSelect={choiceMenu.onSelect} menuClass="cm-native-input-menu-root" measureRef={inputWrapRef}
             renderAnchor={(toggle, triggerRef, open) => <button type="button" className="cm-native-input-menu" aria-label={choiceMenu.triggerLabel} aria-haspopup="menu" aria-expanded={open} disabled={disabled} ref={triggerRef} onClick={toggle}><span aria-hidden="true"/></button>}/>}
         </div>}
@@ -448,6 +452,7 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
     const presetMap = new Map(presetEntries.map(option => [option.value, option]))
     if (!presetMap.has(value)) presetMap.set(value, { value, label: `${t('currentValue')} · ${display(value)}` })
     const options: ContextSelectOption[] = [...presetMap.values(), { value: '@custom', label: `${t('customValue')}…` }]
+    const inputLabel = unit ? `${label} (${unit})` : label
     const onChoice = (choice: string) => {
       if (choice === '@custom') {
         setCustomNumericKeys(current => new Set(current).add(key))
@@ -456,9 +461,9 @@ export function ContextSettings({ form, t = settingsText() }: { form: ConfigForm
       setCustomNumericKeys(current => { const next = new Set(current); next.delete(key); return next })
       if (choice !== value) edit({ [key]: choice })
     }
-    if (customNumericKeys.has(key)) return <ContextValueField key={key} id={id} label={label} hint={hint} numeric unit={unit} text={value}
+    if (customNumericKeys.has(key)) return <ContextValueField key={key} id={id} label={inputLabel} hint={hint} numeric text={value}
       disabled={disabled || blocked} invalid={!Number.isFinite(policy[key])} overridden={false} overriddenLabel={t('customValue')} resetLabel={t('resetValue')} invalidLabel={t('invalidNumber')}
-      choiceMenu={{ options, selectedId: '@custom', onSelect: onChoice, triggerLabel: `${label} · ${t('openOptions')}` }}
+      choiceMenu={{ options, selectedId: '@custom', onSelect: onChoice, triggerLabel: `${inputLabel} · ${t('openOptions')}` }}
       onEdit={text => edit({ [key]: text })} onReset={() => {}}/>
     return <ContextDropdownField key={key} id={id} label={label} hint={hint} displayValue={display(value)} options={options}
       selectedId={value} disabled={disabled || blocked} onSelect={onChoice}/>

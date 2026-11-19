@@ -52,6 +52,43 @@ function emptySessionUsage(sessionId) {
   return { sessionId, sampledAt: 0, status: 'ready', hasRecords: false, settledAttempts: 0, retries: 0,
     requestTokens: 0, requestTokensPartial: false, summary: null, peak: null, offpeak: null, total: null, partial: false, issues: [] }
 }
+test('settings status keeps one shared summary row while host capability loads', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  let resolveCompatibility
+  const compatibility = () => new Promise(resolve => { resolveCompatibility = resolve })
+  const host = { state: 'supported', reasonCode: 'supported', hostRuntime: { state: 'available', version: '0.2.2-rc.4' },
+    integration: { state: 'registered' }, requestPath: { path: 'request-gate-sidecar', state: 'ready', reasonCode: 'sidecar-ready' } }
+  const snapshot = { status: 'ready', writable: true, revision: 1, value: { policy: { ...defaults } } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: async () => true }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextPage, { form, compatibility })))
+    assert.equal(typeof resolveCompatibility, 'function')
+    assert.ok(document.querySelector('.cm-detail--loading .cm-detail-summary'), 'loading has the same summary-row structure as the ready state')
+    await act(async () => { resolveCompatibility(host); await new Promise(resolve => setTimeout(resolve, 0)) })
+    assert.ok(document.querySelector('details.cm-detail > summary.cm-detail-summary'), 'ready uses that same summary-row structure')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
+test('custom numeric units stay in the accessible setting name and leave centered input space', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' })
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const snapshot = { status: 'ready', writable: true, mode: 'host', revision: 1, value: { policy: { ...defaults } } }
+  const form = { subscribe: () => () => {}, getSnapshot: () => snapshot, mutate: async () => true }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(client.ContextSettings, { form })))
+    await act(async () => document.querySelector('.cm-native-advanced summary').click())
+    await clickMenuOption(document.querySelector('#context-manager-toolResultsMaxChars'), '自定义')
+    const input = document.querySelector('#context-manager-toolResultsMaxChars')
+    assert.equal(input?.tagName, 'INPUT', 'custom value remains directly editable')
+    assert.match(input.closest('.cm-native-value').querySelector('.cm-label').textContent, /字符/, 'full unit remains visible in the setting name')
+    assert.equal(input.closest('.cm-native-value').querySelector('.cm-native-input-wrap').style.getPropertyValue('--cm-unit-padding'), '',
+      'unit text does not consume symmetric space inside the input')
+  } finally { await act(async () => root.unmount()); dom.window.close(); delete globalThis.window; delete globalThis.document }
+})
+
 // Render the host's actual published RC.1 control implementations. Theme
 // acceptance runs separately in the isolated browser preview.
 const primitivesBuild = buildSync({
